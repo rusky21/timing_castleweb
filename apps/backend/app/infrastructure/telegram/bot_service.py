@@ -1,0 +1,177 @@
+import asyncio
+import logging
+import html
+from typing import Optional, Dict, Any
+import httpx
+from app.core.config import get_settings
+from app.infrastructure.db.models import Lead
+from app.domain.entities import LeadStatus
+
+settings = get_settings()
+logger = logging.getLogger(__name__)
+
+
+def build_telegram_api_url(method: str) -> str:
+    """
+    Формирует URL к методу Telegram Bot API.
+    Поддерживает как прямой доступ к api.telegram.org, так и Cloudflare Worker прокси.
+    """
+    base_url = settings.TELEGRAM_API_BASE_URL.rstrip("/")
+    # If base_url already contains /bot, attach token
+    if base_url.endswith("/bot"):
+        return f"{base_url}{settings.TELEGRAM_BOT_TOKEN}/{method}"
+    return f"{base_url}/bot{settings.TELEGRAM_BOT_TOKEN}/{method}"
+
+
+def format_lead_html(lead: Lead) -> str:
+    """
+    Формирует интерактивную HTML-карточку заявки для закрытого чата инженеров.
+    """
+    status_emoji = {
+        LeadStatus.PENDING: "🟡 Ожидает ответа",
+        LeadStatus.DELIVERED: "🟡 В очереди",
+        LeadStatus.IN_PROGRESS: f"⚡ В работе ({lead.handled_by or 'инженер'})",
+        LeadStatus.CONTACTED: f"✅ Связались ({lead.handled_by or 'инженер'})",
+        LeadStatus.SPAM: "🚫 Отклонен (СПАМ)",
+        LeadStatus.ARCHIVED: "📁 В архиве"
+    }.get(lead.status, str(lead.status.value))
+
+    name_clean = html.escape(lead.name)
+    contact_clean = html.escape(lead.contact)
+    desc_clean = html.escape(lead.task_description)
+    budget_clean = html.escape(lead.budget) if lead.budget else "Не указан"
+    attachment_text = f'\n📎 <b>ТЗ / Вложение:</b> <a href="{html.escape(lead.attachment_url)}">Открыть файл</a>' if lead.attachment_url else ""
+
+    # GeoIP block
+    geo_parts = []
+    if lead.geo_city:
+        geo_parts.append(lead.geo_city)
+    if lead.geo_country:
+        geo_parts.append(lead.geo_country)
+    if lead.geo_isp:
+        geo_parts.append(f"({lead.geo_isp})")
+    geo_str = ", ".join(geo_parts) if geo_parts else "Локальная сеть / VPN"
+
+    text = (
+        f"🔥 <b>НОВАЯ ЗАЯВКА #{lead.id}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 <b>Клиент:</b> {name_clean}\n"
+        f"💬 <b>Контакт:</b> <code>{contact_clean}</code>\n"
+        f"💰 <b>Бюджет:</b> {budget_clean}\n"
+        f"📌 <b>Статус:</b> {status_emoji}\n"
+        f"{attachment_text}\n"
+        f"📝 <b>Суть задачи:</b>\n"
+        f"<blockquote>{desc_clean}</blockquote>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"📍 <b>Инфо о клиенте:</b> {html.escape(geo_str)}\n"
+        f"🌐 <b>IP:</b> <code>{html.escape(lead.ip_address or 'unknown')}</code>"
+    )
+    return text
+
+
+def build_lead_keyboard(lead: Lead) -> Dict[str, Any]:
+    """
+    Создает инлайн-кнопки для карточки заявки в Telegram.
+    """
+    buttons = []
+
+    # Кнопка связи с клиентом
+    contact = lead.contact.strip()
+    if contact.startswith("@"):
+        tg_username = contact.lstrip("@")
+        direct_url = f"https://t.me/{tg_username}"
+        buttons.append([{"text": f"💬 Написать @{tg_username}", "url": direct_url}])
+    elif contact.startswith("http://") or contact.startswith("https://"):
+        buttons.append([{"text": "💬 Открыть контакт", "url": contact}])
+    elif "@" in contact:
+        buttons.append([{"text": f"✉️ Написать на {contact}", "url": f"mailto:{contact}"}])
+
+    # Кнопки смены статуса (Headless CRM)
+    if lead.status in (LeadStatus.PENDING, LeadStatus.DELIVERED):
+        buttons.append([
+            {"text": "⚡ Взять в работу", "callback_data": f"lead_take:{lead.id}"},
+            {"text": "🚫 В бан / Спам", "callback_data": f"lead_spam:{lead.id}"}
+        ])
+    elif lead.status == LeadStatus.IN_PROGRESS:
+        buttons.append([
+            {"text": f"⚡ В работе: {lead.handled_by or 'Инженер'}", "callback_data": "noop"},
+            {"text": "✅ Связался", "callback_data": f"lead_contacted:{lead.id}"}
+        ])
+    elif lead.status == LeadStatus.CONTACTED:
+        buttons.append([
+            {"text": f"✅ Связался: {lead.handled_by or 'Инженер'}", "callback_data": "noop"}
+        ])
+    elif lead.status == LeadStatus.SPAM:
+        buttons.append([
+            {"text": "🚫 Отправлен в БАН", "callback_data": "noop"}
+        ])
+
+    return {"inline_keyboard": buttons}
+
+
+class TelegramBotService:
+    @staticmethod
+    async def send_lead_notification(lead: Lead) -> Optional[int]:
+        """
+        Отправляет заявку в Telegram-чат инженеров с ретраями при сетевых сбоях.
+        Возвращает telegram message_id для последующего редактирования кнопок.
+        """
+        if not settings.TELEGRAM_BOT_TOKEN or settings.TELEGRAM_BOT_TOKEN in ("your_bot_token_here", ""):
+            logger.info(f"ℹ️ Telegram Bot Token not configured (placeholder). Skipping sending Lead #{lead.id}.")
+            return None
+
+        url = build_telegram_api_url("sendMessage")
+        payload = {
+            "chat_id": settings.TELEGRAM_CHAT_ID,
+            "text": format_lead_html(lead),
+            "parse_mode": "HTML",
+            "reply_markup": build_lead_keyboard(lead),
+            "disable_web_page_preview": True
+        }
+
+        # 3 attempts with exponential backoff
+        for attempt in range(1, 4):
+            try:
+                async with httpx.AsyncClient(timeout=6.0) as client:
+                    resp = await client.post(url, json=payload)
+                    data = resp.json()
+                    if data.get("ok"):
+                        message_id = data["result"]["message_id"]
+                        logger.info(f"📢 Telegram message sent for Lead #{lead.id}, message_id: {message_id}")
+                        return message_id
+                    else:
+                        logger.warning(f"Telegram API returned error: {data.get('description')} (Attempt {attempt})")
+            except Exception as e:
+                logger.warning(f"Network error sending to Telegram (Attempt {attempt}/3): {e}")
+
+            await asyncio.sleep(attempt * 1.5)
+
+        logger.error(f"❌ Failed to deliver Lead #{lead.id} to Telegram after 3 attempts.")
+        return None
+
+    @staticmethod
+    async def update_message(chat_id: int | str, message_id: int, lead: Lead) -> bool:
+        """
+        Редактирует сообщение в Telegram (обновляет статус и кнопки).
+        """
+        if not settings.TELEGRAM_BOT_TOKEN or settings.TELEGRAM_BOT_TOKEN in ("your_bot_token_here", ""):
+            return True
+
+        url = build_telegram_api_url("editMessageText")
+        payload = {
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "text": format_lead_html(lead),
+            "parse_mode": "HTML",
+            "reply_markup": build_lead_keyboard(lead),
+            "disable_web_page_preview": True
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.post(url, json=payload)
+                data = resp.json()
+                return bool(data.get("ok"))
+        except Exception as e:
+            logger.warning(f"Failed to edit Telegram message #{message_id}: {e}")
+            return False

@@ -1,0 +1,87 @@
+[
+  {
+    "slug": "lead-hunter-saas",
+    "title": "LeadHunter — SaaS агрегатор и аналитика B2B лидов в реальном времени",
+    "client_name": "LeadHunter Global",
+    "year": 2025,
+    "category": "saas",
+    "short_description": "Высоконагруженный сервис сбора, дедупликации и распределения заказов с бирж и картографических сервисов с мгновенными пушами в Telegram.",
+    "problem": "Клиент терял до 70% горячих заявок из-за медленного ручного мониторинга платформ. Существующие парсеры банились по IP и не справлялись с реалтайм потоком данных.",
+    "solution_fe": "SPA-интерфейс на React 19 с оптимистичными апдейтами, виртуализированными таблицами на 10 000+ строк без лагов и визуализацией аналитики.",
+    "solution_be": "Асинхронный микросервис на FastAPI и Python, пул сессий с ротацией прокси, парсер на BeautifulSoup/Playwright, очередь задач Redis и PostgreSQL с партиционированием таблиц.",
+    "results_summary": "Сократили время реакции на новый лид с 15 минут до 800 миллисекунд. Сервер выдерживает 250 000 обработанных событий в сутки.",
+    "metrics": {
+      "reaction_time": "800ms",
+      "daily_events": "250K+",
+      "conversion_growth": "+42%",
+      "uptime": "99.98%"
+    },
+    "live_url": "https://leadhunter.io",
+    "cover_image": "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80",
+    "gallery_images": [
+      "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80",
+      "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80"
+    ],
+    "client_review": "Парни из CASTLEWEB спроектировали архитектуру, которая выдерживает любые скачки трафика. Работаем напрямую без лишней бюрократии.",
+    "client_author": "Алексей Смирнов, CTO LeadHunter",
+    "sort_order": 1,
+    "is_featured": true,
+    "tags": ["FastAPI", "Python", "React", "PostgreSQL", "Redis", "Docker"]
+  },
+  {
+    "slug": "fintech-payment-gateway",
+    "title": "AuraPay — Мульти-эквайринг и расчетный шлюз для E-commerce",
+    "client_name": "Aura Commerce",
+    "year": 2025,
+    "category": "api",
+    "short_description": "Платежный шлюз с каскадным роутингом транзакций, поддержкой фиата и крипто-платежей, и строгим соответствием PCI-DSS стандарту.",
+    "problem": "Частые сбои банковских шлюзов приводили к отвалу до 18% покупателей на этапе чекаута. Требовалась умная система автоматического переключения эквайеров.",
+    "solution_fe": "Встраиваемый легковесный iFrame-виджет чекаута (< 35 КБ) с поддержкой Apple/Google Pay, СБП и валидацией карт на клиенте.",
+    "solution_be": "Распределенная архитектура: idempotency keys для защиты от двойных списаний, двухфазные транзакции, HMAC-подписи вебхуков и отказоустойчивый кластер PostgreSQL + Redis Sentinel.",
+    "results_summary": "Успешность прохождения транзакций (pass rate) поднялась с 82% до 98.4%. Время отклика чекаута снизилось до 120ms.",
+    "metrics": {
+      "pass_rate": "98.4%",
+      "latency": "120ms",
+      "monthly_volume": "45M ₽",
+      "chargebacks": "0.01%"
+    },
+    "live_url": "https://aurapay.tech",
+    "cover_image": "https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&w=1200&q=80",
+    "gallery_images": [
+      "https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&w=1200&q=80"
+    ],
+    "client_review": "Лучшая реализация платежного шлюза, с которой я сталкивался. Сложнейший бэкенд сдали за 4 спринта без единой критической уязвимости.",
+    "client_author": "Дмитрий В., Head of Payments",
+    "sort_order": 2,
+    "is_featured": true,
+    "tags": ["FastAPI", "PostgreSQL", "Redis", "Security", "Docker", "Nginx"]
+  },
+  {
+    "slug": "nordic-furniture-ecommerce",
+    "title": "Vanguard Living — Премиальный интернет-магазин с 3D-конфигуратором",
+    "client_name": "Vanguard Studio",
+    "year": 2024,
+    "category": "ecommerce",
+    "short_description": "E-commerce платформа с интерактивным конфигурированием материалов в реальном времени и синхронизацией остатков с 1С и МойСклад.",
+    "problem": "Старый сайт на конструкторе не справлялся с 5 000 SKU и зависал при одновременном открытии 3D-моделей на мобильных телефонах.",
+    "solution_fe": "SSR на Next.js с гидратацией Three.js компонентов только при попадании во вьюпорт, мгновенный поиск с автодополнением.",
+    "solution_be": "Каталог на PostgreSQL с полнотекстовым поиском, фоновая синхронизация с 1C через очереди сообщений, кэширование каталога в Redis.",
+    "results_summary": "Оценка в Google Lighthouse выросла с 41 до 97 баллов. Конверсия из каталога в корзину выросла на 68%.",
+    "metrics": {
+      "lighthouse_score": "97/100",
+      "conversion_boost": "+68%",
+      "sync_speed": "1.2s",
+      "catalog_sku": "12 000"
+    },
+    "live_url": "https://vanguardliving.com",
+    "cover_image": "https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=80",
+    "gallery_images": [
+      "https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=80"
+    ],
+    "client_review": "Скорость загрузки космическая. Ребята из CASTLEWEB знают толк и в визуале, и в тяжелом серверном бэкенде.",
+    "client_author": "Елена Романова, Основатель Vanguard",
+    "sort_order": 3,
+    "is_featured": true,
+    "tags": ["Next.js", "React", "Python", "PostgreSQL", "Redis", "Three.js"]
+  }
+]

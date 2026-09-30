@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CASTLEWEB — Студия заказной веб-разработки</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #09090b;
+            --surface: #121217;
+            --border: rgba(255, 255, 255, 0.08);
+            --text-main: #f4f4f5;
+            --text-muted: #71717a;
+            --accent: #6366f1;
+            --accent-glow: rgba(99, 102, 241, 0.25);
+            --green: #10b981;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: var(--bg);
+            color: var(--text-main);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            overflow-x: hidden;
+            position: relative;
+        }
+        .bg-glow {
+            position: absolute;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            filter: blur(80px);
+        }
+        .card {
+            position: relative;
+            background: rgba(18, 18, 23, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 48px;
+            max-width: 640px;
+            width: 100%;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+            text-align: center;
+        }
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            border-radius: 9999px;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.25);
+            color: var(--green);
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 24px;
+        }
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--green);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--green);
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.85); }
+        }
+        h1 {
+            font-size: 40px;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            margin-bottom: 16px;
+            line-height: 1.1;
+        }
+        p {
+            color: var(--text-muted);
+            font-size: 16px;
+            line-height: 1.6;
+            margin-bottom: 32px;
+        }
+        .links {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        a.btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            border-radius: 12px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+        a.btn-primary {
+            background: #ffffff;
+            color: #000000;
+        }
+        a.btn-primary:hover {
+            background: #e4e4e7;
+            transform: translateY(-2px);
+        }
+        a.btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+            border: 1px solid var(--border);
+        }
+        a.btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-2px);
+        }
+        .code-box {
+            margin-top: 32px;
+            padding: 14px 18px;
+            background: #000000;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            color: #a1a1aa;
+            text-align: left;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-glow"></div>
+    <div class="card">
+        <div class="pill">
+            <span class="pulse-dot"></span>
+            Бэкенд & Инфраструктура активны
+        </div>
+        <h1>CASTLEWEB</h1>
+        <p>Высоконагруженный бэкенд, интерактивная Headless CRM в Telegram и защищенный API успешно запущены.</p>
+        
+        <div class="links">
+            <a href="/docs" class="btn btn-primary" target="_blank">Swagger API Документы ↗</a>
+            <a href="/api/v1/status" class="btn btn-secondary" target="_blank">Live Статус Сервисов ↗</a>
+        </div>
+
+        <div class="code-box">
+            <span>GET /api/v1/health</span>
+            <span style="color: #10b981;">200 OK</span>
+        </div>
+    </div>
+</body>
+</html>

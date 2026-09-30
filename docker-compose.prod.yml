@@ -1,0 +1,101 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: castleweb_prod_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-castleweb_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-castleweb_secret_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-castleweb_db}
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-castleweb_user} -d ${POSTGRES_DB:-castleweb_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - castleweb_internal
+
+  redis:
+    image: redis:7-alpine
+    container_name: castleweb_prod_redis
+    restart: always
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - redis_prod_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - castleweb_internal
+
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    container_name: castleweb_prod_backend
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - ./apps/backend/.env
+    environment:
+      - APP_ENV=production
+      - DEBUG=False
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-castleweb_user}:${POSTGRES_PASSWORD:-castleweb_secret_pass}@postgres:5432/${POSTGRES_DB:-castleweb_db}
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./apps/backend/data:/app/data
+      - uploads_prod_data:/app/uploads
+    networks:
+      - castleweb_internal
+    expose:
+      - "8000"
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  nginx:
+    image: nginx:alpine
+    container_name: castleweb_prod_nginx
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./apps/frontend/dist:/var/www/castleweb/frontend:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
+      - uploads_prod_data:/app/uploads:ro
+    networks:
+      - castleweb_internal
+
+  certbot:
+    image: certbot/certbot:latest
+    container_name: castleweb_certbot
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt
+      - /var/www/certbot:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    networks:
+      - castleweb_internal
+
+volumes:
+  postgres_prod_data:
+  redis_prod_data:
+  uploads_prod_data:
+
+networks:
+  castleweb_internal:
+    driver: bridge

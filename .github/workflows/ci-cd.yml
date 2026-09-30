@@ -1,0 +1,64 @@
+name: 🏰 CASTLEWEB Backend CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: 🧪 Run Linters & Pytest
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: 📦 Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r apps/backend/requirements.txt
+
+      - name: 🧪 Run Pytest Suite
+        env:
+          APP_ENV: testing
+          DATABASE_URL: sqlite+aiosqlite:///./test_castleweb.db
+          REDIS_URL: redis://localhost:6379/0
+          TELEGRAM_BOT_TOKEN: ""
+          CLOUDFLARE_TURNSTILE_ENABLED: "False"
+        run: |
+          cd apps/backend
+          pytest -v
+
+  deploy:
+    name: 🚀 Production Auto-Deploy
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🔑 Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        if: env.HAS_SSH_SECRETS == 'true'
+        env:
+          HAS_SSH_SECRETS: ${{ secrets.PROD_HOST != '' }}
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.PROD_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          port: ${{ secrets.PROD_PORT || 22 }}
+          script: |
+            cd ~/castleweb
+            git pull origin main
+            docker compose -f docker-compose.prod.yml up -d --build
+            docker image prune -f

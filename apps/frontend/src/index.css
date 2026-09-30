@@ -1,0 +1,269 @@
+/* ==============================================================================
+   🏰 CASTLEWEB — Obsidian Dark Luxury Design System
+   Aesthetic: Pure Pitch Black / Liquid Chrome / White Pill Accents / Salesrocket
+   ============================================================================== */
+
+:root {
+  /* Surfaces */
+  --bg-darkest: #000000;
+  --bg-primary: #050608;
+  --bg-secondary: #090b10;
+  --bg-card: #0d0f15;
+  --bg-card-hover: #12151e;
+  --bg-input: #08090d;
+  
+  /* Text */
+  --text-primary: #ffffff;
+  --text-secondary: #8e95a5;
+  --text-muted: #585e6e;
+  --text-highlight: #ffffff;
+
+  /* Accents */
+  --accent-white: #ffffff;
+  --accent-cyan: #06b6d4;
+  --accent-emerald: #10b981;
+  --accent-indigo: #6366f1;
+
+  /* Borders */
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-medium: rgba(255, 255, 255, 0.14);
+  --border-glow: rgba(255, 255, 255, 0.22);
+
+  /* Shadows */
+  --shadow-card: 0 20px 40px -10px rgba(0, 0, 0, 0.8);
+
+  /* Typography */
+  --font-display: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Transitions */
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  color-scheme: dark;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--bg-darkest);
+  color: var(--text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+  position: relative;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Atmospheric subtle top spotlight like in reference */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-image: 
+    radial-gradient(ellipse 90% 45% at 50% -10%, rgba(255, 255, 255, 0.07) 0%, transparent 65%),
+    radial-gradient(circle at 80% 30%, rgba(99, 102, 241, 0.03) 0%, transparent 50%),
+    radial-gradient(circle at 15% 70%, rgba(6, 182, 212, 0.02) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--text-highlight);
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+}
+
+p {
+  color: var(--text-secondary);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: inherit;
+}
+
+.container {
+  width: 100%;
+  max-width: 1220px;
+  margin: 0 auto;
+  padding: 0 24px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Capsule Pill Badge */
+.badge-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.badge-capsule .badge-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  font-size: 0.7rem;
+}
+
+.badge-capsule-emerald {
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #34d399;
+}
+.badge-capsule-emerald .badge-icon {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+}
+
+/* Buttons — Solid pure white pill (Primary) & Translucent dark (Secondary) */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 26px;
+  background: #ffffff;
+  color: #000000;
+  border-radius: 9999px;
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  font-weight: 600;
+  transition: all var(--transition-fast);
+  box-shadow: 0 4px 20px rgba(255, 255, 255, 0.15);
+}
+
+.btn-primary:hover {
+  background: #f1f3f6;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(255, 255, 255, 0.3);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 24px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #ffffff;
+  border: 1px solid var(--border-medium);
+  border-radius: 9999px;
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  font-weight: 500;
+  transition: all var(--transition-fast);
+  backdrop-filter: blur(10px);
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+}
+
+/* Dark Minimalist Card */
+.dark-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  padding: 32px;
+  transition: all var(--transition-normal);
+  position: relative;
+  overflow: hidden;
+}
+
+.dark-card:hover {
+  border-color: var(--border-glow);
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-card);
+  background: var(--bg-card-hover);
+}
+
+/* Squircle Icon Container */
+.squircle-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  margin-bottom: 20px;
+}
+
+/* Pulse Beacon */
+.pulse-beacon {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-emerald);
+  box-shadow: 0 0 10px var(--accent-emerald);
+  display: inline-block;
+  animation: pulseBeacon 2s infinite;
+}
+
+@keyframes pulseBeacon {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 7px rgba(16, 185, 129, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-darkest);
+}
+::-webkit-scrollbar-thumb {
+  background: #1c212c;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2b3242;
+}
