@@ -1,4 +1,5 @@
 import logging
+import html
 import httpx
 from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,18 +33,30 @@ async def answer_callback_query(callback_id: str, text: str):
         logger.warning(f"Failed to answer callback query {callback_id}: {e}")
 
 
-async def send_reply_message(chat_id: int | str, text: str):
+async def send_reply_message(chat_id: int | str, text: str, reply_markup: dict | None = None):
     """
-    Отправляет текстовое сообщение в чат Telegram.
+    Отправляет текстовое сообщение в чат Telegram с поддержкой кнопок.
     """
     if not settings.TELEGRAM_BOT_TOKEN or settings.TELEGRAM_BOT_TOKEN in ("your_bot_token_here", ""):
         return
     url = build_telegram_api_url("sendMessage")
+    payload = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True
+    }
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
     try:
-        async with httpx.AsyncClient(timeout=4.0) as client:
-            await client.post(url, json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"})
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.post(url, json=payload)
+            data = resp.json()
+            if not data.get("ok"):
+                logger.warning(f"Failed to send reply to chat {chat_id}: {data.get('description')}")
     except Exception as e:
         logger.warning(f"Failed to send reply to chat {chat_id}: {e}")
+
 
 
 @router.post("/test", summary="Send Test Notification to Telegram")
@@ -159,12 +172,24 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
 
         return {"ok": True}
 
-    # 2. Обработка команд (/stats, /leads)
-    if "message" in update and "text" in update["message"]:
+    # 2. Обработка входящих сообщений (Команды и Умный автоответчик)
+    if "message" in update:
         msg = update["message"]
-        chat_id = msg.get("chat", {}).get("id")
-        text = msg.get("text", "").strip()
+        chat = msg.get("chat", {})
+        chat_id = chat.get("id")
+        chat_type = chat.get("type", "private")  # "private", "group", "supergroup"
+        user = msg.get("from", {})
+        from_id = user.get("id")
+        username = user.get("username")
+        first_name = user.get("first_name", "Клиент")
+        last_name = user.get("last_name", "")
+        full_name = f"{first_name} {last_name}".strip()
+        user_display = f"{full_name} (@{username})" if username else full_name
 
+        text = msg.get("text", "") or msg.get("caption", "")
+        text = text.strip()
+
+        # А. Команды для инженеров (/stats, /leads, /help)
         if text.startswith("/stats"):
             total_leads = (await db.execute(select(func.count(Lead.id)))).scalar() or 0
             pending = (await db.execute(select(func.count(Lead.id)).where(Lead.status.in_([LeadStatus.PENDING, LeadStatus.DELIVERED])))).scalar() or 0
@@ -183,6 +208,7 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 f"━━━━━━━━━━━━━━━━━━━━"
             )
             await send_reply_message(chat_id, stats_msg)
+            return {"ok": True}
 
         elif text.startswith("/leads"):
             recent_leads = (await db.execute(select(Lead).order_by(Lead.id.desc()).limit(5))).scalars().all()
@@ -193,5 +219,138 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 for l in recent_leads:
                     lines.append(f"#{l.id} | {l.name} ({l.contact}) — <i>{l.status.value}</i>")
                 await send_reply_message(chat_id, "\n".join(lines))
+            return {"ok": True}
+
+        elif text.startswith("/help"):
+            help_msg = (
+                f"🛠 <b>КОМАНДЫ CASTLEWEB BOT</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"• <code>/stats</code> — Сводка по всем заявкам\n"
+                f"• <code>/leads</code> — Список последних 5 заявок\n"
+                f"• <code>/help</code> — Справка"
+            )
+            await send_reply_message(chat_id, help_msg)
+            return {"ok": True}
+
+        # Б. ЛИЧНЫЕ СООБЩЕНИЯ ОТ КЛИЕНТА (chat_type == "private")
+        if chat_type == "private":
+            # 1. Приветствие на /start
+            if text.startswith("/start"):
+                parts = text.split(maxsplit=1)
+                start_payload = parts[1] if len(parts) > 1 else ""
+
+                # Если клиент пришел по ссылке с сайта: /start lead_123
+                if start_payload.startswith("lead_") or start_payload.isdigit():
+                    lead_id_str = start_payload.replace("lead_", "")
+                    try:
+                        lead_id = int(lead_id_str)
+                        res = await db.execute(select(Lead).where(Lead.id == lead_id))
+                        lead = res.scalar_one_or_none()
+                        if lead:
+                            welcome_lead = (
+                                f"👋 <b>Здравствуйте, {html.escape(lead.name)}!</b>\n\n"
+                                f"🏰 Ваша заявка <b>#{lead.id}</b> уже принята дежурным инженером CASTLEWEB!\n\n"
+                                f"Вы можете отправить прямо сюда любые дополнительные файлы, схемы, "
+                                f"ссылки на макеты в Figma или вопросы. Мы сразу их увидим и ответим вам здесь в течение <b>15 минут</b>."
+                            )
+                            buttons = {
+                                "inline_keyboard": [
+                                    [{"text": "🌐 Открыть сайт castleweb.ru", "url": "https://castleweb.ru"}]
+                                ]
+                            }
+                            await send_reply_message(chat_id, welcome_lead, reply_markup=buttons)
+
+                            # Уведомляем группу инженеров
+                            if settings.TELEGRAM_CHAT_ID:
+                                client_handle = f"@{username}" if username else f"ID: <code>{from_id}</code>"
+                                notify_eng = (
+                                    f"🔔 <b>Клиент по заявке #{lead.id} подключился к боту в Telegram!</b>\n"
+                                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                                    f"👤 <b>Клиент:</b> {html.escape(lead.name)}\n"
+                                    f"💬 <b>Контакт:</b> {client_handle}"
+                                )
+                                direct_btn = [{"text": "💬 Написать клиенту", "url": f"https://t.me/{username}"}] if username else []
+                                reply_markup = {"inline_keyboard": [direct_btn]} if direct_btn else None
+                                await send_reply_message(settings.TELEGRAM_CHAT_ID, notify_eng, reply_markup=reply_markup)
+                            return {"ok": True}
+                    except ValueError:
+                        pass
+
+                # Общее приветствие нового пользователя
+                general_welcome = (
+                    f"👋 <b>Здравствуйте, {html.escape(first_name)}!</b>\n\n"
+                    f"Добро пожаловать в <b>CASTLEWEB Studio</b> 🏰\n\n"
+                    f"Мы проектируем и разрабатываем надежные веб-сервисы, высоконагруженные SaaS-платформы "
+                    f"и интерактивные сайты «под ключ» напрямую с сеньор-инженерами — без лишних менеджеров.\n\n"
+                    f"💬 <b>Как мы можем вам помочь?</b>\n"
+                    f"Опишите вашу задачу прямо в этом диалоге или оставьте заявку на нашем сайте. "
+                    f"Дежурный инженер ответит вам в течение <b>15 минут</b>."
+                )
+                welcome_buttons = {
+                    "inline_keyboard": [
+                        [{"text": "🌐 Открыть сайт castleweb.ru", "url": "https://castleweb.ru"}],
+                        [{"text": "📊 Калькулятор стоимости", "url": "https://castleweb.ru/#calculator"}]
+                    ]
+                }
+                await send_reply_message(chat_id, general_welcome, reply_markup=welcome_buttons)
+                return {"ok": True}
+
+            # 2. Любое сообщение / вопрос / ТЗ от клиента в ЛС
+            has_media = bool(msg.get("document") or msg.get("photo") or msg.get("voice"))
+            user_msg_text = text if text else ("📎 [Вложенный файл / документ / медиа]" if has_media else "👋 [Обращение]")
+
+            # 2.1. Автоответ клиенту
+            client_reply = (
+                f"✅ <b>Спасибо за обращение!</b>\n\n"
+                f"🏰 Дежурный инженер CASTLEWEB уже получил ваше сообщение и ответит вам прямо в этом чате в течение <b>15 минут</b>.\n\n"
+                f"Если у вас есть дополнительные материалы (ТЗ, макеты, ссылки) — можете отправить их сюда следующим сообщением."
+            )
+            await send_reply_message(chat_id, client_reply)
+
+            # 2.2. Мгновенная пересылка в закрытый чат инженеров
+            if settings.TELEGRAM_CHAT_ID:
+                direct_url = f"https://t.me/{username}" if username else f"tg://user?id={from_id}"
+                reply_btn_text = f"💬 Ответить @{username}" if username else "💬 Открыть диалог с клиентом"
+                media_note = "\n📎 <i>Клиент также прикрепил файл/медиа</i>" if has_media else ""
+
+                eng_alert = (
+                    f"📩 <b>НОВОЕ СООБЩЕНИЕ В ЛИЧКУ БОТА</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"👤 <b>Клиент:</b> {html.escape(user_display)}\n"
+                    f"💬 <b>Username:</b> {f'@{username}' if username else 'Не задан'}\n"
+                    f"🆔 <b>Telegram ID:</b> <code>{from_id}</code>\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"📝 <b>Сообщение:</b>\n"
+                    f"<blockquote>{html.escape(user_msg_text)}</blockquote>"
+                    f"{media_note}"
+                )
+                eng_buttons = {
+                    "inline_keyboard": [
+                        [{"text": reply_btn_text, "url": direct_url}]
+                    ]
+                }
+                await send_reply_message(settings.TELEGRAM_CHAT_ID, eng_alert, reply_markup=eng_buttons)
+
+            return {"ok": True}
 
     return {"ok": True}
+
+
+@router.get("/bot-info", summary="Get Telegram Bot Public Info")
+async def get_bot_info():
+    """
+    Возвращает юзернейм и статус бота для фронтенда.
+    """
+    if not settings.TELEGRAM_BOT_TOKEN or settings.TELEGRAM_BOT_TOKEN == "your_bot_token_here":
+        return {"ok": False, "username": None}
+    url = build_telegram_api_url("getMe")
+    try:
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            resp = await client.get(url)
+            data = resp.json()
+            if data.get("ok"):
+                return {"ok": True, "username": data["result"].get("username")}
+    except Exception:
+        pass
+    return {"ok": False, "username": None}
+
