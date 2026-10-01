@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     APP_PORT: int = 8000
     DEBUG: bool = True
     ENABLE_DOCS: bool = True
+    DOMAIN_NAME: str = "castleweb.ru"
+    ADMIN_EMAIL: str = "admin@castleweb.ru"
 
     # Security
     SECRET_KEY: str = "super-secret-castleweb-key-change-in-production"

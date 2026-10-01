@@ -28,7 +28,8 @@ async def lifespan(app: FastAPI):
             try:
                 import httpx
                 from app.infrastructure.telegram.bot_service import build_telegram_api_url
-                webhook_url = f"https://{settings.DOMAIN_NAME}/api/v1/telegram/webhook"
+                domain = getattr(settings, "DOMAIN_NAME", None) or "castleweb.ru"
+                webhook_url = f"https://{domain}/api/v1/telegram/webhook"
                 url = build_telegram_api_url("setWebhook")
                 async with httpx.AsyncClient(timeout=10.0) as client:
                     resp = await client.post(url, json={

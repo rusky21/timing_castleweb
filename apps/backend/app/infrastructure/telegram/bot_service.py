@@ -44,7 +44,8 @@ def format_lead_html(lead: Lead) -> str:
     if lead.attachment_url:
         att_url = lead.attachment_url.strip()
         if att_url.startswith("/"):
-            att_url = f"https://{settings.DOMAIN_NAME}{att_url}"
+            domain = getattr(settings, "DOMAIN_NAME", None) or "castleweb.ru"
+            att_url = f"https://{domain}{att_url}"
         attachment_text = f'\n📎 <b>ТЗ / Вложение:</b> <a href="{html.escape(att_url)}">Открыть файл</a>'
 
     # GeoIP block
@@ -179,7 +180,8 @@ class TelegramBotService:
                         if any(k in err_desc.lower() for k in ("parse", "tag", "entity", "link", "url")):
                             clean_att = lead.attachment_url or 'Нет'
                             if clean_att.startswith("/"):
-                                clean_att = f"https://{settings.DOMAIN_NAME}{clean_att}"
+                                domain = getattr(settings, "DOMAIN_NAME", None) or "castleweb.ru"
+                                clean_att = f"https://{domain}{clean_att}"
                             plain_text = (
                                 f"🔥 НОВАЯ ЗАЯВКА #{lead.id}\n"
                                 f"━━━━━━━━━━━━━━━━━━━━\n"

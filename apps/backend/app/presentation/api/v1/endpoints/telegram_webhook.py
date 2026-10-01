@@ -131,22 +131,23 @@ async def send_test_telegram():
         return {"ok": False, "chat_id": settings.TELEGRAM_CHAT_ID, "error": str(e)}
 
 
-@router.post("/setup-webhook", summary="Register Webhook with Telegram")
+@router.api_route("/setup-webhook", methods=["GET", "POST"], summary="Register Webhook with Telegram")
 async def setup_webhook(drop_pending_updates: bool = False):
     """
     Регистрирует адрес https://{DOMAIN_NAME}/api/v1/telegram/webhook в Telegram Bot API.
     """
-    if not settings.TELEGRAM_BOT_TOKEN or settings.TELEGRAM_BOT_TOKEN in ("your_bot_token_here", ""):
-        return {"ok": False, "error": "TELEGRAM_BOT_TOKEN not configured"}
-
-    webhook_url = f"https://{settings.DOMAIN_NAME}/api/v1/telegram/webhook"
-    url = build_telegram_api_url("setWebhook")
-    payload = {
-        "url": webhook_url,
-        "drop_pending_updates": drop_pending_updates,
-        "allowed_updates": ["message", "callback_query"]
-    }
     try:
+        if not settings.TELEGRAM_BOT_TOKEN or settings.TELEGRAM_BOT_TOKEN in ("your_bot_token_here", ""):
+            return {"ok": False, "error": "TELEGRAM_BOT_TOKEN not configured"}
+
+        domain = getattr(settings, "DOMAIN_NAME", None) or "castleweb.ru"
+        webhook_url = f"https://{domain}/api/v1/telegram/webhook"
+        url = build_telegram_api_url("setWebhook")
+        payload = {
+            "url": webhook_url,
+            "drop_pending_updates": drop_pending_updates,
+            "allowed_updates": ["message", "callback_query"]
+        }
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.post(url, json=payload)
             data = resp.json()
@@ -156,7 +157,8 @@ async def setup_webhook(drop_pending_updates: bool = False):
                 "telegram_response": data
             }
     except Exception as e:
-        return {"ok": False, "webhook_url": webhook_url, "error": str(e)}
+        logger.error(f"Failed to set webhook: {e}")
+        return {"ok": False, "error": str(e)}
 
 
 @router.get("/webhook-info", summary="Get Current Webhook Status from Telegram")

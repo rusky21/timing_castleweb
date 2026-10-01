@@ -95,7 +95,8 @@ async def upload_local_file(file: UploadFile = File(...)):
         )
 
     relative_url = f"/uploads/{safe_filename}"
-    public_url = f"https://{settings.DOMAIN_NAME}{relative_url}" if settings.DOMAIN_NAME else relative_url
+    domain = getattr(settings, "DOMAIN_NAME", None) or "castleweb.ru"
+    public_url = f"https://{domain}{relative_url}"
 
     logger.info(f"File uploaded successfully: {file.filename} -> {relative_url}")
 
