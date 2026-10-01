@@ -47,17 +47,22 @@ async def create_lead(
     from app.core.config import get_settings as _get_settings
     _settings = _get_settings()
     if _settings.CLOUDFLARE_TURNSTILE_ENABLED:
-        if not payload.turnstile_token:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Токен проверки Turnstile обязателен. Пожалуйста, обновите страницу."
-            )
-        is_human = await verify_turnstile_token(payload.turnstile_token, remote_ip=client_ip)
-        if not is_human:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Проверка капчи не пройдена. Пожалуйста, обновите страницу."
-            )
+        secret_key = (_settings.CLOUDFLARE_TURNSTILE_SECRET_KEY or "").strip()
+        # Проверяем Turnstile только если задан реальный секретный ключ от Cloudflare
+        if secret_key and secret_key != "1x0000000000000000000000000000000AA":
+            if not payload.turnstile_token:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Токен проверки Turnstile обязателен. Пожалуйста, обновите страницу."
+                )
+            is_human = await verify_turnstile_token(payload.turnstile_token, remote_ip=client_ip)
+            if not is_human:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Проверка капчи не пройдена. Пожалуйста, обновите страницу."
+                )
+        elif payload.turnstile_token:
+            await verify_turnstile_token(payload.turnstile_token, remote_ip=client_ip)
 
     # 5. Check Blacklist
     if client_ip:

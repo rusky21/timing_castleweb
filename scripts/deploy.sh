@@ -23,7 +23,6 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 BACKEND_DIR="${ROOT_DIR}/apps/backend"
 FRONTEND_DIR="${ROOT_DIR}/apps/frontend"
 FRONTEND_DIST="${FRONTEND_DIR}/dist"
-LEADHUNTER_DIR="${ROOT_DIR}/apps/leadhunter"
 NGINX_DIR="${ROOT_DIR}/nginx"
 ENV_FILE="${BACKEND_DIR}/.env"
 DOCKER_COMPOSE_FILE="${ROOT_DIR}/docker-compose.prod.yml"
@@ -204,19 +203,6 @@ CLOUDFLARE_R2_PUBLIC_URL=${R2_PUBLIC_URL}
 EOF
     chmod 600 "$ENV_FILE"
     log_success "Файл конфигурации создан: $ENV_FILE"
-
-    # LeadHunter env setup
-    if [ -d "$LEADHUNTER_DIR" ] && [ ! -f "${LEADHUNTER_DIR}/.env" ]; then
-        log_info "Создание файла окружения для LeadHunter..."
-        cat > "${LEADHUNTER_DIR}/.env" <<LHEOF
-TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-TELEGRAM_API_SERVER=${TELEGRAM_PROXY_URL}
-HOST=0.0.0.0
-PORT=8000
-LHEOF
-        chmod 600 "${LEADHUNTER_DIR}/.env"
-        log_success "Файл конфигурации LeadHunter создан: ${LEADHUNTER_DIR}/.env"
-    fi
 }
 
 
