@@ -120,6 +120,10 @@ class TelegramBotService:
             logger.info(f"ℹ️ Telegram Bot Token not configured (placeholder). Skipping sending Lead #{lead.id}.")
             return None
 
+        if not settings.TELEGRAM_CHAT_ID or settings.TELEGRAM_CHAT_ID in ("your_team_chat_id_here", ""):
+            logger.error(f"❌ Telegram Chat ID not configured in settings. Skipping sending Lead #{lead.id}.")
+            return None
+
         url = build_telegram_api_url("sendMessage")
         payload = {
             "chat_id": settings.TELEGRAM_CHAT_ID,
@@ -140,7 +144,26 @@ class TelegramBotService:
                         logger.info(f"📢 Telegram message sent for Lead #{lead.id}, message_id: {message_id}")
                         return message_id
                     else:
-                        logger.warning(f"Telegram API returned error: {data.get('description')} (Attempt {attempt})")
+                        err_desc = data.get('description', '')
+                        logger.warning(f"Telegram API returned error: {err_desc} (Attempt {attempt})")
+                        # Fallback for older Telegram API / HTML parsing errors: retry without HTML formatting
+                        if "parse" in err_desc.lower() or "tag" in err_desc.lower() or "entity" in err_desc.lower():
+                            plain_text = (
+                                f"🔥 НОВАЯ ЗАЯВКА #{lead.id}\n"
+                                f"━━━━━━━━━━━━━━━━━━━━\n"
+                                f"Клиент: {lead.name}\n"
+                                f"Контакт: {lead.contact}\n"
+                                f"Бюджет: {lead.budget or 'Не указан'}\n"
+                                f"Суть задачи:\n{lead.task_description}\n"
+                                f"IP: {lead.ip_address or 'unknown'}"
+                            )
+                            plain_payload = {**payload, "text": plain_text, "parse_mode": None}
+                            retry_resp = await client.post(url, json=plain_payload)
+                            retry_data = retry_resp.json()
+                            if retry_data.get("ok"):
+                                msg_id = retry_data["result"]["message_id"]
+                                logger.info(f"📢 Plain-text fallback sent for Lead #{lead.id}, message_id: {msg_id}")
+                                return msg_id
             except Exception as e:
                 logger.warning(f"Network error sending to Telegram (Attempt {attempt}/3): {e}")
 
@@ -148,6 +171,7 @@ class TelegramBotService:
 
         logger.error(f"❌ Failed to deliver Lead #{lead.id} to Telegram after 3 attempts.")
         return None
+
 
     @staticmethod
     async def update_message(chat_id: int | str, message_id: int, lead: Lead) -> bool:

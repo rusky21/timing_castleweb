@@ -64,9 +64,27 @@ async def process_single_lead(lead_id: int):
         if message_id:
             lead.telegram_message_id = message_id
             lead.status = LeadStatus.DELIVERED
+            logger.info(f"✅ Lead #{lead_id} delivered to Telegram (message_id: {message_id})")
         else:
-            # Marked as DELIVERED in database anyway (local dev fallback)
-            lead.status = LeadStatus.DELIVERED
+            logger.warning(f"⚠️ Lead #{lead_id} not delivered to Telegram; status remains PENDING for retry")
 
         await session.commit()
-        logger.info(f"✅ Lead #{lead_id} successfully processed and updated to status '{lead.status.value}'")
+
+
+async def process_pending_leads():
+    """
+    Обрабатывает любые зависшие в PENDING заявки при старте сервиса.
+    """
+    try:
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(Lead.id).where(Lead.status == LeadStatus.PENDING)
+            )
+            pending_ids = result.scalars().all()
+            if pending_ids:
+                logger.info(f"🔄 Recovering {len(pending_ids)} pending lead(s) for Telegram delivery: {pending_ids}")
+                for lead_id in pending_ids:
+                    asyncio.create_task(process_single_lead(lead_id))
+    except Exception as e:
+        logger.warning(f"Failed to recover pending leads: {e}")
+

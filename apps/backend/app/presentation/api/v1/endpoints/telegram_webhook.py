@@ -46,6 +46,34 @@ async def send_reply_message(chat_id: int | str, text: str):
         logger.warning(f"Failed to send reply to chat {chat_id}: {e}")
 
 
+@router.post("/test", summary="Send Test Notification to Telegram")
+async def send_test_telegram():
+    """
+    Диагностический эндпоинт: отправляет тестовое сообщение в Telegram-чат с текущими настройками.
+    """
+    if not settings.TELEGRAM_BOT_TOKEN or settings.TELEGRAM_BOT_TOKEN == "your_bot_token_here":
+        return {"ok": False, "error": "TELEGRAM_BOT_TOKEN не настроен"}
+    if not settings.TELEGRAM_CHAT_ID or settings.TELEGRAM_CHAT_ID == "your_team_chat_id_here":
+        return {"ok": False, "error": "TELEGRAM_CHAT_ID не настроен"}
+
+    url = build_telegram_api_url("sendMessage")
+    payload = {
+        "chat_id": settings.TELEGRAM_CHAT_ID,
+        "text": "🏰 <b>CASTLEWEB</b>: Проверка интеграции бэкенда с Telegram прошла успешно! 🚀",
+        "parse_mode": "HTML"
+    }
+    try:
+        async with httpx.AsyncClient(timeout=6.0) as client:
+            resp = await client.post(url, json=payload)
+            data = resp.json()
+            if not data.get("ok"):
+                return {"ok": False, "chat_id": settings.TELEGRAM_CHAT_ID, "error": data.get("description")}
+            return {"ok": True, "chat_id": settings.TELEGRAM_CHAT_ID, "message_id": data["result"]["message_id"]}
+    except Exception as e:
+        return {"ok": False, "chat_id": settings.TELEGRAM_CHAT_ID, "error": str(e)}
+
+
+
 @router.post("/webhook", summary="Telegram Bot Webhook Handler (Headless CRM)")
 async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     """

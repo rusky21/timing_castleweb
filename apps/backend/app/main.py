@@ -15,10 +15,17 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     print(f"🚀 {settings.APP_NAME} started on {settings.APP_HOST}:{settings.APP_PORT} (Env: {settings.APP_ENV})")
+
+    # Background: recover and process any pending leads in queue
+    import asyncio
+    from app.infrastructure.queue.worker import process_pending_leads
+    asyncio.create_task(process_pending_leads())
+
     yield
     # Shutdown
     await engine.dispose()
     print("🛑 Database engine connection closed.")
+
 
 
 app = FastAPI(
