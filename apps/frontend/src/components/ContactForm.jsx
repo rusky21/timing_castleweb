@@ -35,6 +35,21 @@ export default function ContactForm({
   const [submitting, setSubmitting] = useState(false);
   const [submittedLead, setSubmittedLead] = useState(null);
   const [submitError, setSubmitError] = useState(null);
+  const [botUsername, setBotUsername] = useState(null);
+
+  // Fetch Telegram bot username for direct linking
+  useEffect(() => {
+    let isMounted = true;
+    fetch('/api/v1/telegram/bot-info')
+      .then(res => res.json())
+      .then(data => {
+        if (data.ok && data.username && isMounted) {
+          setBotUsername(data.username);
+        }
+      })
+      .catch(() => {});
+    return () => { isMounted = false; };
+  }, []);
 
   // Sync props if calculator sends an estimate
   useEffect(() => {
@@ -224,12 +239,13 @@ export default function ContactForm({
 
           <div className="success-actions">
             <a 
-              href="https://t.me" 
+              href={botUsername ? `https://t.me/${botUsername}?start=lead_${submittedLead.id || 0}` : 'https://t.me'} 
               target="_blank" 
               rel="noopener noreferrer" 
               className="btn-primary w-full"
+              id="btn-goto-telegram"
             >
-              <span>Написать архитектору в Telegram</span>
+              <span>{botUsername ? `Перейти к диалогу в Telegram (@${botUsername})` : 'Открыть диалог в Telegram'}</span>
               <Send size={16} />
             </a>
 
@@ -255,6 +271,20 @@ export default function ContactForm({
             <p className="form-subtitle">
               Разбираем стек, проектируем масштабируемую архитектуру, даем прозрачную оценку по спринтам и фиксируем NDA.
             </p>
+            {botUsername && (
+              <div className="tg-quick-banner">
+                <span>Предпочитаете Telegram? Напишите нам напрямую:</span>
+                <a 
+                  href={`https://t.me/${botUsername}`} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="tg-quick-link"
+                >
+                  <Send size={13} />
+                  <span>@{botUsername}</span>
+                </a>
+              </div>
+            )}
           </div>
 
           {submitError && (
@@ -482,6 +512,31 @@ export default function ContactForm({
           font-size: 0.95rem;
           color: var(--text-secondary);
           line-height: 1.6;
+        }
+        .tg-quick-banner {
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+          margin-top: 14px;
+          padding: 8px 16px;
+          background: rgba(99, 102, 241, 0.08);
+          border: 1px solid rgba(99, 102, 241, 0.25);
+          border-radius: 9999px;
+          font-size: 0.85rem;
+          color: var(--text-secondary);
+        }
+        .tg-quick-link {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          color: #818cf8;
+          font-weight: 600;
+          text-decoration: none;
+          transition: color var(--transition-fast);
+        }
+        .tg-quick-link:hover {
+          color: #a5b4fc;
+          text-decoration: underline;
         }
         .form-grid {
           display: grid;
