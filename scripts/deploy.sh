@@ -233,6 +233,10 @@ setup_os_ubuntu() {
         log_success "Swap 2 ГБ подключен."
     fi
 
+    # Защита от PMTUD Black Hole и зависаний TCP при передаче файлов >16KB через Cloudflare
+    sysctl -w net.ipv4.tcp_mtu_probing=1 >/dev/null 2>&1 || true
+    echo 'net.ipv4.tcp_mtu_probing=1' > /etc/sysctl.d/99-mtu.conf 2>/dev/null || true
+
     log_info "Установка базовых утилит (curl, git, ufw, fail2ban, jq, openssl, cron)..."
     apt-get install -y -q --no-install-recommends \
         curl git ufw fail2ban jq openssl ca-certificates gnupg lsb-release cron
