@@ -133,10 +133,10 @@ class TelegramBotService:
             "disable_web_page_preview": True
         }
 
-        # 3 attempts with exponential backoff
-        for attempt in range(1, 4):
+        # Up to 4 attempts with smart flood control handling
+        for attempt in range(1, 5):
             try:
-                async with httpx.AsyncClient(timeout=6.0) as client:
+                async with httpx.AsyncClient(timeout=10.0) as client:
                     resp = await client.post(url, json=payload)
                     data = resp.json()
                     if data.get("ok"):
@@ -146,6 +146,14 @@ class TelegramBotService:
                     else:
                         err_desc = data.get('description', '')
                         logger.warning(f"Telegram API returned error: {err_desc} (Attempt {attempt})")
+
+                        # Telegram Flood Control: respect retry_after parameter
+                        if "retry after" in err_desc.lower() or data.get("error_code") == 429:
+                            wait_sec = data.get("parameters", {}).get("retry_after", 10)
+                            logger.warning(f"⏳ Telegram rate limited: waiting {wait_sec}s before next attempt...")
+                            await asyncio.sleep(wait_sec + 1)
+                            continue
+
                         # Fallback for older Telegram API / HTML parsing errors: retry without HTML formatting
                         if "parse" in err_desc.lower() or "tag" in err_desc.lower() or "entity" in err_desc.lower():
                             plain_text = (
@@ -165,11 +173,11 @@ class TelegramBotService:
                                 logger.info(f"📢 Plain-text fallback sent for Lead #{lead.id}, message_id: {msg_id}")
                                 return msg_id
             except Exception as e:
-                logger.warning(f"Network error sending to Telegram (Attempt {attempt}/3): {e}")
+                logger.warning(f"Network error sending to Telegram (Attempt {attempt}/4): {e}")
 
-            await asyncio.sleep(attempt * 1.5)
+            await asyncio.sleep(attempt * 2.0)
 
-        logger.error(f"❌ Failed to deliver Lead #{lead.id} to Telegram after 3 attempts.")
+        logger.error(f"❌ Failed to deliver Lead #{lead.id} to Telegram after 4 attempts.")
         return None
 
 

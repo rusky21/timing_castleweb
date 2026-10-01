@@ -3,6 +3,7 @@ import logging
 import httpx
 from sqlalchemy import select
 from app.core.database import AsyncSessionLocal
+from app.core.redis import get_redis_client
 from app.infrastructure.db.models import Lead
 from app.domain.entities import LeadStatus
 from app.infrastructure.telegram.bot_service import TelegramBotService
@@ -50,6 +51,10 @@ async def process_single_lead(lead_id: int):
             logger.error(f"Lead #{lead_id} not found in database")
             return
 
+        if lead.status == LeadStatus.DELIVERED and lead.telegram_message_id:
+            logger.info(f"ℹ️ Lead #{lead_id} is already delivered (message_id: {lead.telegram_message_id}). Skipping.")
+            return
+
         # 1. GeoIP enrichment
         if lead.ip_address and not lead.geo_city:
             geo_info = await enrich_geoip(lead.ip_address)
@@ -74,17 +79,32 @@ async def process_single_lead(lead_id: int):
 async def process_pending_leads():
     """
     Обрабатывает любые зависшие в PENDING заявки при старте сервиса.
+    Использует Redis lock, чтобы среди uvicorn-воркеров обработку выполнял только один процесс.
+    Отправляет сообщения последовательно с задержкой, соблюдая лимиты Telegram.
     """
     try:
+        redis = await get_redis_client()
+        if redis:
+            # Распределенный замок на 90 секунд: только 1 воркер из 4 запустит отправку
+            acquired = await redis.set("lock:recovery_pending_leads", "1", nx=True, ex=90)
+            if not acquired:
+                return
+
+        # Небольшая пауза перед стартом отправки
+        await asyncio.sleep(2.0)
+
         async with AsyncSessionLocal() as session:
             result = await session.execute(
-                select(Lead.id).where(Lead.status == LeadStatus.PENDING)
+                select(Lead.id).where(Lead.status == LeadStatus.PENDING).order_by(Lead.id.asc())
             )
             pending_ids = result.scalars().all()
-            if pending_ids:
-                logger.info(f"🔄 Recovering {len(pending_ids)} pending lead(s) for Telegram delivery: {pending_ids}")
-                for lead_id in pending_ids:
-                    asyncio.create_task(process_single_lead(lead_id))
+
+        if pending_ids:
+            logger.info(f"🔄 Recovering {len(pending_ids)} pending lead(s) for Telegram delivery: {pending_ids}")
+            for lead_id in pending_ids:
+                await process_single_lead(lead_id)
+                await asyncio.sleep(1.5)  # Telegram Group Flood Limit: не более 1 сообщения в секунду
     except Exception as e:
         logger.warning(f"Failed to recover pending leads: {e}")
+
 
