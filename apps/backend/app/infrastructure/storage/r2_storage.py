@@ -12,14 +12,33 @@ logger = logging.getLogger(__name__)
 
 # Base upload directory from settings
 def _resolve_uploads_dir() -> Path:
-    target_path = Path(settings.UPLOAD_DIR)
-    if not target_path.is_absolute():
-        target_path = Path(__file__).resolve().parent.parent.parent.parent / settings.UPLOAD_DIR.lstrip("/\\")
-    try:
-        target_path.mkdir(parents=True, exist_ok=True)
-    except Exception:
-        pass
-    return target_path
+    """
+    Определяет доступную для записи директорию загрузок:
+    1. /app/uploads (Docker volume mount)
+    2. settings.UPLOAD_DIR
+    3. relative uploads folder
+    """
+    candidates = [
+        Path("/app/uploads"),
+        Path(settings.UPLOAD_DIR) if getattr(settings, "UPLOAD_DIR", None) else None,
+        Path(__file__).resolve().parent.parent.parent.parent / "uploads"
+    ]
+    for c in candidates:
+        if not c:
+            continue
+        try:
+            c.mkdir(parents=True, exist_ok=True)
+            test_file = c / ".perm_check"
+            test_file.write_text("ok")
+            test_file.unlink(missing_ok=True)
+            return c
+        except Exception:
+            continue
+
+    # Fallback to /tmp/uploads
+    tmp = Path("/tmp/uploads")
+    tmp.mkdir(parents=True, exist_ok=True)
+    return tmp
 
 UPLOADS_DIR = _resolve_uploads_dir()
 

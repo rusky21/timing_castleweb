@@ -35,7 +35,7 @@ export default function ContactForm({
   const [submitting, setSubmitting] = useState(false);
   const [submittedLead, setSubmittedLead] = useState(null);
   const [submitError, setSubmitError] = useState(null);
-  const [botUsername, setBotUsername] = useState(null);
+  const [botUsername, setBotUsername] = useState('castleweb_bot');
 
   // Fetch Telegram bot username for direct linking
   useEffect(() => {
@@ -106,6 +106,7 @@ export default function ContactForm({
       setUploadError(err.message || 'Не удалось прикрепить файл');
     } finally {
       setUploading(false);
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -239,13 +240,13 @@ export default function ContactForm({
 
           <div className="success-actions">
             <a 
-              href={botUsername ? `https://t.me/${botUsername}?start=lead_${submittedLead.id || 0}` : 'https://t.me'} 
+              href={`https://t.me/${botUsername || 'castleweb_bot'}?start=lead_${submittedLead.id || 0}`} 
               target="_blank" 
               rel="noopener noreferrer" 
               className="btn-primary w-full"
               id="btn-goto-telegram"
             >
-              <span>{botUsername ? `Перейти к диалогу в Telegram (@${botUsername})` : 'Открыть диалог в Telegram'}</span>
+              <span>{`Перейти к диалогу в Telegram (@${botUsername || 'castleweb_bot'})`}</span>
               <Send size={16} />
             </a>
 
@@ -271,20 +272,18 @@ export default function ContactForm({
             <p className="form-subtitle">
               Разбираем стек, проектируем масштабируемую архитектуру, даем прозрачную оценку по спринтам и фиксируем NDA.
             </p>
-            {botUsername && (
-              <div className="tg-quick-banner">
-                <span>Предпочитаете Telegram? Напишите нам напрямую:</span>
-                <a 
-                  href={`https://t.me/${botUsername}`} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="tg-quick-link"
-                >
-                  <Send size={13} />
-                  <span>@{botUsername}</span>
-                </a>
-              </div>
-            )}
+            <div className="tg-quick-banner">
+              <span>Предпочитаете Telegram? Напишите нам напрямую:</span>
+              <a 
+                href={`https://t.me/${botUsername || 'castleweb_bot'}`} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="tg-quick-link"
+              >
+                <Send size={13} />
+                <span>@{botUsername || 'castleweb_bot'}</span>
+              </a>
+            </div>
           </div>
 
           {submitError && (
@@ -401,7 +400,7 @@ export default function ContactForm({
                   onChange={handleFileUpload}
                   disabled={uploading}
                   className="file-input-hidden" 
-                  accept=".pdf,.zip,.rar,.png,.jpg,.jpeg,.docx,.doc,.fig,.txt,.csv,.xlsx"
+                  accept=".pdf,.zip,.rar,.7z,.tar,.gz,.png,.jpg,.jpeg,.webp,.svg,.gif,.docx,.doc,.pptx,.ppt,.odt,.rtf,.fig,.txt,.csv,.xlsx"
                 />
                 {uploading ? (
                   <div className="upload-loading-state">
@@ -412,10 +411,10 @@ export default function ContactForm({
                   <div className="upload-idle-state">
                     <UploadCloud size={20} className="upload-icon" />
                     <span className="upload-main-text">
-                      Прикрепить ТЗ, бриф или ссылку на Figma
+                      Прикрепить ТЗ, бриф, макет или фото
                     </span>
                     <span className="upload-sub-text">
-                      PDF, ZIP, DOCX, PNG до 25 МБ
+                      PDF, DOCX, ZIP, PNG, JPG, FIG до 25 МБ
                     </span>
                   </div>
                 )}

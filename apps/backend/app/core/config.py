@@ -41,7 +41,7 @@ class Settings(BaseSettings):
 
     # Storage Driver (local or r2)
     STORAGE_DRIVER: str = "local"
-    UPLOAD_DIR: str = "/uploads"
+    UPLOAD_DIR: str = "/app/uploads"
 
     # Cloudflare R2 / S3
     R2_ACCOUNT_ID: str = Field(

@@ -159,7 +159,7 @@ SECRET_KEY=${SECRET_KEY}
 
 # Storage Mode
 STORAGE_DRIVER=${STORAGE_DRIVER}
-UPLOAD_DIR=/uploads
+UPLOAD_DIR=/app/uploads
 
 # Database & Cache
 POSTGRES_USER=castleweb_user
@@ -461,7 +461,10 @@ main() {
             docker compose -f "$DOCKER_COMPOSE_FILE" build backend
             docker compose -f "$DOCKER_COMPOSE_FILE" up -d --no-deps backend
             docker compose -f "$DOCKER_COMPOSE_FILE" exec -T backend alembic upgrade head || true
-            log_success "Бэкенд обновлен и миграции выполнены!"
+            docker compose -f "$DOCKER_COMPOSE_FILE" exec -u 0 -T backend chmod -R 777 /app/uploads /tmp/uploads 2>/dev/null || true
+            curl -sf -X POST http://127.0.0.1:8000/api/v1/telegram/setup-webhook >/dev/null 2>&1 || true
+            curl -sf -X POST http://127.0.0.1:8000/api/v1/telegram/test >/dev/null 2>&1 || true
+            log_success "Бэкенд обновлен, права на uploads настроены и Telegram Webhook активирован!"
             ;;
         --migrate)
             load_env

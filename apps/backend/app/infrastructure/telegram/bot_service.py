@@ -17,7 +17,6 @@ def build_telegram_api_url(method: str) -> str:
     Поддерживает как прямой доступ к api.telegram.org, так и Cloudflare Worker прокси.
     """
     base_url = settings.TELEGRAM_API_BASE_URL.rstrip("/")
-    # If base_url already contains /bot, attach token
     if base_url.endswith("/bot"):
         return f"{base_url}{settings.TELEGRAM_BOT_TOKEN}/{method}"
     return f"{base_url}/bot{settings.TELEGRAM_BOT_TOKEN}/{method}"
@@ -40,7 +39,13 @@ def format_lead_html(lead: Lead) -> str:
     contact_clean = html.escape(lead.contact)
     desc_clean = html.escape(lead.task_description)
     budget_clean = html.escape(lead.budget) if lead.budget else "Не указан"
-    attachment_text = f'\n📎 <b>ТЗ / Вложение:</b> <a href="{html.escape(lead.attachment_url)}">Открыть файл</a>' if lead.attachment_url else ""
+
+    attachment_text = ""
+    if lead.attachment_url:
+        att_url = lead.attachment_url.strip()
+        if att_url.startswith("/"):
+            att_url = f"https://{settings.DOMAIN_NAME}{att_url}"
+        attachment_text = f'\n📎 <b>ТЗ / Вложение:</b> <a href="{html.escape(att_url)}">Открыть файл</a>'
 
     # GeoIP block
     geo_parts = []
@@ -113,7 +118,8 @@ class TelegramBotService:
     @staticmethod
     async def send_lead_notification(lead: Lead) -> Optional[int]:
         """
-        Отправляет заявку в Telegram-чат инженеров с ретраями при сетевых сбоях.
+        Отправляет заявку в Telegram-чат инженеров с ретраями при сетевых сбоях,
+        автоматической миграцией supergroup и plain-text fallback.
         Возвращает telegram message_id для последующего редактирования кнопок.
         """
         if not settings.TELEGRAM_BOT_TOKEN or settings.TELEGRAM_BOT_TOKEN in ("your_bot_token_here", ""):
@@ -125,8 +131,9 @@ class TelegramBotService:
             return None
 
         url = build_telegram_api_url("sendMessage")
+        current_chat_id = settings.TELEGRAM_CHAT_ID
         payload = {
-            "chat_id": settings.TELEGRAM_CHAT_ID,
+            "chat_id": current_chat_id,
             "text": format_lead_html(lead),
             "parse_mode": "HTML",
             "reply_markup": build_lead_keyboard(lead),
@@ -147,6 +154,20 @@ class TelegramBotService:
                         err_desc = data.get('description', '')
                         logger.warning(f"Telegram API returned error: {err_desc} (Attempt {attempt})")
 
+                        # Supergroup migration: auto-detect and update chat_id
+                        migrate_to = data.get("parameters", {}).get("migrate_to_chat_id")
+                        if migrate_to:
+                            logger.info(f"🔄 Group was upgraded to supergroup! Updating chat_id from {current_chat_id} to {migrate_to}")
+                            settings.TELEGRAM_CHAT_ID = str(migrate_to)
+                            payload["chat_id"] = migrate_to
+                            current_chat_id = str(migrate_to)
+                            retry_resp = await client.post(url, json=payload)
+                            retry_data = retry_resp.json()
+                            if retry_data.get("ok"):
+                                msg_id = retry_data["result"]["message_id"]
+                                logger.info(f"📢 Telegram message sent to supergroup {migrate_to} for Lead #{lead.id}, message_id: {msg_id}")
+                                return msg_id
+
                         # Telegram Flood Control: respect retry_after parameter
                         if "retry after" in err_desc.lower() or data.get("error_code") == 429:
                             wait_sec = data.get("parameters", {}).get("retry_after", 10)
@@ -154,8 +175,11 @@ class TelegramBotService:
                             await asyncio.sleep(wait_sec + 1)
                             continue
 
-                        # Fallback for older Telegram API / HTML parsing errors: retry without HTML formatting
-                        if "parse" in err_desc.lower() or "tag" in err_desc.lower() or "entity" in err_desc.lower():
+                        # Fallback for HTML formatting / entity / link parsing errors
+                        if any(k in err_desc.lower() for k in ("parse", "tag", "entity", "link", "url")):
+                            clean_att = lead.attachment_url or 'Нет'
+                            if clean_att.startswith("/"):
+                                clean_att = f"https://{settings.DOMAIN_NAME}{clean_att}"
                             plain_text = (
                                 f"🔥 НОВАЯ ЗАЯВКА #{lead.id}\n"
                                 f"━━━━━━━━━━━━━━━━━━━━\n"
@@ -163,6 +187,7 @@ class TelegramBotService:
                                 f"Контакт: {lead.contact}\n"
                                 f"Бюджет: {lead.budget or 'Не указан'}\n"
                                 f"Суть задачи:\n{lead.task_description}\n"
+                                f"Вложение: {clean_att}\n"
                                 f"IP: {lead.ip_address or 'unknown'}"
                             )
                             plain_payload = {**payload, "text": plain_text, "parse_mode": None}
@@ -179,7 +204,6 @@ class TelegramBotService:
 
         logger.error(f"❌ Failed to deliver Lead #{lead.id} to Telegram after 4 attempts.")
         return None
-
 
     @staticmethod
     async def update_message(chat_id: int | str, message_id: int, lead: Lead) -> bool:
@@ -203,6 +227,12 @@ class TelegramBotService:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.post(url, json=payload)
                 data = resp.json()
+                if not data.get("ok"):
+                    migrate_to = data.get("parameters", {}).get("migrate_to_chat_id")
+                    if migrate_to:
+                        payload["chat_id"] = migrate_to
+                        resp = await client.post(url, json=payload)
+                        data = resp.json()
                 return bool(data.get("ok"))
         except Exception as e:
             logger.warning(f"Failed to edit Telegram message #{message_id}: {e}")

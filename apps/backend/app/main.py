@@ -21,6 +21,30 @@ async def lifespan(app: FastAPI):
     from app.infrastructure.queue.worker import process_pending_leads
     asyncio.create_task(process_pending_leads())
 
+    # Background: auto-register Telegram webhook if configured
+    if settings.TELEGRAM_BOT_TOKEN and settings.TELEGRAM_BOT_TOKEN not in ("your_bot_token_here", ""):
+        async def _register_telegram_webhook():
+            await asyncio.sleep(2.0)
+            try:
+                import httpx
+                from app.infrastructure.telegram.bot_service import build_telegram_api_url
+                webhook_url = f"https://{settings.DOMAIN_NAME}/api/v1/telegram/webhook"
+                url = build_telegram_api_url("setWebhook")
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    resp = await client.post(url, json={
+                        "url": webhook_url,
+                        "allowed_updates": ["message", "callback_query"]
+                    })
+                    data = resp.json()
+                    if data.get("ok"):
+                        print(f"🤖 Telegram Webhook registered: {webhook_url}")
+                    else:
+                        print(f"⚠️ Telegram Webhook registration notice: {data}")
+            except Exception as e:
+                print(f"⚠️ Telegram Webhook registration check failed: {e}")
+
+        asyncio.create_task(_register_telegram_webhook())
+
     yield
     # Shutdown
     await engine.dispose()

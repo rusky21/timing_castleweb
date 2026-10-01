@@ -31,14 +31,17 @@ COPY --from=builder /install /usr/local
 RUN groupadd -g 1001 appgroup && \
     useradd -u 1001 -g appgroup -s /bin/bash -m appuser
 
+# Pre-create standard directories
+RUN mkdir -p /app/uploads /app/data /tmp/uploads && \
+    chown -R appuser:appgroup /app /tmp/uploads && \
+    chmod 777 /app/uploads /tmp/uploads
+
 # Copy application code and scripts
 COPY . .
 
 # Ensure entrypoint is executable
 RUN chmod +x /app/entrypoint.sh && \
     chown -R appuser:appgroup /app
-
-USER appuser
 
 EXPOSE 8000
 

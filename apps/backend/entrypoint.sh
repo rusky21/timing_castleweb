@@ -1,6 +1,13 @@
 #!/bin/sh
 set -e
 
+# 1. Ensure volume mounts and upload directories exist and are writable
+mkdir -p /app/uploads /app/data /tmp/uploads
+chmod -R 777 /app/uploads /app/data /tmp/uploads 2>/dev/null || true
+if id "appuser" >/dev/null 2>&1; then
+    chown -R appuser:appgroup /app/uploads /app/data /tmp/uploads 2>/dev/null || true
+fi
+
 echo "⏳ Waiting for PostgreSQL database connection..."
 python -c "
 import asyncio, os
@@ -33,4 +40,8 @@ echo "🌱 Ensuring portfolio cases are seeded..."
 python scripts/seed_cases.py
 
 echo "🚀 Starting Production ASGI Server (Uvicorn)..."
-exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 --proxy-headers --forwarded-allow-ips="*"
+if [ "$(id -u)" = "0" ] && id "appuser" >/dev/null 2>&1; then
+    exec su -s /bin/sh appuser -c "exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 --proxy-headers --forwarded-allow-ips='*'"
+else
+    exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 --proxy-headers --forwarded-allow-ips="*"
+fi

@@ -1,3 +1,4 @@
+import re
 import logging
 import html
 import httpx
@@ -35,7 +36,8 @@ async def answer_callback_query(callback_id: str, text: str):
 
 async def send_reply_message(chat_id: int | str, text: str, reply_markup: dict | None = None):
     """
-    Отправляет текстовое сообщение в чат Telegram с поддержкой кнопок.
+    Отправляет текстовое сообщение в чат Telegram с поддержкой кнопок,
+    автоматической миграцией supergroup и plain-text fallback.
     """
     if not settings.TELEGRAM_BOT_TOKEN or settings.TELEGRAM_BOT_TOKEN in ("your_bot_token_here", ""):
         return
@@ -48,43 +50,130 @@ async def send_reply_message(chat_id: int | str, text: str, reply_markup: dict |
     }
     if reply_markup:
         payload["reply_markup"] = reply_markup
+
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        async with httpx.AsyncClient(timeout=8.0) as client:
             resp = await client.post(url, json=payload)
             data = resp.json()
             if not data.get("ok"):
-                logger.warning(f"Failed to send reply to chat {chat_id}: {data.get('description')}")
+                # Handle supergroup migration
+                migrate_to = data.get("parameters", {}).get("migrate_to_chat_id")
+                if migrate_to:
+                    logger.info(f"🔄 Supergroup migration detected in send_reply_message: {chat_id} -> {migrate_to}")
+                    if str(chat_id) == str(settings.TELEGRAM_CHAT_ID):
+                        settings.TELEGRAM_CHAT_ID = str(migrate_to)
+                    payload["chat_id"] = migrate_to
+                    resp = await client.post(url, json=payload)
+                    data = resp.json()
+                    if data.get("ok"):
+                        return
+
+                # Handle HTML parse error fallback
+                err_desc = data.get("description", "")
+                if any(k in err_desc.lower() for k in ("parse", "tag", "entity", "link")):
+                    clean_text = re.sub(r"<[^>]+>", "", text)
+                    payload["text"] = clean_text
+                    payload["parse_mode"] = None
+                    await client.post(url, json=payload)
     except Exception as e:
         logger.warning(f"Failed to send reply to chat {chat_id}: {e}")
-
 
 
 @router.post("/test", summary="Send Test Notification to Telegram")
 async def send_test_telegram():
     """
     Диагностический эндпоинт: отправляет тестовое сообщение в Telegram-чат с текущими настройками.
+    Автоматически распознает миграцию группы в супергруппу и обновляет chat_id.
     """
-    if not settings.TELEGRAM_BOT_TOKEN or settings.TELEGRAM_BOT_TOKEN == "your_bot_token_here":
+    if not settings.TELEGRAM_BOT_TOKEN or settings.TELEGRAM_BOT_TOKEN in ("your_bot_token_here", ""):
         return {"ok": False, "error": "TELEGRAM_BOT_TOKEN не настроен"}
-    if not settings.TELEGRAM_CHAT_ID or settings.TELEGRAM_CHAT_ID == "your_team_chat_id_here":
+    if not settings.TELEGRAM_CHAT_ID or settings.TELEGRAM_CHAT_ID in ("your_team_chat_id_here", ""):
         return {"ok": False, "error": "TELEGRAM_CHAT_ID не настроен"}
 
     url = build_telegram_api_url("sendMessage")
     payload = {
         "chat_id": settings.TELEGRAM_CHAT_ID,
-        "text": "🏰 <b>CASTLEWEB</b>: Проверка интеграции бэкенда с Telegram прошла успешно! 🚀",
+        "text": "🏰 <b>CASTLEWEB</b>: Проверка интеграции бэкенда с Telegram прошла успешно! 🚀\nБот активен и готов принимать заявки.",
         "parse_mode": "HTML"
     }
     try:
-        async with httpx.AsyncClient(timeout=6.0) as client:
+        async with httpx.AsyncClient(timeout=8.0) as client:
             resp = await client.post(url, json=payload)
             data = resp.json()
             if not data.get("ok"):
-                return {"ok": False, "chat_id": settings.TELEGRAM_CHAT_ID, "error": data.get("description")}
-            return {"ok": True, "chat_id": settings.TELEGRAM_CHAT_ID, "message_id": data["result"]["message_id"]}
+                migrate_to = data.get("parameters", {}).get("migrate_to_chat_id")
+                if migrate_to:
+                    old_id = settings.TELEGRAM_CHAT_ID
+                    settings.TELEGRAM_CHAT_ID = str(migrate_to)
+                    payload["chat_id"] = migrate_to
+                    retry_resp = await client.post(url, json=payload)
+                    retry_data = retry_resp.json()
+                    return {
+                        "ok": retry_data.get("ok", False),
+                        "chat_id": str(migrate_to),
+                        "migrated_from": old_id,
+                        "migrated_to": str(migrate_to),
+                        "message_id": retry_data.get("result", {}).get("message_id"),
+                        "error": retry_data.get("description")
+                    }
+                return {
+                    "ok": False,
+                    "chat_id": settings.TELEGRAM_CHAT_ID,
+                    "error": data.get("description"),
+                    "parameters": data.get("parameters")
+                }
+            return {
+                "ok": True,
+                "chat_id": settings.TELEGRAM_CHAT_ID,
+                "message_id": data["result"]["message_id"]
+            }
     except Exception as e:
         return {"ok": False, "chat_id": settings.TELEGRAM_CHAT_ID, "error": str(e)}
 
+
+@router.post("/setup-webhook", summary="Register Webhook with Telegram")
+async def setup_webhook(drop_pending_updates: bool = False):
+    """
+    Регистрирует адрес https://{DOMAIN_NAME}/api/v1/telegram/webhook в Telegram Bot API.
+    """
+    if not settings.TELEGRAM_BOT_TOKEN or settings.TELEGRAM_BOT_TOKEN in ("your_bot_token_here", ""):
+        return {"ok": False, "error": "TELEGRAM_BOT_TOKEN not configured"}
+
+    webhook_url = f"https://{settings.DOMAIN_NAME}/api/v1/telegram/webhook"
+    url = build_telegram_api_url("setWebhook")
+    payload = {
+        "url": webhook_url,
+        "drop_pending_updates": drop_pending_updates,
+        "allowed_updates": ["message", "callback_query"]
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(url, json=payload)
+            data = resp.json()
+            return {
+                "ok": data.get("ok", False),
+                "webhook_url": webhook_url,
+                "telegram_response": data
+            }
+    except Exception as e:
+        return {"ok": False, "webhook_url": webhook_url, "error": str(e)}
+
+
+@router.get("/webhook-info", summary="Get Current Webhook Status from Telegram")
+async def get_webhook_info():
+    """
+    Возвращает диагностическую информацию о текущем вебхуке из Telegram Bot API.
+    """
+    if not settings.TELEGRAM_BOT_TOKEN or settings.TELEGRAM_BOT_TOKEN in ("your_bot_token_here", ""):
+        return {"ok": False, "error": "TELEGRAM_BOT_TOKEN not configured"}
+
+    url = build_telegram_api_url("getWebhookInfo")
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            resp = await client.get(url)
+            return resp.json()
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
 
 @router.post("/webhook", summary="Telegram Bot Webhook Handler (Headless CRM)")
@@ -93,6 +182,7 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
     Обрабатывает события от Telegram Bot:
     - Нажатия inline-кнопок (Взять в работу, Связался, Спам/Бан)
     - Команды инженеров: /stats, /leads
+    - Сообщения и документы от пользователей (автоответчик + пересылка инженерам)
     """
     update = await request.json()
 
@@ -143,19 +233,16 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
             if lead:
                 lead.status = LeadStatus.SPAM
 
-                # Добавляем IP в черный список, если еще нет
                 if lead.ip_address:
                     existing_ip = (await db.execute(select(Blacklist).where(Blacklist.ip_address == lead.ip_address))).scalar_one_or_none()
                     if not existing_ip:
                         db.add(Blacklist(ip_address=lead.ip_address, reason=f"Spam lead #{lead.id}"))
 
-                # Добавляем контакт в черный список, если еще нет
                 if lead.contact:
                     existing_contact = (await db.execute(select(Blacklist).where(Blacklist.contact == lead.contact))).scalar_one_or_none()
                     if not existing_contact:
                         db.add(Blacklist(contact=lead.contact, reason=f"Spam lead #{lead.id}"))
 
-                # Блокировка в Redis
                 redis = await get_redis_client()
                 if redis and lead.ip_address:
                     await redis.set(f"blacklist:{lead.ip_address}", "1", ex=86400 * 30)
@@ -177,7 +264,7 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
         msg = update["message"]
         chat = msg.get("chat", {})
         chat_id = chat.get("id")
-        chat_type = chat.get("type", "private")  # "private", "group", "supergroup"
+        chat_type = chat.get("type", "private")
         user = msg.get("from", {})
         from_id = user.get("id")
         username = user.get("username")
@@ -239,7 +326,6 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 parts = text.split(maxsplit=1)
                 start_payload = parts[1] if len(parts) > 1 else ""
 
-                # Если клиент пришел по ссылке с сайта: /start lead_123
                 if start_payload.startswith("lead_") or start_payload.isdigit():
                     lead_id_str = start_payload.replace("lead_", "")
                     try:
@@ -295,9 +381,9 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 await send_reply_message(chat_id, general_welcome, reply_markup=welcome_buttons)
                 return {"ok": True}
 
-            # 2. Любое сообщение / вопрос / ТЗ от клиента в ЛС
+            # 2. Любое сообщение / вопрос / фото / документ от клиента в ЛС
             has_media = bool(msg.get("document") or msg.get("photo") or msg.get("voice"))
-            user_msg_text = text if text else ("📎 [Вложенный файл / документ / медиа]" if has_media else "👋 [Обращение]")
+            user_msg_text = text if text else ("📎 [Вложенный файл / документ / фото]" if has_media else "👋 [Обращение]")
 
             # 2.1. Автоответ клиенту
             client_reply = (
@@ -307,7 +393,7 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
             )
             await send_reply_message(chat_id, client_reply)
 
-            # 2.2. Мгновенная пересылка в закрытый чат инженеров
+            # 2.2. Мгновенная пересылка и оповещение в закрытый чат инженеров
             if settings.TELEGRAM_CHAT_ID:
                 direct_url = f"https://t.me/{username}" if username else f"tg://user?id={from_id}"
                 reply_btn_text = f"💬 Ответить @{username}" if username else "💬 Открыть диалог с клиентом"
@@ -331,6 +417,18 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 }
                 await send_reply_message(settings.TELEGRAM_CHAT_ID, eng_alert, reply_markup=eng_buttons)
 
+                # Также пересылаем исходное медиа/сообщение инженерам
+                try:
+                    forward_url = build_telegram_api_url("forwardMessage")
+                    async with httpx.AsyncClient(timeout=6.0) as client:
+                        await client.post(forward_url, json={
+                            "chat_id": settings.TELEGRAM_CHAT_ID,
+                            "from_chat_id": chat_id,
+                            "message_id": msg.get("message_id")
+                        })
+                except Exception as fwd_err:
+                    logger.warning(f"Could not forward message to team chat: {fwd_err}")
+
             return {"ok": True}
 
     return {"ok": True}
@@ -341,7 +439,7 @@ async def get_bot_info():
     """
     Возвращает юзернейм и статус бота для фронтенда.
     """
-    if not settings.TELEGRAM_BOT_TOKEN or settings.TELEGRAM_BOT_TOKEN == "your_bot_token_here":
+    if not settings.TELEGRAM_BOT_TOKEN or settings.TELEGRAM_BOT_TOKEN in ("your_bot_token_here", ""):
         return {"ok": False, "username": None}
     url = build_telegram_api_url("getMe")
     try:
@@ -353,4 +451,3 @@ async def get_bot_info():
     except Exception:
         pass
     return {"ok": False, "username": None}
-
