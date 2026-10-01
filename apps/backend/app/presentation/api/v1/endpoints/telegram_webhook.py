@@ -79,21 +79,34 @@ async def send_reply_message(chat_id: int | str, text: str, reply_markup: dict |
         logger.warning(f"Failed to send reply to chat {chat_id}: {e}")
 
 
-@router.post("/test", summary="Send Test Notification to Telegram")
+@router.api_route("/test", methods=["GET", "POST"], summary="Send Test Notification to Telegram")
 async def send_test_telegram():
     """
     Диагностический эндпоинт: отправляет тестовое сообщение в Telegram-чат с текущими настройками.
     Автоматически распознает миграцию группы в супергруппу и обновляет chat_id.
     """
-    if not settings.TELEGRAM_BOT_TOKEN or settings.TELEGRAM_BOT_TOKEN in ("your_bot_token_here", ""):
-        return {"ok": False, "error": "TELEGRAM_BOT_TOKEN не настроен"}
-    if not settings.TELEGRAM_CHAT_ID or settings.TELEGRAM_CHAT_ID in ("your_team_chat_id_here", ""):
-        return {"ok": False, "error": "TELEGRAM_CHAT_ID не настроен"}
+    token = (getattr(settings, "TELEGRAM_BOT_TOKEN", "") or "").strip()
+    chat_id = (getattr(settings, "TELEGRAM_CHAT_ID", "") or "").strip()
+    masked_token = f"{token[:6]}...{token[-4:]}" if len(token) > 10 else "(не задан или некорректный)"
+
+    if not token or token in ("your_bot_token_here", ""):
+        return {
+            "ok": False,
+            "error": "TELEGRAM_BOT_TOKEN не задан в .env на сервере (или содержит плейсхолдер)",
+            "token_preview": masked_token
+        }
+    if not chat_id or chat_id in ("your_team_chat_id_here", ""):
+        return {
+            "ok": False,
+            "error": "TELEGRAM_CHAT_ID не задан в .env на сервере (или содержит плейсхолдер)",
+            "token_preview": masked_token,
+            "chat_id": chat_id
+        }
 
     url = build_telegram_api_url("sendMessage")
     payload = {
-        "chat_id": settings.TELEGRAM_CHAT_ID,
-        "text": "🏰 <b>CASTLEWEB</b>: Проверка интеграции бэкенда с Telegram прошла успешно! 🚀\nБот активен и готов принимать заявки.",
+        "chat_id": chat_id,
+        "text": "🏰 <b>CASTLEWEB</b>: Проверка интеграции бэкенда с Telegram прошла успешно! 🚀\nБот активен и готов принимать заявки с сайта.",
         "parse_mode": "HTML"
     }
     try:
@@ -103,7 +116,7 @@ async def send_test_telegram():
             if not data.get("ok"):
                 migrate_to = data.get("parameters", {}).get("migrate_to_chat_id")
                 if migrate_to:
-                    old_id = settings.TELEGRAM_CHAT_ID
+                    old_id = chat_id
                     settings.TELEGRAM_CHAT_ID = str(migrate_to)
                     payload["chat_id"] = migrate_to
                     retry_resp = await client.post(url, json=payload)
@@ -114,21 +127,25 @@ async def send_test_telegram():
                         "migrated_from": old_id,
                         "migrated_to": str(migrate_to),
                         "message_id": retry_data.get("result", {}).get("message_id"),
-                        "error": retry_data.get("description")
+                        "error": retry_data.get("description"),
+                        "token_preview": masked_token
                     }
                 return {
                     "ok": False,
-                    "chat_id": settings.TELEGRAM_CHAT_ID,
+                    "chat_id": chat_id,
                     "error": data.get("description"),
-                    "parameters": data.get("parameters")
+                    "parameters": data.get("parameters"),
+                    "token_preview": masked_token,
+                    "status_code": resp.status_code
                 }
             return {
                 "ok": True,
-                "chat_id": settings.TELEGRAM_CHAT_ID,
-                "message_id": data["result"]["message_id"]
+                "chat_id": chat_id,
+                "message_id": data["result"]["message_id"],
+                "token_preview": masked_token
             }
     except Exception as e:
-        return {"ok": False, "chat_id": settings.TELEGRAM_CHAT_ID, "error": str(e)}
+        return {"ok": False, "chat_id": chat_id, "token_preview": masked_token, "error": str(e)}
 
 
 @router.api_route("/setup-webhook", methods=["GET", "POST"], summary="Register Webhook with Telegram")
@@ -148,6 +165,8 @@ async def setup_webhook(drop_pending_updates: bool = False):
             "drop_pending_updates": drop_pending_updates,
             "allowed_updates": ["message", "callback_query"]
         }
+        if settings.TELEGRAM_WEBHOOK_SECRET:
+            payload["secret_token"] = settings.TELEGRAM_WEBHOOK_SECRET
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.post(url, json=payload)
             data = resp.json()
@@ -186,6 +205,13 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
     - Команды инженеров: /stats, /leads
     - Сообщения и документы от пользователей (автоответчик + пересылка инженерам)
     """
+    # Verify secret token to prevent forged webhook updates
+    if settings.TELEGRAM_WEBHOOK_SECRET:
+        incoming_token = request.headers.get("x-telegram-bot-api-secret-token", "")
+        if incoming_token != settings.TELEGRAM_WEBHOOK_SECRET:
+            logger.warning(f"Webhook rejected: invalid secret token from {request.client.host if request.client else 'unknown'}")
+            return {"ok": False}
+
     update = await request.json()
 
     # 1. Обработка нажатий инлайн-кнопок (Callback Query)
@@ -308,6 +334,43 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 for l in recent_leads:
                     lines.append(f"#{l.id} | {l.name} ({l.contact}) — <i>{l.status.value}</i>")
                 await send_reply_message(chat_id, "\n".join(lines))
+        elif text.startswith("/export"):
+            import csv
+            import io
+            from datetime import datetime
+
+            leads_res = await db.execute(select(Lead).order_by(Lead.id.desc()).limit(500))
+            leads = leads_res.scalars().all()
+            if not leads:
+                await send_reply_message(chat_id, "Заявок для выгрузки пока нет.")
+                return {"ok": True}
+
+            csv_buffer = io.StringIO()
+            writer = csv.writer(csv_buffer)
+            writer.writerow(["ID", "Имя", "Контакт", "Бюджет", "Статус", "Город", "Страна", "IP", "Дата создания", "ТЗ / Описание", "Вложение"])
+            for l in leads:
+                writer.writerow([
+                    l.id,
+                    l.name,
+                    l.contact,
+                    l.budget or "",
+                    l.status.value if hasattr(l.status, "value") else str(l.status),
+                    l.geo_city or "",
+                    l.geo_country or "",
+                    l.ip_address or "",
+                    l.created_at.strftime("%Y-%m-%d %H:%M:%S") if l.created_at else "",
+                    (l.task_description or "").replace("\n", " "),
+                    l.attachment_url or ""
+                ])
+
+            csv_bytes = csv_buffer.getvalue().encode("utf-8-sig")
+            now_str = datetime.now().strftime("%Y%m%d_%H%M")
+            filename = f"castleweb_leads_{now_str}.csv"
+            caption = f"📊 <b>Выгрузка лидов CASTLEWEB</b>\nВсего записей: {len(leads)}"
+
+            sent = await TelegramBotService.send_document(chat_id, filename, csv_bytes, caption=caption)
+            if not sent:
+                await send_reply_message(chat_id, "⚠️ Не удалось отправить файл. Проверьте права бота.")
             return {"ok": True}
 
         elif text.startswith("/help"):
@@ -316,10 +379,12 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 f"━━━━━━━━━━━━━━━━━━━━\n"
                 f"• <code>/stats</code> — Сводка по всем заявкам\n"
                 f"• <code>/leads</code> — Список последних 5 заявок\n"
+                f"• <code>/export</code> — Экспорт базы лидов в CSV (Excel)\n"
                 f"• <code>/help</code> — Справка"
             )
             await send_reply_message(chat_id, help_msg)
             return {"ok": True}
+
 
         # Б. ЛИЧНЫЕ СООБЩЕНИЯ ОТ КЛИЕНТА (chat_type == "private")
         if chat_type == "private":

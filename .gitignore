@@ -56,9 +56,16 @@ dist/
 !apps/frontend/dist/
 !apps/frontend/dist/**
 
+# Parser & LeadHunter artifacts
+-_-/
+apps/leadhunter/
+*.backup.mp4
+
 # OS
 .DS_Store
 Thumbs.db
 
-# Drafts
+# Drafts & Internal Plans
 план*.txt
+LEADHUNTER_DEPLOY_PLAN.md
+BACKEND_PLAN.md

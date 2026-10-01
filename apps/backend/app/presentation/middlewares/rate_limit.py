@@ -45,6 +45,13 @@ async def check_rate_limit(
 
     # In-memory fallback
     now = time.time()
+
+    # Periodic cleanup of expired entries to prevent memory leak
+    if len(_in_memory_store) > 200:
+        expired_ips = [k for k, (_, reset_t) in _in_memory_store.items() if now >= reset_t]
+        for k in expired_ips:
+            _in_memory_store.pop(k, None)
+
     if ip in _in_memory_store:
         count, reset_time = _in_memory_store[ip]
         if now < reset_time:

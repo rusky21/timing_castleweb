@@ -108,3 +108,71 @@ async def process_pending_leads():
         logger.warning(f"Failed to recover pending leads: {e}")
 
 
+async def sla_watchdog():
+    """
+    SLA-таймер: каждые 5 минут проверяет заявки, которые висят в PENDING/DELIVERED
+    более 15 минут без взятия в работу. Шлёт повторный URGENCY-алерт в Telegram.
+    Использует Redis lock чтобы не дублировать алерты для одного лида.
+    """
+    from datetime import datetime, timezone, timedelta
+    import html as html_module
+
+    try:
+        redis = await get_redis_client()
+        if redis:
+            acquired = await redis.set("lock:sla_watchdog", "1", nx=True, ex=90)
+            if not acquired:
+                return
+
+        while True:
+            await asyncio.sleep(300)  # Check every 5 minutes
+
+            try:
+                sla_threshold = datetime.now(timezone.utc) - timedelta(minutes=15)
+
+                async with AsyncSessionLocal() as session:
+                    result = await session.execute(
+                        select(Lead).where(
+                            Lead.status.in_([LeadStatus.PENDING, LeadStatus.DELIVERED]),
+                            Lead.created_at < sla_threshold
+                        ).order_by(Lead.id.asc())
+                    )
+                    overdue_leads = result.scalars().all()
+
+                for lead in overdue_leads:
+                    sla_key = f"sla_alert:{lead.id}"
+                    redis = await get_redis_client()
+                    if redis:
+                        already_alerted = await redis.get(sla_key)
+                        if already_alerted:
+                            continue
+                        await redis.set(sla_key, "1", ex=3600)  # Don't re-alert for 1 hour
+
+                    minutes_waiting = int((datetime.now(timezone.utc) - lead.created_at).total_seconds() / 60)
+                    contact_display = html_module.escape(lead.contact) if lead.contact else "Не указан"
+                    name_display = html_module.escape(lead.name) if lead.name else "Без имени"
+                    task_preview = html_module.escape(lead.task_description[:120]) if lead.task_description else "—"
+
+                    urgency_msg = (
+                        f"⏰ <b>ЗАЯВКА #{lead.id} ЖДЁТ УЖЕ {minutes_waiting} МИНУТ</b>\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"👤 <b>Клиент:</b> {name_display}\n"
+                        f"💬 <b>Контакт:</b> {contact_display}\n"
+                        f"📝 <b>Задача:</b> {task_preview}\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"⚠️ <i>Время SLA-реакции истекло! Кто берёт?</i>"
+                    )
+                    buttons = {
+                        "inline_keyboard": [
+                            [{"text": "⚡ Взять в работу", "callback_data": f"lead_take:{lead.id}"}]
+                        ]
+                    }
+                    await TelegramBotService.send_raw_message(urgency_msg, reply_markup=buttons)
+                    logger.info(f"⏰ SLA alert sent for Lead #{lead.id} (waiting {minutes_waiting}min)")
+                    await asyncio.sleep(1.0)
+
+            except Exception as e:
+                logger.warning(f"SLA watchdog cycle error: {e}")
+
+    except Exception as e:
+        logger.warning(f"SLA watchdog startup error: {e}")

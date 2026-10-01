@@ -2,7 +2,7 @@ import json
 from functools import lru_cache
 from typing import List
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, field_validator
 
 
 class Settings(BaseSettings):
@@ -33,6 +33,24 @@ class Settings(BaseSettings):
         default="https://api.telegram.org/bot",
         validation_alias=AliasChoices("TELEGRAM_API_BASE_URL", "TELEGRAM_PROXY_URL")
     )
+    TELEGRAM_WEBHOOK_SECRET: str = ""
+
+    @field_validator("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", mode="before")
+    @classmethod
+    def clean_telegram_strings(cls, v):
+        if v is None:
+            return ""
+        return str(v).strip().strip("'\"")
+
+    @field_validator("TELEGRAM_API_BASE_URL", mode="before")
+    @classmethod
+    def validate_telegram_base_url(cls, v):
+        if not v:
+            return "https://api.telegram.org/bot"
+        s = str(v).strip().strip("'\"")
+        if not s or not (s.startswith("http://") or s.startswith("https://")):
+            return "https://api.telegram.org/bot"
+        return s
 
     # Cloudflare Turnstile
     CLOUDFLARE_TURNSTILE_SECRET_KEY: str = Field(
@@ -76,7 +94,7 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> List[str]:
         if not self.CORS_ORIGINS:
-            return ["*"]
+            return [f"https://{self.DOMAIN_NAME}", f"https://www.{self.DOMAIN_NAME}"]
         raw = self.CORS_ORIGINS.strip()
         if raw.startswith("[") and raw.endswith("]"):
             try:

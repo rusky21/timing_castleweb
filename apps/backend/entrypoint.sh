@@ -3,7 +3,7 @@ set -e
 
 # 1. Ensure volume mounts and upload directories exist and are writable
 mkdir -p /app/uploads /app/data /tmp/uploads
-chmod -R 777 /app/uploads /app/data /tmp/uploads 2>/dev/null || true
+chmod -R 775 /app/uploads /app/data /tmp/uploads 2>/dev/null || true
 if id "appuser" >/dev/null 2>&1; then
     chown -R appuser:appgroup /app/uploads /app/data /tmp/uploads 2>/dev/null || true
 fi
@@ -33,11 +33,17 @@ async def wait_db():
 asyncio.run(wait_db())
 "
 
+# Run migrations and seed as appuser to avoid root-owned files
 echo "🔄 Running database migrations (Alembic)..."
-alembic upgrade head
-
-echo "🌱 Ensuring portfolio cases are seeded..."
-python scripts/seed_cases.py
+if [ "$(id -u)" = "0" ] && id "appuser" >/dev/null 2>&1; then
+    su -s /bin/sh appuser -c "alembic upgrade head"
+    echo "🌱 Ensuring portfolio cases are seeded..."
+    su -s /bin/sh appuser -c "python scripts/seed_cases.py"
+else
+    alembic upgrade head
+    echo "🌱 Ensuring portfolio cases are seeded..."
+    python scripts/seed_cases.py
+fi
 
 echo "🚀 Starting Production ASGI Server (Uvicorn)..."
 if [ "$(id -u)" = "0" ] && id "appuser" >/dev/null 2>&1; then

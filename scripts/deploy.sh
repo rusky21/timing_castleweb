@@ -23,6 +23,7 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 BACKEND_DIR="${ROOT_DIR}/apps/backend"
 FRONTEND_DIR="${ROOT_DIR}/apps/frontend"
 FRONTEND_DIST="${FRONTEND_DIR}/dist"
+LEADHUNTER_DIR="${ROOT_DIR}/apps/leadhunter"
 NGINX_DIR="${ROOT_DIR}/nginx"
 ENV_FILE="${BACKEND_DIR}/.env"
 DOCKER_COMPOSE_FILE="${ROOT_DIR}/docker-compose.prod.yml"
@@ -100,9 +101,16 @@ setup_admin_env() {
     read -r -p "7. Пароль PostgreSQL [Сгенерирован автоматически]: " POSTGRES_PASSWORD
     POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-$DEFAULT_DB_PASS}"
 
+    DEFAULT_REDIS_PASS=$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9' | head -c 16)
+    read -r -p "8. Пароль Redis [Сгенерирован автоматически]: " REDIS_PASSWORD
+    REDIS_PASSWORD="${REDIS_PASSWORD:-$DEFAULT_REDIS_PASS}"
+
     DEFAULT_SECRET_KEY=$(openssl rand -hex 32)
-    read -r -p "8. Секретный ключ приложения (SECRET_KEY) [Сгенерирован автоматически]: " SECRET_KEY
+    read -r -p "9. Секретный ключ приложения (SECRET_KEY) [Сгенерирован автоматически]: " SECRET_KEY
     SECRET_KEY="${SECRET_KEY:-$DEFAULT_SECRET_KEY}"
+
+    # Auto-generate Telegram Webhook secret for verifying incoming updates
+    TELEGRAM_WEBHOOK_SECRET=$(openssl rand -hex 32)
 
     echo -e "\n${CYAN}--- Хранилище файлов портфолио и ТЗ клиентов ---${NC}"
     read -r -p "Использовать облачное хранилище Cloudflare R2? (требует карту) [y/N]: " USE_R2
@@ -166,7 +174,8 @@ POSTGRES_USER=castleweb_user
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 POSTGRES_DB=castleweb_db
 DATABASE_URL=postgresql+asyncpg://castleweb_user:${POSTGRES_PASSWORD}@postgres:5432/castleweb_db
-REDIS_URL=redis://redis:6379/0
+REDIS_PASSWORD=${REDIS_PASSWORD}
+REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
 
 # Security & CORS
 CORS_ORIGINS=https://${DOMAIN_NAME},https://www.${DOMAIN_NAME}
@@ -179,6 +188,7 @@ TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
 TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
 TELEGRAM_API_BASE_URL=${TELEGRAM_API_BASE_URL}
 TELEGRAM_PROXY_URL=${TELEGRAM_PROXY_URL}
+TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET}
 
 # Cloudflare R2 / S3 Storage
 R2_ACCOUNT_ID=${R2_ACCOUNT_ID}
@@ -192,10 +202,23 @@ CLOUDFLARE_R2_SECRET_ACCESS_KEY=${R2_SECRET_KEY}
 CLOUDFLARE_R2_BUCKET_NAME=${R2_BUCKET}
 CLOUDFLARE_R2_PUBLIC_URL=${R2_PUBLIC_URL}
 EOF
-    )
     chmod 600 "$ENV_FILE"
     log_success "Файл конфигурации создан: $ENV_FILE"
+
+    # LeadHunter env setup
+    if [ -d "$LEADHUNTER_DIR" ] && [ ! -f "${LEADHUNTER_DIR}/.env" ]; then
+        log_info "Создание файла окружения для LeadHunter..."
+        cat > "${LEADHUNTER_DIR}/.env" <<LHEOF
+TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+TELEGRAM_API_SERVER=${TELEGRAM_PROXY_URL}
+HOST=0.0.0.0
+PORT=8000
+LHEOF
+        chmod 600 "${LEADHUNTER_DIR}/.env"
+        log_success "Файл конфигурации LeadHunter создан: ${LEADHUNTER_DIR}/.env"
+    fi
 }
+
 
 load_env() {
     if [ -f "$ENV_FILE" ]; then
@@ -289,12 +312,16 @@ build_frontend() {
 
     if [ -f "${FRONTEND_DIR}/package.json" ]; then
         log_info "Запуск сборки в node:22-alpine..."
+        BUILD_CMD="npm install --include=optional && npm run build"
+        if [ -f "${FRONTEND_DIR}/package-lock.json" ]; then
+            BUILD_CMD="npm ci && npm run build"
+        fi
         docker run --rm \
             -v "${FRONTEND_DIR}":/app \
             -w /app \
             -e VITE_API_URL="https://${DOMAIN_NAME}" \
             node:22-alpine \
-            sh -c "npm install --include=optional && npm run build"
+            sh -c "$BUILD_CMD"
         log_success "Фронтенд собран в apps/frontend/dist!"
     else
         log_warn "Фронтенд еще не готов. Создана страница-заглушка."
@@ -378,6 +405,40 @@ setup_ssl_and_cron() {
     CRON_CMD="0 */12 * * * docker compose -f ${DOCKER_COMPOSE_FILE} run --rm certbot renew --quiet && docker compose -f ${DOCKER_COMPOSE_FILE} exec -T nginx nginx -s reload"
     (crontab -l 2>/dev/null | grep -v "certbot renew" ; echo "$CRON_CMD") | crontab -
     log_success "Автопродление SSL добавлено в системный crontab."
+
+    # Dead Man's Switch — health check every 5 minutes, alert to Telegram on failure
+    if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ "$TELEGRAM_BOT_TOKEN" != "your_bot_token_here" ]; then
+        HEALTH_SCRIPT="${ROOT_DIR}/scripts/healthcheck.sh"
+        cat > "$HEALTH_SCRIPT" <<'HEALTHEOF'
+#!/bin/bash
+FAIL_FILE="/tmp/castleweb_health_fails"
+MAX_FAILS=3
+HEALTH_URL="http://127.0.0.1:8000/api/v1/health"
+
+if curl -sf --max-time 5 "$HEALTH_URL" > /dev/null 2>&1; then
+    rm -f "$FAIL_FILE"
+    exit 0
+fi
+
+CURRENT=$(cat "$FAIL_FILE" 2>/dev/null || echo 0)
+CURRENT=$((CURRENT + 1))
+echo "$CURRENT" > "$FAIL_FILE"
+
+if [ "$CURRENT" -ge "$MAX_FAILS" ]; then
+    source __ENV_FILE__
+    TG_URL="${TELEGRAM_PROXY_URL:-https://api.telegram.org}/bot${TELEGRAM_BOT_TOKEN}/sendMessage"
+    MSG="🔴 <b>CASTLEWEB DOWN</b>%0A━━━━━━━━━━━━━━━━━━━━%0AHealth check failed ${CURRENT}x подряд%0AВремя: $(date '+%Y-%m-%d %H:%M:%S')%0A%0AПроверьте: docker compose logs backend"
+    curl -s "$TG_URL" -d chat_id="${TELEGRAM_CHAT_ID}" -d text="$MSG" -d parse_mode=HTML > /dev/null 2>&1
+    echo 0 > "$FAIL_FILE"
+fi
+HEALTHEOF
+        sed -i "s|__ENV_FILE__|${ENV_FILE}|g" "$HEALTH_SCRIPT"
+        chmod +x "$HEALTH_SCRIPT"
+
+        HEALTH_CRON="*/5 * * * * ${HEALTH_SCRIPT}"
+        (crontab -l 2>/dev/null | grep -v "healthcheck.sh" ; echo "$HEALTH_CRON") | crontab -
+        log_success "Dead Man's Switch: мониторинг здоровья каждые 5 минут → алерт в Telegram."
+    fi
 }
 
 launch_and_post_install() {
@@ -401,6 +462,23 @@ launch_and_post_install() {
         log_warn "Бэкенд еще запускается. Проверьте: docker compose -f $DOCKER_COMPOSE_FILE logs backend"
     fi
 
+    # Проверка статуса LeadHunter Pro
+    log_info "Ожидание готовности парсера LeadHunter..."
+    LEADHUNTER_HEALTHY=false
+    for _ in $(seq 1 15); do
+        if docker compose -f "$DOCKER_COMPOSE_FILE" exec -T leadhunter python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" >/dev/null 2>&1; then
+            LEADHUNTER_HEALTHY=true
+            break
+        fi
+        sleep 1
+    done
+    if [ "$LEADHUNTER_HEALTHY" = true ]; then
+        log_success "Парсер LeadHunter успешно запущен и отвечает на http://127.0.0.1:8080!"
+    else
+        log_info "Контейнер LeadHunter инициализируется. Статус: docker compose logs leadhunter"
+    fi
+
+
     # 1. Автоматический накат миграций Alembic
     log_info "Применение миграций базы данных (Alembic)..."
     docker compose -f "$DOCKER_COMPOSE_FILE" exec -T backend alembic upgrade head || log_warn "Alembic завершил выполнение с предупреждением (проверьте таблицы)."
@@ -415,20 +493,29 @@ launch_and_post_install() {
         else
             TG_ENDPOINT="${TG_BASE}/bot${TELEGRAM_BOT_TOKEN}/setWebhook"
         fi
-        TG_RES=$(curl -s "${TG_ENDPOINT}?url=${WEBHOOK_URL}" || echo "")
+        TG_PAYLOAD="{\"url\":\"${WEBHOOK_URL}\",\"allowed_updates\":[\"message\",\"callback_query\"]"
+        if [ -n "$TELEGRAM_WEBHOOK_SECRET" ]; then
+            TG_PAYLOAD="${TG_PAYLOAD},\"secret_token\":\"${TELEGRAM_WEBHOOK_SECRET}\""
+        fi
+        TG_PAYLOAD="${TG_PAYLOAD}}"
+        TG_RES=$(curl -s -X POST "${TG_ENDPOINT}" -H "Content-Type: application/json" -d "${TG_PAYLOAD}" || echo "")
         if echo "$TG_RES" | grep -q '"ok":true'; then
             log_success "Telegram Webhook успешно привязан: ${WEBHOOK_URL}"
         else
             log_warn "Ответ Telegram API: ${TG_RES}"
         fi
+
     fi
 
     echo -e "\n${GREEN}${BOLD}=================================================================${NC}"
     echo -e "${GREEN}${BOLD}     🎉 ПРОЕКТ CASTLEWEB ПОЛНОСТЬЮ РАЗВЕРНУТ И ЗАПУЩЕН!         ${NC}"
     echo -e "${GREEN}${BOLD}=================================================================${NC}"
-    echo -e "  • Сайт:         https://${DOMAIN_NAME}/"
-    echo -e "  • Документация: https://${DOMAIN_NAME}/docs"
-    echo -e "  • Статус API:   https://${DOMAIN_NAME}/api/v1/status"
+    echo -e "  • Сайт:           https://${DOMAIN_NAME}/"
+    echo -e "  • Документация:   https://${DOMAIN_NAME}/docs"
+    echo -e "  • Статус API:     https://${DOMAIN_NAME}/api/v1/status"
+    echo -e "  • LeadHunter:     ssh -L 8080:localhost:8080 root@<SERVER_IP>"
+    echo -e "                    затем: http://localhost:8080"
+    echo -e "  • Бэкапы БД:     docker volume inspect castleweb_pg_backups"
     echo -e "=================================================================\n"
 }
 

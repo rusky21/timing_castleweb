@@ -21,11 +21,11 @@ services:
     image: redis:7-alpine
     container_name: castleweb_prod_redis
     restart: always
-    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru", "--requirepass", "${REDIS_PASSWORD:-castleweb_redis_pass}"]
     volumes:
       - redis_prod_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-castleweb_redis_pass}", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -49,7 +49,7 @@ services:
       - APP_ENV=production
       - DEBUG=False
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-castleweb_user}:${POSTGRES_PASSWORD:-castleweb_secret_pass}@postgres:5432/${POSTGRES_DB:-castleweb_db}
-      - REDIS_URL=redis://redis:6379/0
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-castleweb_redis_pass}@redis:6379/0
     volumes:
       - ./apps/backend/data:/app/data
       - uploads_prod_data:/app/uploads
@@ -89,10 +89,51 @@ services:
     networks:
       - castleweb_internal
 
+  # =========================================================================
+  # PostgreSQL Backup Cron — local compressed dumps every 12 hours
+  # Retains last 14 backups (~7 days)
+  # =========================================================================
+  pg_backup:
+    image: postgres:16-alpine
+    container_name: castleweb_pg_backup
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-castleweb_user}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-castleweb_secret_pass}
+      PGDATABASE: ${POSTGRES_DB:-castleweb_db}
+    volumes:
+      - pg_backups:/backups
+    entrypoint: >
+      /bin/sh -c '
+        apk add --no-cache gzip >/dev/null 2>&1;
+        echo "🗄️ Backup cron started. Running every 12 hours.";
+        while true; do
+          STAMP=$$(date +%Y%m%d_%H%M%S);
+          FILE="/backups/castleweb_$${STAMP}.sql.gz";
+          pg_dump | gzip > "$$FILE" 2>/dev/null;
+          if [ $$? -eq 0 ]; then
+            SIZE=$$(du -h "$$FILE" | cut -f1);
+            echo "[$$STAMP] ✅ Backup OK: $$FILE ($$SIZE)";
+          else
+            echo "[$$STAMP] ❌ Backup FAILED";
+            rm -f "$$FILE";
+          fi;
+          ls -t /backups/castleweb_*.sql.gz 2>/dev/null | tail -n +15 | xargs rm -f 2>/dev/null;
+          sleep 43200;
+        done
+      '
+    networks:
+      - castleweb_internal
+
 volumes:
   postgres_prod_data:
   redis_prod_data:
   uploads_prod_data:
+  pg_backups:
 
 networks:
   castleweb_internal:

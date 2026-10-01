@@ -15,11 +15,17 @@ def build_telegram_api_url(method: str) -> str:
     """
     Формирует URL к методу Telegram Bot API.
     Поддерживает как прямой доступ к api.telegram.org, так и Cloudflare Worker прокси.
+    Гарантирует валидный абсолютный URL даже при непредвиденных значениях в .env.
     """
-    base_url = settings.TELEGRAM_API_BASE_URL.rstrip("/")
+    base_url = (getattr(settings, "TELEGRAM_API_BASE_URL", "") or "").strip().rstrip("/")
+    if not base_url or not (base_url.startswith("http://") or base_url.startswith("https://")):
+        base_url = "https://api.telegram.org/bot"
+
+    token = (getattr(settings, "TELEGRAM_BOT_TOKEN", "") or "").strip()
+
     if base_url.endswith("/bot"):
-        return f"{base_url}{settings.TELEGRAM_BOT_TOKEN}/{method}"
-    return f"{base_url}/bot{settings.TELEGRAM_BOT_TOKEN}/{method}"
+        return f"{base_url}{token}/{method}"
+    return f"{base_url}/bot{token}/{method}"
 
 
 def format_lead_html(lead: Lead) -> str:
@@ -78,19 +84,25 @@ def format_lead_html(lead: Lead) -> str:
 def build_lead_keyboard(lead: Lead) -> Dict[str, Any]:
     """
     Создает инлайн-кнопки для карточки заявки в Telegram.
+    InlineKeyboardButton url ДОЛЖЕН начинаться с http://, https:// или tg://.
+    mailto: недопустим в InlineKeyboardButton и вызывает 400 Bad Request: BUTTON_URL_INVALID.
     """
     buttons = []
 
     # Кнопка связи с клиентом
-    contact = lead.contact.strip()
+    contact = (lead.contact or "").strip()
     if contact.startswith("@"):
         tg_username = contact.lstrip("@")
         direct_url = f"https://t.me/{tg_username}"
         buttons.append([{"text": f"💬 Написать @{tg_username}", "url": direct_url}])
-    elif contact.startswith("http://") or contact.startswith("https://"):
+    elif contact.startswith("http://") or contact.startswith("https://") or contact.startswith("tg://"):
         buttons.append([{"text": "💬 Открыть контакт", "url": contact}])
-    elif "@" in contact:
-        buttons.append([{"text": f"✉️ Написать на {contact}", "url": f"mailto:{contact}"}])
+    elif "t.me/" in contact:
+        url = contact if contact.startswith("http") else f"https://{contact}"
+        buttons.append([{"text": "💬 Написать в Telegram", "url": url}])
+    elif contact.startswith("+") and contact[1:].isdigit():
+        clean_phone = contact.lstrip("+")
+        buttons.append([{"text": "📱 WhatsApp", "url": f"https://wa.me/{clean_phone}"}])
 
     # Кнопки смены статуса (Headless CRM)
     if lead.status in (LeadStatus.PENDING, LeadStatus.DELIVERED):
@@ -123,16 +135,19 @@ class TelegramBotService:
         автоматической миграцией supergroup и plain-text fallback.
         Возвращает telegram message_id для последующего редактирования кнопок.
         """
-        if not settings.TELEGRAM_BOT_TOKEN or settings.TELEGRAM_BOT_TOKEN in ("your_bot_token_here", ""):
+        bot_token = (getattr(settings, "TELEGRAM_BOT_TOKEN", "") or "").strip()
+        chat_id = (getattr(settings, "TELEGRAM_CHAT_ID", "") or "").strip()
+
+        if not bot_token or bot_token in ("your_bot_token_here", ""):
             logger.info(f"ℹ️ Telegram Bot Token not configured (placeholder). Skipping sending Lead #{lead.id}.")
             return None
 
-        if not settings.TELEGRAM_CHAT_ID or settings.TELEGRAM_CHAT_ID in ("your_team_chat_id_here", ""):
+        if not chat_id or chat_id in ("your_team_chat_id_here", ""):
             logger.error(f"❌ Telegram Chat ID not configured in settings. Skipping sending Lead #{lead.id}.")
             return None
 
         url = build_telegram_api_url("sendMessage")
-        current_chat_id = settings.TELEGRAM_CHAT_ID
+        current_chat_id = chat_id
         payload = {
             "chat_id": current_chat_id,
             "text": format_lead_html(lead),
@@ -153,7 +168,7 @@ class TelegramBotService:
                         return message_id
                     else:
                         err_desc = data.get('description', '')
-                        logger.warning(f"Telegram API returned error: {err_desc} (Attempt {attempt})")
+                        logger.warning(f"Telegram API returned error (HTTP {resp.status_code}): {err_desc} (Attempt {attempt})")
 
                         # Supergroup migration: auto-detect and update chat_id
                         migrate_to = data.get("parameters", {}).get("migrate_to_chat_id")
@@ -176,8 +191,8 @@ class TelegramBotService:
                             await asyncio.sleep(wait_sec + 1)
                             continue
 
-                        # Fallback for HTML formatting / entity / link parsing errors
-                        if any(k in err_desc.lower() for k in ("parse", "tag", "entity", "link", "url")):
+                        # Fallback for HTML formatting / entity / link parsing errors or keyboard errors
+                        if any(k in err_desc.lower() for k in ("parse", "tag", "entity", "link", "url", "button", "markup", "can't parse")):
                             clean_att = lead.attachment_url or 'Нет'
                             if clean_att.startswith("/"):
                                 domain = getattr(settings, "DOMAIN_NAME", None) or "castleweb.ru"
@@ -192,16 +207,31 @@ class TelegramBotService:
                                 f"Вложение: {clean_att}\n"
                                 f"IP: {lead.ip_address or 'unknown'}"
                             )
-                            plain_payload = {**payload, "text": plain_text, "parse_mode": None}
+                            # Safe fallback: callback buttons only, avoiding any invalid URLs
+                            safe_keyboard = {
+                                "inline_keyboard": [
+                                    [
+                                        {"text": "⚡ Взять в работу", "callback_data": f"lead_take:{lead.id}"},
+                                        {"text": "🚫 В бан / Спам", "callback_data": f"lead_spam:{lead.id}"}
+                                    ]
+                                ]
+                            }
+                            plain_payload = {
+                                **payload,
+                                "text": plain_text,
+                                "parse_mode": None,
+                                "reply_markup": safe_keyboard
+                            }
                             retry_resp = await client.post(url, json=plain_payload)
                             retry_data = retry_resp.json()
                             if retry_data.get("ok"):
                                 msg_id = retry_data["result"]["message_id"]
                                 logger.info(f"📢 Plain-text fallback sent for Lead #{lead.id}, message_id: {msg_id}")
                                 return msg_id
+                            else:
+                                logger.warning(f"Plain-text fallback also failed: {retry_data.get('description')}")
             except Exception as e:
                 logger.warning(f"Network error sending to Telegram (Attempt {attempt}/4): {e}")
-
             await asyncio.sleep(attempt * 2.0)
 
         logger.error(f"❌ Failed to deliver Lead #{lead.id} to Telegram after 4 attempts.")
@@ -212,12 +242,14 @@ class TelegramBotService:
         """
         Редактирует сообщение в Telegram (обновляет статус и кнопки).
         """
-        if not settings.TELEGRAM_BOT_TOKEN or settings.TELEGRAM_BOT_TOKEN in ("your_bot_token_here", ""):
+        bot_token = (getattr(settings, "TELEGRAM_BOT_TOKEN", "") or "").strip()
+        if not bot_token or bot_token in ("your_bot_token_here", ""):
             return True
 
+        clean_chat = (str(chat_id) or "").strip()
         url = build_telegram_api_url("editMessageText")
         payload = {
-            "chat_id": chat_id,
+            "chat_id": clean_chat,
             "message_id": message_id,
             "text": format_lead_html(lead),
             "parse_mode": "HTML",
@@ -239,3 +271,66 @@ class TelegramBotService:
         except Exception as e:
             logger.warning(f"Failed to edit Telegram message #{message_id}: {e}")
             return False
+
+    @staticmethod
+    async def send_raw_message(text: str, reply_markup: Optional[Dict[str, Any]] = None, chat_id: Optional[str | int] = None) -> bool:
+        """
+        Отправляет произвольное текстовое сообщение в чат инженеров (или указанный chat_id).
+        """
+        bot_token = (getattr(settings, "TELEGRAM_BOT_TOKEN", "") or "").strip()
+        target_chat = (str(chat_id or getattr(settings, "TELEGRAM_CHAT_ID", "") or "")).strip()
+        if not bot_token or not target_chat or target_chat in ("your_team_chat_id_here", ""):
+            return False
+
+        url = build_telegram_api_url("sendMessage")
+        payload = {
+            "chat_id": target_chat,
+            "text": text,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": True
+        }
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
+
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                resp = await client.post(url, json=payload)
+                data = resp.json()
+                if not data.get("ok"):
+                    migrate_to = data.get("parameters", {}).get("migrate_to_chat_id")
+                    if migrate_to:
+                        if str(target_chat) == str(settings.TELEGRAM_CHAT_ID):
+                            settings.TELEGRAM_CHAT_ID = str(migrate_to)
+                        payload["chat_id"] = migrate_to
+                        resp = await client.post(url, json=payload)
+                        data = resp.json()
+                return bool(data.get("ok"))
+        except Exception as e:
+            logger.warning(f"Failed to send raw Telegram message: {e}")
+            return False
+
+    @staticmethod
+    async def send_document(chat_id: str | int, filename: str, content: bytes, caption: Optional[str] = None) -> bool:
+        """
+        Отправляет файл (например, CSV выгрузку) в чат Telegram.
+        """
+        bot_token = (getattr(settings, "TELEGRAM_BOT_TOKEN", "") or "").strip()
+        clean_chat = (str(chat_id) or "").strip()
+        if not bot_token or not clean_chat or clean_chat in ("your_team_chat_id_here", ""):
+            return False
+
+        url = build_telegram_api_url("sendDocument")
+        try:
+            files = {"document": (filename, content, "text/csv")}
+            data = {"chat_id": clean_chat}
+            if caption:
+                data["caption"] = caption
+                data["parse_mode"] = "HTML"
+
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                resp = await client.post(url, data=data, files=files)
+                return bool(resp.json().get("ok"))
+        except Exception as e:
+            logger.warning(f"Failed to send document to Telegram chat {clean_chat}: {e}")
+            return False
+

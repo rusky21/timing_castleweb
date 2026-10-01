@@ -60,5 +60,10 @@ jobs:
           script: |
             cd ~/castleweb
             git pull origin main
+            if [ -f "apps/frontend/package.json" ]; then
+              echo "🔨 Rebuilding frontend..."
+              docker run --rm -v "$(pwd)/apps/frontend":/app -w /app node:22-alpine sh -c "npm ci && npm run build"
+            fi
             docker compose -f docker-compose.prod.yml up -d --build
             docker image prune -f
+

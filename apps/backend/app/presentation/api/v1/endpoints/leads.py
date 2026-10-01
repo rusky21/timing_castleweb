@@ -12,6 +12,9 @@ from app.infrastructure.queue.lead_queue import push_lead_to_queue
 
 router = APIRouter()
 
+# In-memory deduplication fallback when Redis is offline: {hash: (lead_id, expire_at)}
+_in_memory_dedup: dict[str, tuple[int, float]] = {}
+
 
 @router.post("", response_model=LeadResponse, status_code=status.HTTP_201_CREATED, summary="Submit a Lead from Website")
 async def create_lead(
@@ -41,7 +44,14 @@ async def create_lead(
         )
 
     # 4. Cloudflare Turnstile Verification (if enabled in settings)
-    if payload.turnstile_token:
+    from app.core.config import get_settings as _get_settings
+    _settings = _get_settings()
+    if _settings.CLOUDFLARE_TURNSTILE_ENABLED:
+        if not payload.turnstile_token:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Токен проверки Turnstile обязателен. Пожалуйста, обновите страницу."
+            )
         is_human = await verify_turnstile_token(payload.turnstile_token, remote_ip=client_ip)
         if not is_human:
             raise HTTPException(
@@ -54,6 +64,38 @@ async def create_lead(
         bl_check = await db.execute(select(Blacklist).where(Blacklist.ip_address == client_ip))
         if bl_check.scalar_one_or_none():
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+
+    # 5.5. Deduplication — prevent accidental double-submits (5-min window)
+    import hashlib
+    import time
+    from app.core.redis import get_redis_client
+    dedup_hash = hashlib.sha256(f"{payload.contact.strip()}:{payload.task_description.strip()}".encode()).hexdigest()[:16]
+    dedup_key = f"lead_dedup:{dedup_hash}"
+    existing_id = None
+
+    redis = await get_redis_client()
+    if redis:
+        try:
+            cached_val = await redis.get(dedup_key)
+            if cached_val:
+                existing_id = int(cached_val)
+        except Exception:
+            pass
+
+    if existing_id is None:
+        now_ts = time.time()
+        if dedup_hash in _in_memory_dedup:
+            lead_id_mem, exp_mem = _in_memory_dedup[dedup_hash]
+            if now_ts < exp_mem:
+                existing_id = lead_id_mem
+            else:
+                _in_memory_dedup.pop(dedup_hash, None)
+
+    if existing_id is not None:
+        existing = await db.execute(select(Lead).where(Lead.id == existing_id))
+        existing_lead = existing.scalar_one_or_none()
+        if existing_lead:
+            return existing_lead
 
     # 6. Save to Database (Save First Principle)
     new_lead = Lead(
@@ -70,6 +112,15 @@ async def create_lead(
     db.add(new_lead)
     await db.commit()
     await db.refresh(new_lead)
+
+    # Store dedup key for 5 minutes
+    if redis:
+        try:
+            await redis.set(dedup_key, str(new_lead.id), ex=300)
+        except Exception:
+            pass
+    _in_memory_dedup[dedup_hash] = (new_lead.id, time.time() + 300)
+
 
     # 7. Push to background queue for GeoIP enrichment and Telegram delivery
     await push_lead_to_queue(new_lead.id)

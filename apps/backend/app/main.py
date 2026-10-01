@@ -16,10 +16,11 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(Base.metadata.create_all)
     print(f"🚀 {settings.APP_NAME} started on {settings.APP_HOST}:{settings.APP_PORT} (Env: {settings.APP_ENV})")
 
-    # Background: recover and process any pending leads in queue
+    # Background: recover and process any pending leads in queue + SLA watchdog
     import asyncio
-    from app.infrastructure.queue.worker import process_pending_leads
+    from app.infrastructure.queue.worker import process_pending_leads, sla_watchdog
     asyncio.create_task(process_pending_leads())
+    asyncio.create_task(sla_watchdog())
 
     # Background: auto-register Telegram webhook if configured
     if settings.TELEGRAM_BOT_TOKEN and settings.TELEGRAM_BOT_TOKEN not in ("your_bot_token_here", ""):
@@ -32,10 +33,13 @@ async def lifespan(app: FastAPI):
                 webhook_url = f"https://{domain}/api/v1/telegram/webhook"
                 url = build_telegram_api_url("setWebhook")
                 async with httpx.AsyncClient(timeout=10.0) as client:
-                    resp = await client.post(url, json={
+                    payload = {
                         "url": webhook_url,
                         "allowed_updates": ["message", "callback_query"]
-                    })
+                    }
+                    if settings.TELEGRAM_WEBHOOK_SECRET:
+                        payload["secret_token"] = settings.TELEGRAM_WEBHOOK_SECRET
+                    resp = await client.post(url, json=payload)
                     data = resp.json()
                     if data.get("ok"):
                         print(f"🤖 Telegram Webhook registered: {webhook_url}")

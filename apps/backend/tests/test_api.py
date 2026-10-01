@@ -232,6 +232,58 @@ async def test_telegram_crm_webhook():
         assert res_leads.status_code == 200
 
 
+@pytest.mark.asyncio
+async def test_deduplication_and_webhook_secret():
+    from app.core.config import get_settings
+    settings = get_settings()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        # 1. Test lead deduplication
+        dedup_payload = {
+            "name": "Дмитрий Повторный",
+            "contact": "@dmitry_dedup",
+            "task_description": "Разработка уникального личного кабинета под ключ",
+            "budget": "от 500 000 ₽"
+        }
+        res1 = await client.post("/api/v1/leads", json=dedup_payload, headers={"x-forwarded-for": "178.62.200.1"})
+        assert res1.status_code == 201
+        lead_id_1 = res1.json()["id"]
+
+        # Duplicate submit with identical contact & description within 5 minutes returns existing lead
+        res2 = await client.post("/api/v1/leads", json=dedup_payload, headers={"x-forwarded-for": "178.62.200.2"})
+        assert res2.status_code in (200, 201)
+        lead_id_2 = res2.json()["id"]
+        assert lead_id_1 == lead_id_2
+
+        # 2. Test Telegram Webhook secret token check
+        orig_secret = settings.TELEGRAM_WEBHOOK_SECRET
+        try:
+            settings.TELEGRAM_WEBHOOK_SECRET = "super_secret_test_token"
+
+            # Rejected without header
+            res_no_token = await client.post("/api/v1/telegram/webhook", json={"message": {"text": "/stats"}})
+            assert res_no_token.json().get("ok") is False
+
+            # Rejected with wrong token
+            res_bad_token = await client.post(
+                "/api/v1/telegram/webhook",
+                json={"message": {"text": "/stats"}},
+                headers={"x-telegram-bot-api-secret-token": "wrong_token"}
+            )
+            assert res_bad_token.json().get("ok") is False
+
+            # Accepted with correct token
+            res_good_token = await client.post(
+                "/api/v1/telegram/webhook",
+                json={"message": {"message_id": 200, "chat": {"id": -100987654321}, "text": "/export"}},
+                headers={"x-telegram-bot-api-secret-token": "super_secret_test_token"}
+            )
+            assert res_good_token.status_code == 200
+            assert res_good_token.json().get("ok") is True
+        finally:
+            settings.TELEGRAM_WEBHOOK_SECRET = orig_secret
+
+
 if __name__ == "__main__":
     async def run_all():
         print("🧪 Running API verification tests...")
@@ -245,6 +297,9 @@ if __name__ == "__main__":
         print("✅ /leads rate limiting & honeypot: PASS")
         await test_telegram_crm_webhook()
         print("✅ Telegram Headless CRM webhook & ban actions: PASS")
+        await test_deduplication_and_webhook_secret()
+        print("✅ Deduplication & Telegram webhook secret security: PASS")
         print("\n🎉 ALL TESTS PASSED SUCCESSFULLY!")
 
     asyncio.run(run_all())
+
