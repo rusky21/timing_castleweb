@@ -15,21 +15,29 @@ export default function Navbar({ onOpenContact }) {
   }, []);
 
   useEffect(() => {
+    let isMounted = true;
     const fetchStatus = async () => {
+      if (document.hidden) return;
       try {
         const res = await fetch('/api/v1/status');
-        if (res.ok) {
+        if (res.ok && isMounted) {
           const data = await res.json();
-          if (data.latency_ms) setLatency(Math.round(data.latency_ms));
+          if (data.latency_ms !== undefined) {
+            setLatency(typeof data.latency_ms === 'number' ? data.latency_ms.toFixed(1) : data.latency_ms);
+          }
         }
       } catch {
         // fallback
       }
     };
     fetchStatus();
-    const interval = setInterval(fetchStatus, 30000);
-    return () => clearInterval(interval);
+    const interval = setInterval(fetchStatus, 1000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, []);
+
 
   return (
     <header className={`navbar-wrapper ${scrolled ? 'navbar-scrolled' : ''}`}>
