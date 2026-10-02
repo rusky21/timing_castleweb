@@ -155,7 +155,7 @@ apps/backend/
 
 ### Спринт 3: Интеграция с Telegram и Фоновые сервисы (✅ Выполнен)
 - [x] Cloudflare Worker: скрипт обратного прокси для Telegram Bot API (`scripts/cloudflare_worker_tg_proxy.js`).
-- [x] Сервис Telegram Bot API (`app/infrastructure/telegram/bot_service.py`):
+- [x] Сервис Telegram Bot API (`app/infr  astructure/telegram/bot_service.py`):
   * Форматирование карточки с кнопками прямого перехода к диалогу (`tg://resolve?domain=...`).
   * Инлайн-кнопки управления заявкой (`Взять в работу`, `Связался`, `В бан / Спам`).
   * Редактирование сообщений в Telegram при нажатии кнопок.

@@ -121,3 +121,24 @@ async def create_lead(
     await push_lead_to_queue(new_lead.id)
 
     return new_lead
+
+
+@router.delete("/{lead_id}", summary="Delete Lead Record by ID")
+async def delete_lead(
+    lead_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Удаляет запись заявки (лида) из базы данных по её ID.
+    """
+    res = await db.execute(select(Lead).where(Lead.id == lead_id))
+    lead = res.scalar_one_or_none()
+    if not lead:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Заявка #{lead_id} не найдена в базе данных"
+        )
+
+    await db.delete(lead)
+    await db.commit()
+    return {"ok": True, "message": f"Заявка #{lead_id} успешно удалена", "deleted_id": lead_id}

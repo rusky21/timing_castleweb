@@ -124,6 +124,11 @@ def build_lead_keyboard(lead: Lead) -> Dict[str, Any]:
             {"text": "🚫 Отправлен в БАН", "callback_data": "noop"}
         ])
 
+    # Кнопка удаления записи для быстрого клининга / тестов
+    buttons.append([
+        {"text": "🗑 Удалить запись", "callback_data": f"lead_del_prompt:{lead.id}"}
+    ])
+
     return {"inline_keyboard": buttons}
 
 
@@ -270,6 +275,104 @@ class TelegramBotService:
                 return bool(data.get("ok"))
         except Exception as e:
             logger.warning(f"Failed to edit Telegram message #{message_id}: {e}")
+            return False
+
+    @staticmethod
+    async def edit_message_text(
+        chat_id: int | str,
+        message_id: int,
+        text: str,
+        reply_markup: Optional[Dict[str, Any]] = None
+    ) -> bool:
+        """
+        Редактирует текст сообщения и опционально обновляет инлайн-кнопки.
+        """
+        bot_token = (getattr(settings, "TELEGRAM_BOT_TOKEN", "") or "").strip()
+        if not bot_token or bot_token in ("your_bot_token_here", ""):
+            return True
+
+        clean_chat = (str(chat_id) or "").strip()
+        url = build_telegram_api_url("editMessageText")
+        payload = {
+            "chat_id": clean_chat,
+            "message_id": message_id,
+            "text": text,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": True
+        }
+        if reply_markup is not None:
+            payload["reply_markup"] = reply_markup
+
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.post(url, json=payload)
+                data = resp.json()
+                if not data.get("ok"):
+                    migrate_to = data.get("parameters", {}).get("migrate_to_chat_id")
+                    if migrate_to:
+                        payload["chat_id"] = migrate_to
+                        resp = await client.post(url, json=payload)
+                        data = resp.json()
+                return bool(data.get("ok"))
+        except Exception as e:
+            logger.warning(f"Failed to edit Telegram message text #{message_id}: {e}")
+            return False
+
+    @staticmethod
+    async def edit_message_reply_markup(
+        chat_id: int | str,
+        message_id: int,
+        reply_markup: Optional[Dict[str, Any]] = None
+    ) -> bool:
+        """
+        Редактирует только инлайн-кнопки сообщения (например, для подтверждения удаления).
+        """
+        bot_token = (getattr(settings, "TELEGRAM_BOT_TOKEN", "") or "").strip()
+        if not bot_token or bot_token in ("your_bot_token_here", ""):
+            return True
+
+        clean_chat = (str(chat_id) or "").strip()
+        url = build_telegram_api_url("editMessageReplyMarkup")
+        payload = {
+            "chat_id": clean_chat,
+            "message_id": message_id,
+            "reply_markup": reply_markup or {"inline_keyboard": []}
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.post(url, json=payload)
+                data = resp.json()
+                if not data.get("ok"):
+                    migrate_to = data.get("parameters", {}).get("migrate_to_chat_id")
+                    if migrate_to:
+                        payload["chat_id"] = migrate_to
+                        resp = await client.post(url, json=payload)
+                        data = resp.json()
+                return bool(data.get("ok"))
+        except Exception as e:
+            logger.warning(f"Failed to edit Telegram reply markup #{message_id}: {e}")
+            return False
+
+    @staticmethod
+    async def delete_message(chat_id: int | str, message_id: int) -> bool:
+        """
+        Удаляет сообщение из чата Telegram.
+        """
+        bot_token = (getattr(settings, "TELEGRAM_BOT_TOKEN", "") or "").strip()
+        if not bot_token or bot_token in ("your_bot_token_here", ""):
+            return True
+
+        clean_chat = (str(chat_id) or "").strip()
+        url = build_telegram_api_url("deleteMessage")
+        payload = {"chat_id": clean_chat, "message_id": message_id}
+
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.post(url, json=payload)
+                return bool(resp.json().get("ok"))
+        except Exception as e:
+            logger.warning(f"Failed to delete Telegram message #{message_id}: {e}")
             return False
 
     @staticmethod

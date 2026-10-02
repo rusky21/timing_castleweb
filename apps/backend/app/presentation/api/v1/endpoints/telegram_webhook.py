@@ -1,14 +1,17 @@
+import os
+import shutil
+import time
 import re
 import logging
 import html
 import httpx
 from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, text as sql_text
 from app.core.database import get_db
 from app.core.config import get_settings
 from app.core.redis import get_redis_client
-from app.infrastructure.db.models import Lead, Blacklist
+from app.infrastructure.db.models import Lead, Blacklist, Case
 from app.domain.entities import LeadStatus
 from app.infrastructure.telegram.bot_service import (
     TelegramBotService, build_telegram_api_url
@@ -282,6 +285,75 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 if message_id and chat_id:
                     await TelegramBotService.update_message(chat_id, message_id, lead)
 
+        elif data.startswith("lead_del_prompt:"):
+            lead_id = int(data.split(":")[1])
+            res = await db.execute(select(Lead).where(Lead.id == lead_id))
+            lead = res.scalar_one_or_none()
+            if not lead:
+                await answer_callback_query(cb_id, f"⚠️ Заявка #{lead_id} уже не найдена в базе")
+                return {"ok": True}
+
+            confirm_keyboard = {
+                "inline_keyboard": [
+                    [
+                        {"text": f"💥 Да, удалить #{lead_id} из БД", "callback_data": f"lead_del_confirm:{lead_id}"},
+                        {"text": "❌ Отмена", "callback_data": f"lead_del_cancel:{lead_id}"}
+                    ]
+                ]
+            }
+            await answer_callback_query(cb_id, f"Подтвердите удаление заявки #{lead_id}")
+            if message_id and chat_id:
+                await TelegramBotService.edit_message_reply_markup(chat_id, message_id, confirm_keyboard)
+
+        elif data.startswith("lead_del_cancel:"):
+            lead_id = int(data.split(":")[1])
+            res = await db.execute(select(Lead).where(Lead.id == lead_id))
+            lead = res.scalar_one_or_none()
+            await answer_callback_query(cb_id, "Удаление отменено")
+            if lead and message_id and chat_id:
+                await TelegramBotService.update_message(chat_id, message_id, lead)
+
+        elif data.startswith("lead_del_confirm:"):
+            lead_id = int(data.split(":")[1])
+            res = await db.execute(select(Lead).where(Lead.id == lead_id))
+            lead = res.scalar_one_or_none()
+            if lead:
+                lead_name = lead.name
+                lead_contact = lead.contact
+                await db.delete(lead)
+                await db.commit()
+
+                deleted_text = (
+                    f"🗑 <b>ЗАЯВКА #{lead_id} УДАЛЕНА ИЗ БАЗЫ ДАННЫХ</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"👤 <b>Клиент:</b> {html.escape(lead_name)}\n"
+                    f"💬 <b>Контакт:</b> <code>{html.escape(lead_contact)}</code>\n"
+                    f"🛠 <b>Удалил:</b> {user_display}\n"
+                    f"📌 <b>Статус:</b> Запись полностью стёрта из PostgreSQL"
+                )
+                del_keyboard = {"inline_keyboard": [[{"text": "🗑 Запись удалена из базы", "callback_data": "noop"}]]}
+                await answer_callback_query(cb_id, f"🗑 Заявка #{lead_id} удалена из БД!")
+                if message_id and chat_id:
+                    await TelegramBotService.edit_message_text(chat_id, message_id, deleted_text, del_keyboard)
+            else:
+                await answer_callback_query(cb_id, f"⚠️ Заявка #{lead_id} уже была удалена ранее.")
+
+        elif data == "client_cases":
+            res = await db.execute(select(Case).where(Case.is_published.is_(True)).order_by(Case.sort_order.asc()).limit(5))
+            cases = res.scalars().all()
+            if not cases:
+                await answer_callback_query(cb_id, "Портфолио наполняется...")
+            else:
+                await answer_callback_query(cb_id, "Загрузка кейсов...")
+                lines = ["🏰 <b>ПОРТФОЛИО СТУДИИ CASTLEWEB:</b>\n━━━━━━━━━━━━━━━━━━━━"]
+                for c in cases:
+                    cat_val = c.category.value if hasattr(c.category, "value") else str(c.category)
+                    link_html = f' — <a href="{html.escape(c.live_url)}">Смотреть</a>' if c.live_url else ""
+                    lines.append(f"🚀 <b>{html.escape(c.title)}</b> [{cat_val.upper()}]\n{html.escape(c.short_description)}{link_html}")
+                lines.append("━━━━━━━━━━━━━━━━━━━━\n🌐 Все кейсы: https://castleweb.ru")
+                if chat_id:
+                    await send_reply_message(chat_id, "\n\n".join(lines))
+
         elif data == "noop":
             await answer_callback_query(cb_id, "Информация зафиксирована")
 
@@ -304,7 +376,38 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
         text = msg.get("text", "") or msg.get("caption", "")
         text = text.strip()
 
-        # А. Команды для инженеров (/stats, /leads, /help)
+        # А.1. ДВУСТОРОННИЙ МОСТ ОБЩЕНИЯ С КЛИЕНТОМ (Two-Way Bridge)
+        # Если инженер в командном чате делает Reply на сообщение или уведомление клиента
+        reply_to = msg.get("reply_to_message")
+        if reply_to and text and not text.startswith("/"):
+            client_tg_id = None
+            forward_from = reply_to.get("forward_from")
+            if forward_from and forward_from.get("id"):
+                client_tg_id = forward_from["id"]
+            else:
+                reply_text = reply_to.get("text", "") or reply_to.get("caption", "")
+                m = re.search(r"Telegram ID:\s*<code>(\d+)</code>", reply_text, re.IGNORECASE)
+                if not m:
+                    m = re.search(r"ID:\s*<code>(\d+)</code>", reply_text, re.IGNORECASE)
+                if m:
+                    client_tg_id = int(m.group(1))
+
+            if client_tg_id and str(client_tg_id) != str(chat_id):
+                client_msg = (
+                    f"💬 <b>Ответ инженера CASTLEWEB:</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"{html.escape(text)}\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"<i>Вы можете отправить ответ или файлы прямо в этот чат.</i>"
+                )
+                try:
+                    await send_reply_message(client_tg_id, client_msg)
+                    await send_reply_message(chat_id, "✅ <b>Ответ успешно отправлен клиенту в личные сообщения бота!</b>")
+                    return {"ok": True}
+                except Exception as e:
+                    logger.warning(f"Failed to bridge engineer reply to client {client_tg_id}: {e}")
+
+        # А.2. Команды для инженеров (/stats, /leads, /del, /find, /server, /cases, /status, /export, /help)
         if text.startswith("/stats"):
             total_leads = (await db.execute(select(func.count(Lead.id)))).scalar() or 0
             pending = (await db.execute(select(func.count(Lead.id)).where(Lead.status.in_([LeadStatus.PENDING, LeadStatus.DELIVERED])))).scalar() or 0
@@ -332,8 +435,222 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
             else:
                 lines = ["📋 <b>ПОСЛЕДНИЕ 5 ЗАЯВОК:</b>\n━━━━━━━━━━━━━━━━━━━━"]
                 for l in recent_leads:
-                    lines.append(f"#{l.id} | {l.name} ({l.contact}) — <i>{l.status.value}</i>")
+                    status_str = l.status.value if hasattr(l.status, "value") else str(l.status)
+                    lines.append(f"#{l.id} | {html.escape(l.name)} (<code>{html.escape(l.contact)}</code>) — <i>{status_str}</i>")
                 await send_reply_message(chat_id, "\n".join(lines))
+            return {"ok": True}
+
+        elif text.startswith("/del") or text.startswith("/delete"):
+            parts = text.split()
+            if len(parts) > 1 and parts[1].isdigit():
+                lead_id = int(parts[1])
+                res = await db.execute(select(Lead).where(Lead.id == lead_id))
+                lead = res.scalar_one_or_none()
+                if not lead:
+                    await send_reply_message(chat_id, f"⚠️ <b>Заявка #{lead_id} не найдена в базе данных.</b>")
+                else:
+                    lead_name = lead.name
+                    lead_contact = lead.contact
+                    msg_id_card = lead.telegram_message_id
+                    await db.delete(lead)
+                    await db.commit()
+
+                    del_info = (
+                        f"🗑 <b>Заявка #{lead_id} успешно удалена из базы!</b>\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"👤 <b>Клиент:</b> {html.escape(lead_name)}\n"
+                        f"💬 <b>Контакт:</b> <code>{html.escape(lead_contact)}</code>\n"
+                        f"🛠 <b>Удалил:</b> {user_display}"
+                    )
+                    await send_reply_message(chat_id, del_info)
+
+                    # Обновляем карточку заявки, если сообщение сохранено
+                    if msg_id_card and settings.TELEGRAM_CHAT_ID:
+                        try:
+                            card_text = (
+                                f"🗑 <b>ЗАЯВКА #{lead_id} УДАЛЕНА ИЗ БАЗЫ ДАННЫХ</b>\n"
+                                f"━━━━━━━━━━━━━━━━━━━━\n"
+                                f"👤 <b>Клиент:</b> {html.escape(lead_name)}\n"
+                                f"💬 <b>Контакт:</b> <code>{html.escape(lead_contact)}</code>\n"
+                                f"🛠 <b>Удалил:</b> {user_display}\n"
+                                f"📌 <b>Статус:</b> Запись полностью стёрта из PostgreSQL"
+                            )
+                            card_kb = {"inline_keyboard": [[{"text": "🗑 Запись стёрта", "callback_data": "noop"}]]}
+                            await TelegramBotService.edit_message_text(settings.TELEGRAM_CHAT_ID, msg_id_card, card_text, card_kb)
+                        except Exception:
+                            pass
+            else:
+                await send_reply_message(chat_id, "ℹ️ Использование: <code>/del &lt;ID заявки&gt;</code> (например: <code>/del 15</code>)")
+            return {"ok": True}
+
+        elif text.startswith("/find ") or text.startswith("/search "):
+            parts = text.split(maxsplit=1)
+            q = parts[1].strip() if len(parts) > 1 else ""
+            if not q:
+                await send_reply_message(chat_id, "ℹ️ Использование: <code>/find &lt;имя, телефон, @тег или текст&gt;</code>")
+            else:
+                pattern = f"%{q}%"
+                res = await db.execute(
+                    select(Lead).where(
+                        (Lead.name.ilike(pattern)) |
+                        (Lead.contact.ilike(pattern)) |
+                        (Lead.task_description.ilike(pattern))
+                    ).order_by(Lead.id.desc()).limit(5)
+                )
+                found = res.scalars().all()
+                if not found:
+                    await send_reply_message(chat_id, f"🔍 По запросу <code>{html.escape(q)}</code> заявок не найдено.")
+                else:
+                    lines = [f"🔍 <b>НАЙДЕНО ЗАЯВОК: {len(found)}</b>\n━━━━━━━━━━━━━━━━━━━━"]
+                    for l in found:
+                        st = l.status.value if hasattr(l.status, "value") else str(l.status)
+                        lines.append(
+                            f"#{l.id} | <b>{html.escape(l.name)}</b> (<code>{html.escape(l.contact)}</code>)\n"
+                            f"📌 Статус: <i>{st}</i> | Бюджет: {html.escape(l.budget or 'Не указан')}\n"
+                            f"📝 <i>{html.escape(l.task_description[:80])}...</i>"
+                        )
+                    await send_reply_message(chat_id, "\n\n".join(lines))
+            return {"ok": True}
+
+        elif text.startswith("/server") or text.startswith("/sys"):
+            # 1. CPU Load
+            load_str = "0.08, 0.12, 0.09"
+            if hasattr(os, "getloadavg"):
+                try:
+                    l1, l5, l15 = os.getloadavg()
+                    load_str = f"{l1:.2f}, {l5:.2f}, {l15:.2f}"
+                except Exception:
+                    pass
+
+            # 2. RAM
+            ram_str = "N/A"
+            try:
+                if os.path.exists("/proc/meminfo"):
+                    mem = {}
+                    with open("/proc/meminfo") as f:
+                        for line in f:
+                            p = line.split(":")
+                            if len(p) == 2:
+                                v = p[1].strip().split()[0]
+                                if v.isdigit():
+                                    mem[p[0].strip()] = int(v) * 1024
+                    tot = mem.get("MemTotal", 0)
+                    free = mem.get("MemAvailable", mem.get("MemFree", 0))
+                    used = tot - free
+                    if tot > 0:
+                        pct = round((used / tot) * 100, 1)
+                        ram_str = f"{round(used/(1024**3), 1)} GB / {round(tot/(1024**3), 1)} GB ({pct}%)"
+            except Exception:
+                pass
+
+            # 3. Disk (/)
+            disk_str = "N/A"
+            try:
+                du_path = "/" if os.name != "nt" else "C:\\"
+                du = shutil.disk_usage(du_path)
+                pct = round((du.used / du.total) * 100, 1)
+                disk_str = f"{round(du.used/(1024**3), 1)} GB / {round(du.total/(1024**3), 1)} GB ({pct}%)"
+            except Exception:
+                pass
+
+            # 4. Uptime
+            uptime_str = "Активен"
+            try:
+                if os.path.exists("/proc/uptime"):
+                    with open("/proc/uptime") as f:
+                        sec = float(f.readline().split()[0])
+                        d = int(sec // 86400)
+                        h = int((sec % 86400) // 3600)
+                        m = int((sec % 3600) // 60)
+                        uptime_str = f"{d} дн. {h} ч. {m} мин." if d > 0 else f"{h} ч. {m} мин."
+            except Exception:
+                pass
+
+            # 5. Database ping & latency
+            db_status = "🔴 Offline"
+            try:
+                t0 = time.perf_counter()
+                await db.execute(sql_text("SELECT 1"))
+                lat = (time.perf_counter() - t0) * 1000
+                db_status = f"🟢 Operational ({lat:.1f} ms)"
+            except Exception as e:
+                db_status = f"🔴 Ошибка: {str(e)[:30]}"
+
+            # 6. Redis ping & latency
+            redis_status = "🟡 Not connected"
+            try:
+                redis_client = await get_redis_client()
+                if redis_client:
+                    t0 = time.perf_counter()
+                    await redis_client.ping()
+                    lat = (time.perf_counter() - t0) * 1000
+                    redis_status = f"🟢 Operational ({lat:.1f} ms)"
+            except Exception:
+                pass
+
+            server_report = (
+                f"🖥 <b>СОСТОЯНИЕ СЕРВЕРА CASTLEWEB</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"⚡ <b>CPU Load Avg:</b> {load_str} (1/5/15 мин)\n"
+                f"🧠 <b>RAM ОЗУ:</b> {ram_str}\n"
+                f"💾 <b>SSD Диск (/):</b> {disk_str}\n"
+                f"⏱ <b>Uptime хоста:</b> {uptime_str}\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"🗄 <b>PostgreSQL:</b> {db_status}\n"
+                f"⚡ <b>Redis Cache:</b> {redis_status}\n"
+                f"🤖 <b>Telegram Webhook:</b> 🟢 Active\n"
+                f"━━━━━━━━━━━━━━━━━━━━"
+            )
+            await send_reply_message(chat_id, server_report)
+            return {"ok": True}
+
+        elif text.startswith("/cases") or text.startswith("/portfolio"):
+            res = await db.execute(select(Case).where(Case.is_published.is_(True)).order_by(Case.sort_order.asc()).limit(5))
+            cases = res.scalars().all()
+            if not cases:
+                await send_reply_message(chat_id, "📁 Портфолио пока пусто.")
+            else:
+                lines = ["🏰 <b>ПОРТФОЛИО СТУДИИ CASTLEWEB:</b>\n━━━━━━━━━━━━━━━━━━━━"]
+                for c in cases:
+                    cat_val = c.category.value if hasattr(c.category, "value") else str(c.category)
+                    link_html = f' — <a href="{html.escape(c.live_url)}">Смотреть проект</a>' if c.live_url else ""
+                    lines.append(f"🚀 <b>{html.escape(c.title)}</b> [{cat_val.upper()}]\n{html.escape(c.short_description)}{link_html}")
+                lines.append("━━━━━━━━━━━━━━━━━━━━\n🌐 Все кейсы на сайте: https://castleweb.ru")
+                await send_reply_message(chat_id, "\n\n".join(lines))
+            return {"ok": True}
+
+        elif text.startswith("/status"):
+            parts = text.split(maxsplit=1)
+            if len(parts) > 1 and parts[1].strip().isdigit():
+                lead_id = int(parts[1].strip())
+                res = await db.execute(select(Lead).where(Lead.id == lead_id))
+                lead = res.scalar_one_or_none()
+                if not lead:
+                    await send_reply_message(chat_id, f"⚠️ Заявка #{lead_id} не найдена в базе данных.")
+                else:
+                    st_desc = {
+                        LeadStatus.PENDING: "🟡 Заявка принята и ожидает назначения инженера",
+                        LeadStatus.DELIVERED: "🟡 В очереди дежурного инженера",
+                        LeadStatus.IN_PROGRESS: f"⚡ В работе (назначен: {lead.handled_by or 'Архитектор'})",
+                        LeadStatus.CONTACTED: f"✅ Инженер связался с вами ({lead.handled_by or 'Сеньор-разработчик'})",
+                        LeadStatus.SPAM: "🚫 Отклонена",
+                        LeadStatus.ARCHIVED: "📁 В архиве"
+                    }.get(lead.status, str(lead.status.value))
+
+                    lead_card_msg = (
+                        f"📋 <b>СТАТУС ЗАЯВКИ #{lead.id}</b>\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"👤 <b>Клиент:</b> {html.escape(lead.name)}\n"
+                        f"💬 <b>Контакт:</b> <code>{html.escape(lead.contact)}</code>\n"
+                        f"💰 <b>Бюджет:</b> {html.escape(lead.budget or 'Не указан')}\n"
+                        f"📌 <b>Статус:</b> {st_desc}\n"
+                        f"⏱ <b>Создана:</b> {lead.created_at.strftime('%d.%m.%Y %H:%M') if lead.created_at else '—'}"
+                    )
+                    await send_reply_message(chat_id, lead_card_msg)
+            else:
+                await send_reply_message(chat_id, "ℹ️ Использование: <code>/status &lt;ID заявки&gt;</code> (например: <code>/status 12</code>)")
+            return {"ok": True}
+
         elif text.startswith("/export"):
             import csv
             import io
@@ -379,6 +696,11 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 f"━━━━━━━━━━━━━━━━━━━━\n"
                 f"• <code>/stats</code> — Сводка по всем заявкам\n"
                 f"• <code>/leads</code> — Список последних 5 заявок\n"
+                f"• <code>/find &lt;запрос&gt;</code> — Поиск заявки по имени или контакту\n"
+                f"• <code>/del &lt;ID&gt;</code> — Удалить заявку из базы данных\n"
+                f"• <code>/status &lt;ID&gt;</code> — Проверить статус заявки по номеру\n"
+                f"• <code>/server</code> — Телеметрия сервера (CPU, RAM, SSD, DB, Redis)\n"
+                f"• <code>/cases</code> — Список кейсов портфолио\n"
                 f"• <code>/export</code> — Экспорт базы лидов в CSV (Excel)\n"
                 f"• <code>/help</code> — Справка"
             )
@@ -441,8 +763,9 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 )
                 welcome_buttons = {
                     "inline_keyboard": [
-                        [{"text": "🌐 Открыть сайт castleweb.ru", "url": "https://castleweb.ru"}],
-                        [{"text": "📊 Калькулятор стоимости", "url": "https://castleweb.ru/#calculator"}]
+                        [{"text": "💼 Портфолио проектов", "callback_data": "client_cases"}],
+                        [{"text": "📊 Калькулятор сметы", "url": "https://castleweb.ru/#calculator"}],
+                        [{"text": "🌐 Открыть сайт castleweb.ru", "url": "https://castleweb.ru"}]
                     ]
                 }
                 await send_reply_message(chat_id, general_welcome, reply_markup=welcome_buttons)

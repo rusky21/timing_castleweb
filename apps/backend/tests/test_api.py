@@ -231,6 +231,81 @@ async def test_telegram_crm_webhook():
         res_leads = await client.post("/api/v1/telegram/webhook", json=leads_cmd)
         assert res_leads.status_code == 200
 
+        # 5. Test Lead Deletion: prompt, cancel, and confirm callbacks
+        test_del_res = await client.post(
+            "/api/v1/leads",
+            json={"name": "Временный Лид", "contact": "@temp_client", "task_description": "Тест удаления"},
+            headers={"x-forwarded-for": "178.62.1.99"}
+        )
+        assert test_del_res.status_code == 201
+        del_lead_id = test_del_res.json()["id"]
+
+        # Prompt delete callback
+        prompt_res = await client.post("/api/v1/telegram/webhook", json={
+            "callback_query": {
+                "id": "cb_del_01",
+                "from": {"id": 123456, "first_name": "Dev", "username": "senior_dev"},
+                "message": {"message_id": 9997, "chat": {"id": -100987654321}},
+                "data": f"lead_del_prompt:{del_lead_id}"
+            }
+        })
+        assert prompt_res.status_code == 200
+
+        # Cancel delete callback
+        cancel_res = await client.post("/api/v1/telegram/webhook", json={
+            "callback_query": {
+                "id": "cb_del_02",
+                "from": {"id": 123456, "first_name": "Dev", "username": "senior_dev"},
+                "message": {"message_id": 9997, "chat": {"id": -100987654321}},
+                "data": f"lead_del_cancel:{del_lead_id}"
+            }
+        })
+        assert cancel_res.status_code == 200
+
+        # Confirm delete callback
+        confirm_res = await client.post("/api/v1/telegram/webhook", json={
+            "callback_query": {
+                "id": "cb_del_03",
+                "from": {"id": 123456, "first_name": "Dev", "username": "senior_dev"},
+                "message": {"message_id": 9997, "chat": {"id": -100987654321}},
+                "data": f"lead_del_confirm:{del_lead_id}"
+            }
+        })
+        assert confirm_res.status_code == 200
+
+        # Record is verified deleted via REST API
+        del_check = await client.delete(f"/api/v1/leads/{del_lead_id}")
+        assert del_check.status_code == 404
+
+        # 6. Test /del command
+        lead_for_cmd = await client.post(
+            "/api/v1/leads",
+            json={"name": "Лид Команды", "contact": "@cmd_client", "task_description": "Тест /del"},
+            headers={"x-forwarded-for": "178.62.1.100"}
+        )
+        assert lead_for_cmd.status_code == 201
+        cmd_lead_id = lead_for_cmd.json()["id"]
+
+        del_cmd_res = await client.post("/api/v1/telegram/webhook", json={
+            "message": {
+                "message_id": 102,
+                "chat": {"id": -100987654321},
+                "text": f"/del {cmd_lead_id}"
+            }
+        })
+        assert del_cmd_res.status_code == 200
+
+        # 7. Test /server, /find, /cases, /status
+        for cmd_text in ("/server", f"/find {cmd_lead_id}", "/cases", f"/status {cmd_lead_id}"):
+            res_c = await client.post("/api/v1/telegram/webhook", json={
+                "message": {
+                    "message_id": 103,
+                    "chat": {"id": -100987654321},
+                    "text": cmd_text
+                }
+            })
+            assert res_c.status_code == 200
+
 
 @pytest.mark.asyncio
 async def test_deduplication_and_webhook_secret():
