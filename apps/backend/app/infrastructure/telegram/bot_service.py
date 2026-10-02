@@ -30,15 +30,15 @@ def build_telegram_api_url(method: str) -> str:
 
 def format_lead_html(lead: Lead) -> str:
     """
-    Формирует интерактивную HTML-карточку заявки для закрытого чата инженеров.
+    Формирует лаконичную HTML-карточку заявки для командного чата.
     """
     status_emoji = {
-        LeadStatus.PENDING: "🟡 Ожидает ответа",
+        LeadStatus.PENDING: "🟡 Новая",
         LeadStatus.DELIVERED: "🟡 В очереди",
         LeadStatus.IN_PROGRESS: f"⚡ В работе ({lead.handled_by or 'инженер'})",
         LeadStatus.CONTACTED: f"✅ Связались ({lead.handled_by or 'инженер'})",
-        LeadStatus.SPAM: "🚫 Отклонен (СПАМ)",
-        LeadStatus.ARCHIVED: "📁 В архиве"
+        LeadStatus.SPAM: "🚫 Спам",
+        LeadStatus.ARCHIVED: "📁 Архив"
     }.get(lead.status, str(lead.status.value))
 
     name_clean = html.escape(lead.name)
@@ -52,7 +52,7 @@ def format_lead_html(lead: Lead) -> str:
         if att_url.startswith("/"):
             domain = getattr(settings, "DOMAIN_NAME", None) or "castleweb.ru"
             att_url = f"https://{domain}{att_url}"
-        attachment_text = f'\n📎 <b>ТЗ / Вложение:</b> <a href="{html.escape(att_url)}">Открыть файл</a>'
+        attachment_text = f'\n📎 <a href="{html.escape(att_url)}">Вложение / ТЗ</a>'
 
     # GeoIP block
     geo_parts = []
@@ -60,23 +60,15 @@ def format_lead_html(lead: Lead) -> str:
         geo_parts.append(lead.geo_city)
     if lead.geo_country:
         geo_parts.append(lead.geo_country)
-    if lead.geo_isp:
-        geo_parts.append(f"({lead.geo_isp})")
-    geo_str = ", ".join(geo_parts) if geo_parts else "Локальная сеть / VPN"
+    geo_str = ", ".join(geo_parts) if geo_parts else (lead.ip_address or "Локально")
 
     text = (
-        f"🔥 <b>НОВАЯ ЗАЯВКА #{lead.id}</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"👤 <b>Клиент:</b> {name_clean}\n"
-        f"💬 <b>Контакт:</b> <code>{contact_clean}</code>\n"
-        f"💰 <b>Бюджет:</b> {budget_clean}\n"
-        f"📌 <b>Статус:</b> {status_emoji}\n"
-        f"{attachment_text}\n"
-        f"📝 <b>Суть задачи:</b>\n"
-        f"<blockquote>{desc_clean}</blockquote>\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"📍 <b>Инфо о клиенте:</b> {html.escape(geo_str)}\n"
-        f"🌐 <b>IP:</b> <code>{html.escape(lead.ip_address or 'unknown')}</code>"
+        f"📬 <b>Заявка #{lead.id}</b>\n"
+        f"👤 <b>{name_clean}</b> (<code>{contact_clean}</code>)\n"
+        f"💰 Бюджет: {budget_clean} | {status_emoji}\n"
+        f"📍 {html.escape(geo_str)}"
+        f"{attachment_text}\n\n"
+        f"<blockquote>{desc_clean}</blockquote>"
     )
     return text
 
@@ -84,8 +76,6 @@ def format_lead_html(lead: Lead) -> str:
 def build_lead_keyboard(lead: Lead) -> Dict[str, Any]:
     """
     Создает инлайн-кнопки для карточки заявки в Telegram.
-    InlineKeyboardButton url ДОЛЖЕН начинаться с http://, https:// или tg://.
-    mailto: недопустим в InlineKeyboardButton и вызывает 400 Bad Request: BUTTON_URL_INVALID.
     """
     buttons = []
 
@@ -93,40 +83,39 @@ def build_lead_keyboard(lead: Lead) -> Dict[str, Any]:
     contact = (lead.contact or "").strip()
     if contact.startswith("@"):
         tg_username = contact.lstrip("@")
-        direct_url = f"https://t.me/{tg_username}"
-        buttons.append([{"text": f"💬 Написать @{tg_username}", "url": direct_url}])
+        buttons.append([{"text": f"💬 Написать @{tg_username}", "url": f"https://t.me/{tg_username}"}])
     elif contact.startswith("http://") or contact.startswith("https://") or contact.startswith("tg://"):
-        buttons.append([{"text": "💬 Открыть контакт", "url": contact}])
+        buttons.append([{"text": "💬 Контакт", "url": contact}])
     elif "t.me/" in contact:
         url = contact if contact.startswith("http") else f"https://{contact}"
-        buttons.append([{"text": "💬 Написать в Telegram", "url": url}])
+        buttons.append([{"text": "💬 Telegram", "url": url}])
     elif contact.startswith("+") and contact[1:].isdigit():
         clean_phone = contact.lstrip("+")
         buttons.append([{"text": "📱 WhatsApp", "url": f"https://wa.me/{clean_phone}"}])
 
-    # Кнопки смены статуса (Headless CRM)
+    # Кнопки смены статуса
     if lead.status in (LeadStatus.PENDING, LeadStatus.DELIVERED):
         buttons.append([
-            {"text": "⚡ Взять в работу", "callback_data": f"lead_take:{lead.id}"},
-            {"text": "🚫 В бан / Спам", "callback_data": f"lead_spam:{lead.id}"}
+            {"text": "⚡ В работу", "callback_data": f"lead_take:{lead.id}"},
+            {"text": "🚫 Спам", "callback_data": f"lead_spam:{lead.id}"}
         ])
     elif lead.status == LeadStatus.IN_PROGRESS:
         buttons.append([
-            {"text": f"⚡ В работе: {lead.handled_by or 'Инженер'}", "callback_data": "noop"},
+            {"text": f"⚡ В работе ({lead.handled_by or 'инженер'})", "callback_data": "noop"},
             {"text": "✅ Связался", "callback_data": f"lead_contacted:{lead.id}"}
         ])
     elif lead.status == LeadStatus.CONTACTED:
         buttons.append([
-            {"text": f"✅ Связался: {lead.handled_by or 'Инженер'}", "callback_data": "noop"}
+            {"text": f"✅ Связались ({lead.handled_by or 'инженер'})", "callback_data": "noop"}
         ])
     elif lead.status == LeadStatus.SPAM:
         buttons.append([
-            {"text": "🚫 Отправлен в БАН", "callback_data": "noop"}
+            {"text": "🚫 В спаме", "callback_data": "noop"}
         ])
 
-    # Кнопка удаления записи для быстрого клининга / тестов
+    # Кнопка удаления
     buttons.append([
-        {"text": "🗑 Удалить запись", "callback_data": f"lead_del_prompt:{lead.id}"}
+        {"text": "🗑 Удалить", "callback_data": f"lead_del_prompt:{lead.id}"}
     ])
 
     return {"inline_keyboard": buttons}
@@ -203,14 +192,11 @@ class TelegramBotService:
                                 domain = getattr(settings, "DOMAIN_NAME", None) or "castleweb.ru"
                                 clean_att = f"https://{domain}{clean_att}"
                             plain_text = (
-                                f"🔥 НОВАЯ ЗАЯВКА #{lead.id}\n"
-                                f"━━━━━━━━━━━━━━━━━━━━\n"
-                                f"Клиент: {lead.name}\n"
-                                f"Контакт: {lead.contact}\n"
+                                f"📬 Заявка #{lead.id}\n"
+                                f"Клиент: {lead.name} ({lead.contact})\n"
                                 f"Бюджет: {lead.budget or 'Не указан'}\n"
-                                f"Суть задачи:\n{lead.task_description}\n"
-                                f"Вложение: {clean_att}\n"
-                                f"IP: {lead.ip_address or 'unknown'}"
+                                f"Задача: {lead.task_description}\n"
+                                f"Вложение: {clean_att}"
                             )
                             # Safe fallback: callback buttons only, avoiding any invalid URLs
                             safe_keyboard = {

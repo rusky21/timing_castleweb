@@ -239,7 +239,7 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 await db.commit()
                 await db.refresh(lead)
 
-                await answer_callback_query(cb_id, f"⚡ Вы взяли заявку #{lead.id} в работу!")
+                await answer_callback_query(cb_id, f"⚡ Заявка #{lead.id} в работе")
                 if message_id and chat_id:
                     await TelegramBotService.update_message(chat_id, message_id, lead)
 
@@ -253,7 +253,7 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 await db.commit()
                 await db.refresh(lead)
 
-                await answer_callback_query(cb_id, f"✅ Отмечено: связались по заявке #{lead.id}!")
+                await answer_callback_query(cb_id, f"✅ Связались по #{lead.id}")
                 if message_id and chat_id:
                     await TelegramBotService.update_message(chat_id, message_id, lead)
 
@@ -281,7 +281,7 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 await db.commit()
                 await db.refresh(lead)
 
-                await answer_callback_query(cb_id, f"🚫 Заявка #{lead.id} отправлена в СПАМ. IP заблокирован.")
+                await answer_callback_query(cb_id, f"🚫 Заявка #{lead.id} в спаме (IP заблокирован)")
                 if message_id and chat_id:
                     await TelegramBotService.update_message(chat_id, message_id, lead)
 
@@ -290,18 +290,18 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
             res = await db.execute(select(Lead).where(Lead.id == lead_id))
             lead = res.scalar_one_or_none()
             if not lead:
-                await answer_callback_query(cb_id, f"⚠️ Заявка #{lead_id} уже не найдена в базе")
+                await answer_callback_query(cb_id, f"⚠️ Заявка #{lead_id} не найдена")
                 return {"ok": True}
 
             confirm_keyboard = {
                 "inline_keyboard": [
                     [
-                        {"text": f"💥 Да, удалить #{lead_id} из БД", "callback_data": f"lead_del_confirm:{lead_id}"},
-                        {"text": "❌ Отмена", "callback_data": f"lead_del_cancel:{lead_id}"}
+                        {"text": f"💥 Да, удалить #{lead_id}", "callback_data": f"lead_del_confirm:{lead_id}"},
+                        {"text": "Отмена", "callback_data": f"lead_del_cancel:{lead_id}"}
                     ]
                 ]
             }
-            await answer_callback_query(cb_id, f"Подтвердите удаление заявки #{lead_id}")
+            await answer_callback_query(cb_id, f"Удалить заявку #{lead_id}?")
             if message_id and chat_id:
                 await TelegramBotService.edit_message_reply_markup(chat_id, message_id, confirm_keyboard)
 
@@ -309,7 +309,7 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
             lead_id = int(data.split(":")[1])
             res = await db.execute(select(Lead).where(Lead.id == lead_id))
             lead = res.scalar_one_or_none()
-            await answer_callback_query(cb_id, "Удаление отменено")
+            await answer_callback_query(cb_id, "Отменено")
             if lead and message_id and chat_id:
                 await TelegramBotService.update_message(chat_id, message_id, lead)
 
@@ -324,19 +324,16 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 await db.commit()
 
                 deleted_text = (
-                    f"🗑 <b>ЗАЯВКА #{lead_id} УДАЛЕНА ИЗ БАЗЫ ДАННЫХ</b>\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"👤 <b>Клиент:</b> {html.escape(lead_name)}\n"
-                    f"💬 <b>Контакт:</b> <code>{html.escape(lead_contact)}</code>\n"
-                    f"🛠 <b>Удалил:</b> {user_display}\n"
-                    f"📌 <b>Статус:</b> Запись полностью стёрта из PostgreSQL"
+                    f"🗑 <b>Заявка #{lead_id} удалена из базы</b>\n"
+                    f"Клиент: {html.escape(lead_name)} (<code>{html.escape(lead_contact)}</code>)\n"
+                    f"Удалил: {user_display}"
                 )
-                del_keyboard = {"inline_keyboard": [[{"text": "🗑 Запись удалена из базы", "callback_data": "noop"}]]}
-                await answer_callback_query(cb_id, f"🗑 Заявка #{lead_id} удалена из БД!")
+                del_keyboard = {"inline_keyboard": [[{"text": "🗑 Запись удалена", "callback_data": "noop"}]]}
+                await answer_callback_query(cb_id, f"🗑 Заявка #{lead_id} удалена")
                 if message_id and chat_id:
                     await TelegramBotService.edit_message_text(chat_id, message_id, deleted_text, del_keyboard)
             else:
-                await answer_callback_query(cb_id, f"⚠️ Заявка #{lead_id} уже была удалена ранее.")
+                await answer_callback_query(cb_id, f"⚠️ Заявка #{lead_id} уже удалена")
 
         elif data == "client_cases":
             res = await db.execute(select(Case).where(Case.is_published.is_(True)).order_by(Case.sort_order.asc()).limit(5))
@@ -344,18 +341,18 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
             if not cases:
                 await answer_callback_query(cb_id, "Портфолио наполняется...")
             else:
-                await answer_callback_query(cb_id, "Загрузка кейсов...")
-                lines = ["🏰 <b>ПОРТФОЛИО СТУДИИ CASTLEWEB:</b>\n━━━━━━━━━━━━━━━━━━━━"]
+                await answer_callback_query(cb_id, "Загрузка...")
+                lines = ["💼 <b>Кейсы CASTLEWEB:</b>"]
                 for c in cases:
                     cat_val = c.category.value if hasattr(c.category, "value") else str(c.category)
-                    link_html = f' — <a href="{html.escape(c.live_url)}">Смотреть</a>' if c.live_url else ""
-                    lines.append(f"🚀 <b>{html.escape(c.title)}</b> [{cat_val.upper()}]\n{html.escape(c.short_description)}{link_html}")
-                lines.append("━━━━━━━━━━━━━━━━━━━━\n🌐 Все кейсы: https://castleweb.ru")
+                    link_html = f' — <a href="{html.escape(c.live_url)}">ссылка</a>' if c.live_url else ""
+                    lines.append(f"• <b>{html.escape(c.title)}</b> [{cat_val.upper()}]{link_html}\n{html.escape(c.short_description)}")
+                lines.append("\n🌐 castleweb.ru")
                 if chat_id:
                     await send_reply_message(chat_id, "\n\n".join(lines))
 
         elif data == "noop":
-            await answer_callback_query(cb_id, "Информация зафиксирована")
+            await answer_callback_query(cb_id, "OK")
 
         return {"ok": True}
 
@@ -394,15 +391,12 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
 
             if client_tg_id and str(client_tg_id) != str(chat_id):
                 client_msg = (
-                    f"💬 <b>Ответ инженера CASTLEWEB:</b>\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"{html.escape(text)}\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"<i>Вы можете отправить ответ или файлы прямо в этот чат.</i>"
+                    f"💬 <b>CASTLEWEB:</b>\n"
+                    f"{html.escape(text)}"
                 )
                 try:
                     await send_reply_message(client_tg_id, client_msg)
-                    await send_reply_message(chat_id, "✅ <b>Ответ успешно отправлен клиенту в личные сообщения бота!</b>")
+                    await send_reply_message(chat_id, "✅ Ответ отправлен клиенту.")
                     return {"ok": True}
                 except Exception as e:
                     logger.warning(f"Failed to bridge engineer reply to client {client_tg_id}: {e}")
@@ -416,14 +410,12 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
             spam = (await db.execute(select(func.count(Lead.id)).where(Lead.status == LeadStatus.SPAM))).scalar() or 0
 
             stats_msg = (
-                f"📊 <b>СТАТИСТИКА СТУДИИ CASTLEWEB</b>\n"
-                f"━━━━━━━━━━━━━━━━━━━━\n"
-                f"📥 Всего заявок: <b>{total_leads}</b>\n"
-                f"🟡 В ожидании: <b>{pending}</b>\n"
-                f"⚡ В работе: <b>{in_progress}</b>\n"
-                f"✅ Успешно связались: <b>{contacted}</b>\n"
-                f"🚫 Спам: <b>{spam}</b>\n"
-                f"━━━━━━━━━━━━━━━━━━━━"
+                f"📊 <b>Статистика заявок</b>\n"
+                f"• Всего: <b>{total_leads}</b>\n"
+                f"• В ожидании: <b>{pending}</b>\n"
+                f"• В работе: <b>{in_progress}</b>\n"
+                f"• Связались: <b>{contacted}</b>\n"
+                f"• Спам: <b>{spam}</b>"
             )
             await send_reply_message(chat_id, stats_msg)
             return {"ok": True}
@@ -433,7 +425,7 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
             if not recent_leads:
                 await send_reply_message(chat_id, "Заявок пока нет.")
             else:
-                lines = ["📋 <b>ПОСЛЕДНИЕ 5 ЗАЯВОК:</b>\n━━━━━━━━━━━━━━━━━━━━"]
+                lines = ["📋 <b>Последние заявки:</b>"]
                 for l in recent_leads:
                     status_str = l.status.value if hasattr(l.status, "value") else str(l.status)
                     lines.append(f"#{l.id} | {html.escape(l.name)} (<code>{html.escape(l.contact)}</code>) — <i>{status_str}</i>")
@@ -447,7 +439,7 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 res = await db.execute(select(Lead).where(Lead.id == lead_id))
                 lead = res.scalar_one_or_none()
                 if not lead:
-                    await send_reply_message(chat_id, f"⚠️ <b>Заявка #{lead_id} не найдена в базе данных.</b>")
+                    await send_reply_message(chat_id, f"⚠️ Заявка #{lead_id} не найдена.")
                 else:
                     lead_name = lead.name
                     lead_contact = lead.contact
@@ -455,39 +447,26 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                     await db.delete(lead)
                     await db.commit()
 
-                    del_info = (
-                        f"🗑 <b>Заявка #{lead_id} успешно удалена из базы!</b>\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"👤 <b>Клиент:</b> {html.escape(lead_name)}\n"
-                        f"💬 <b>Контакт:</b> <code>{html.escape(lead_contact)}</code>\n"
-                        f"🛠 <b>Удалил:</b> {user_display}"
-                    )
+                    del_info = f"🗑 Заявка #{lead_id} ({html.escape(lead_name)}) удалена из базы."
                     await send_reply_message(chat_id, del_info)
 
                     # Обновляем карточку заявки, если сообщение сохранено
                     if msg_id_card and settings.TELEGRAM_CHAT_ID:
                         try:
-                            card_text = (
-                                f"🗑 <b>ЗАЯВКА #{lead_id} УДАЛЕНА ИЗ БАЗЫ ДАННЫХ</b>\n"
-                                f"━━━━━━━━━━━━━━━━━━━━\n"
-                                f"👤 <b>Клиент:</b> {html.escape(lead_name)}\n"
-                                f"💬 <b>Контакт:</b> <code>{html.escape(lead_contact)}</code>\n"
-                                f"🛠 <b>Удалил:</b> {user_display}\n"
-                                f"📌 <b>Статус:</b> Запись полностью стёрта из PostgreSQL"
-                            )
-                            card_kb = {"inline_keyboard": [[{"text": "🗑 Запись стёрта", "callback_data": "noop"}]]}
+                            card_text = f"🗑 <b>Заявка #{lead_id} удалена</b> (удалил {user_display})"
+                            card_kb = {"inline_keyboard": [[{"text": "🗑 Удалено", "callback_data": "noop"}]]}
                             await TelegramBotService.edit_message_text(settings.TELEGRAM_CHAT_ID, msg_id_card, card_text, card_kb)
                         except Exception:
                             pass
             else:
-                await send_reply_message(chat_id, "ℹ️ Использование: <code>/del &lt;ID заявки&gt;</code> (например: <code>/del 15</code>)")
+                await send_reply_message(chat_id, "Использование: <code>/del &lt;ID&gt;</code>")
             return {"ok": True}
 
         elif text.startswith("/find ") or text.startswith("/search "):
             parts = text.split(maxsplit=1)
             q = parts[1].strip() if len(parts) > 1 else ""
             if not q:
-                await send_reply_message(chat_id, "ℹ️ Использование: <code>/find &lt;имя, телефон, @тег или текст&gt;</code>")
+                await send_reply_message(chat_id, "Использование: <code>/find &lt;запрос&gt;</code>")
             else:
                 pattern = f"%{q}%"
                 res = await db.execute(
@@ -499,15 +478,14 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 )
                 found = res.scalars().all()
                 if not found:
-                    await send_reply_message(chat_id, f"🔍 По запросу <code>{html.escape(q)}</code> заявок не найдено.")
+                    await send_reply_message(chat_id, f"По запросу «{html.escape(q)}» ничего не найдено.")
                 else:
-                    lines = [f"🔍 <b>НАЙДЕНО ЗАЯВОК: {len(found)}</b>\n━━━━━━━━━━━━━━━━━━━━"]
+                    lines = [f"🔍 <b>Найдено ({len(found)}):</b>"]
                     for l in found:
                         st = l.status.value if hasattr(l.status, "value") else str(l.status)
                         lines.append(
-                            f"#{l.id} | <b>{html.escape(l.name)}</b> (<code>{html.escape(l.contact)}</code>)\n"
-                            f"📌 Статус: <i>{st}</i> | Бюджет: {html.escape(l.budget or 'Не указан')}\n"
-                            f"📝 <i>{html.escape(l.task_description[:80])}...</i>"
+                            f"#{l.id} | <b>{html.escape(l.name)}</b> (<code>{html.escape(l.contact)}</code>) — <i>{st}</i>\n"
+                            f"<i>{html.escape(l.task_description[:70])}...</i>"
                         )
                     await send_reply_message(chat_id, "\n\n".join(lines))
             return {"ok": True}
@@ -572,34 +550,30 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 t0 = time.perf_counter()
                 await db.execute(sql_text("SELECT 1"))
                 lat = (time.perf_counter() - t0) * 1000
-                db_status = f"🟢 Operational ({lat:.1f} ms)"
+                db_status = f"🟢 OK ({lat:.1f} ms)"
             except Exception as e:
-                db_status = f"🔴 Ошибка: {str(e)[:30]}"
+                db_status = f"🔴 Ошибка ({str(e)[:25]})"
 
             # 6. Redis ping & latency
-            redis_status = "🟡 Not connected"
+            redis_status = "🟡 Нет подключения"
             try:
                 redis_client = await get_redis_client()
                 if redis_client:
                     t0 = time.perf_counter()
                     await redis_client.ping()
                     lat = (time.perf_counter() - t0) * 1000
-                    redis_status = f"🟢 Operational ({lat:.1f} ms)"
+                    redis_status = f"🟢 OK ({lat:.1f} ms)"
             except Exception:
                 pass
 
             server_report = (
-                f"🖥 <b>СОСТОЯНИЕ СЕРВЕРА CASTLEWEB</b>\n"
-                f"━━━━━━━━━━━━━━━━━━━━\n"
-                f"⚡ <b>CPU Load Avg:</b> {load_str} (1/5/15 мин)\n"
-                f"🧠 <b>RAM ОЗУ:</b> {ram_str}\n"
-                f"💾 <b>SSD Диск (/):</b> {disk_str}\n"
-                f"⏱ <b>Uptime хоста:</b> {uptime_str}\n"
-                f"━━━━━━━━━━━━━━━━━━━━\n"
-                f"🗄 <b>PostgreSQL:</b> {db_status}\n"
-                f"⚡ <b>Redis Cache:</b> {redis_status}\n"
-                f"🤖 <b>Telegram Webhook:</b> 🟢 Active\n"
-                f"━━━━━━━━━━━━━━━━━━━━"
+                f"🖥 <b>Сервер CASTLEWEB</b>\n"
+                f"• CPU Load: <code>{load_str}</code>\n"
+                f"• RAM: <code>{ram_str}</code>\n"
+                f"• SSD (/): <code>{disk_str}</code>\n"
+                f"• Uptime: <code>{uptime_str}</code>\n"
+                f"• PostgreSQL: {db_status}\n"
+                f"• Redis: {redis_status}"
             )
             await send_reply_message(chat_id, server_report)
             return {"ok": True}
@@ -608,14 +582,14 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
             res = await db.execute(select(Case).where(Case.is_published.is_(True)).order_by(Case.sort_order.asc()).limit(5))
             cases = res.scalars().all()
             if not cases:
-                await send_reply_message(chat_id, "📁 Портфолио пока пусто.")
+                await send_reply_message(chat_id, "Портфолио пока пусто.")
             else:
-                lines = ["🏰 <b>ПОРТФОЛИО СТУДИИ CASTLEWEB:</b>\n━━━━━━━━━━━━━━━━━━━━"]
+                lines = ["💼 <b>Кейсы CASTLEWEB:</b>"]
                 for c in cases:
                     cat_val = c.category.value if hasattr(c.category, "value") else str(c.category)
-                    link_html = f' — <a href="{html.escape(c.live_url)}">Смотреть проект</a>' if c.live_url else ""
-                    lines.append(f"🚀 <b>{html.escape(c.title)}</b> [{cat_val.upper()}]\n{html.escape(c.short_description)}{link_html}")
-                lines.append("━━━━━━━━━━━━━━━━━━━━\n🌐 Все кейсы на сайте: https://castleweb.ru")
+                    link_html = f' — <a href="{html.escape(c.live_url)}">ссылка</a>' if c.live_url else ""
+                    lines.append(f"• <b>{html.escape(c.title)}</b> [{cat_val.upper()}]{link_html}\n{html.escape(c.short_description)}")
+                lines.append("\n🌐 castleweb.ru")
                 await send_reply_message(chat_id, "\n\n".join(lines))
             return {"ok": True}
 
@@ -626,29 +600,27 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 res = await db.execute(select(Lead).where(Lead.id == lead_id))
                 lead = res.scalar_one_or_none()
                 if not lead:
-                    await send_reply_message(chat_id, f"⚠️ Заявка #{lead_id} не найдена в базе данных.")
+                    await send_reply_message(chat_id, f"⚠️ Заявка #{lead_id} не найдена.")
                 else:
                     st_desc = {
-                        LeadStatus.PENDING: "🟡 Заявка принята и ожидает назначения инженера",
-                        LeadStatus.DELIVERED: "🟡 В очереди дежурного инженера",
-                        LeadStatus.IN_PROGRESS: f"⚡ В работе (назначен: {lead.handled_by or 'Архитектор'})",
-                        LeadStatus.CONTACTED: f"✅ Инженер связался с вами ({lead.handled_by or 'Сеньор-разработчик'})",
-                        LeadStatus.SPAM: "🚫 Отклонена",
-                        LeadStatus.ARCHIVED: "📁 В архиве"
+                        LeadStatus.PENDING: "Ожидает инженера",
+                        LeadStatus.DELIVERED: "В очереди",
+                        LeadStatus.IN_PROGRESS: f"В работе ({lead.handled_by or 'Архитектор'})",
+                        LeadStatus.CONTACTED: f"Связались ({lead.handled_by or 'Инженер'})",
+                        LeadStatus.SPAM: "Отклонена",
+                        LeadStatus.ARCHIVED: "Архив"
                     }.get(lead.status, str(lead.status.value))
 
                     lead_card_msg = (
-                        f"📋 <b>СТАТУС ЗАЯВКИ #{lead.id}</b>\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"👤 <b>Клиент:</b> {html.escape(lead.name)}\n"
-                        f"💬 <b>Контакт:</b> <code>{html.escape(lead.contact)}</code>\n"
-                        f"💰 <b>Бюджет:</b> {html.escape(lead.budget or 'Не указан')}\n"
-                        f"📌 <b>Статус:</b> {st_desc}\n"
-                        f"⏱ <b>Создана:</b> {lead.created_at.strftime('%d.%m.%Y %H:%M') if lead.created_at else '—'}"
+                        f"📋 <b>Заявка #{lead.id}</b>\n"
+                        f"Клиент: {html.escape(lead.name)}\n"
+                        f"Статус: <b>{st_desc}</b>\n"
+                        f"Бюджет: {html.escape(lead.budget or 'Не указан')}\n"
+                        f"Создана: {lead.created_at.strftime('%d.%m.%Y %H:%M') if lead.created_at else '—'}"
                     )
                     await send_reply_message(chat_id, lead_card_msg)
             else:
-                await send_reply_message(chat_id, "ℹ️ Использование: <code>/status &lt;ID заявки&gt;</code> (например: <code>/status 12</code>)")
+                await send_reply_message(chat_id, "Использование: <code>/status &lt;ID&gt;</code>")
             return {"ok": True}
 
         elif text.startswith("/export"):
@@ -683,7 +655,7 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
             csv_bytes = csv_buffer.getvalue().encode("utf-8-sig")
             now_str = datetime.now().strftime("%Y%m%d_%H%M")
             filename = f"castleweb_leads_{now_str}.csv"
-            caption = f"📊 <b>Выгрузка лидов CASTLEWEB</b>\nВсего записей: {len(leads)}"
+            caption = f"📊 <b>Выгрузка заявок</b> ({len(leads)} записей)"
 
             sent = await TelegramBotService.send_document(chat_id, filename, csv_bytes, caption=caption)
             if not sent:
@@ -692,17 +664,15 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
 
         elif text.startswith("/help"):
             help_msg = (
-                f"🛠 <b>КОМАНДЫ CASTLEWEB BOT</b>\n"
-                f"━━━━━━━━━━━━━━━━━━━━\n"
-                f"• <code>/stats</code> — Сводка по всем заявкам\n"
-                f"• <code>/leads</code> — Список последних 5 заявок\n"
-                f"• <code>/find &lt;запрос&gt;</code> — Поиск заявки по имени или контакту\n"
-                f"• <code>/del &lt;ID&gt;</code> — Удалить заявку из базы данных\n"
-                f"• <code>/status &lt;ID&gt;</code> — Проверить статус заявки по номеру\n"
-                f"• <code>/server</code> — Телеметрия сервера (CPU, RAM, SSD, DB, Redis)\n"
-                f"• <code>/cases</code> — Список кейсов портфолио\n"
-                f"• <code>/export</code> — Экспорт базы лидов в CSV (Excel)\n"
-                f"• <code>/help</code> — Справка"
+                f"🛠 <b>Команды:</b>\n"
+                f"/stats — статистика заявок\n"
+                f"/leads — последние заявки\n"
+                f"/find &lt;запрос&gt; — поиск по базе\n"
+                f"/del &lt;id&gt; — удалить заявку\n"
+                f"/status &lt;id&gt; — статус заявки\n"
+                f"/server — состояние сервера\n"
+                f"/cases — портфолио\n"
+                f"/export — выгрузка в CSV"
             )
             await send_reply_message(chat_id, help_msg)
             return {"ok": True}
@@ -724,13 +694,12 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                         if lead:
                             welcome_lead = (
                                 f"👋 <b>Здравствуйте, {html.escape(lead.name)}!</b>\n\n"
-                                f"🏰 Ваша заявка <b>#{lead.id}</b> уже принята дежурным инженером CASTLEWEB!\n\n"
-                                f"Вы можете отправить прямо сюда любые дополнительные файлы, схемы, "
-                                f"ссылки на макеты в Figma или вопросы. Мы сразу их увидим и ответим вам здесь в течение <b>15 минут</b>."
+                                f"Заявка <b>#{lead.id}</b> принята в работу.\n"
+                                f"Сюда можно присылать любые файлы, ссылки и вопросы — дежурный инженер ответит в течение 15 минут."
                             )
                             buttons = {
                                 "inline_keyboard": [
-                                    [{"text": "🌐 Открыть сайт castleweb.ru", "url": "https://castleweb.ru"}]
+                                    [{"text": "🌐 Сайт castleweb.ru", "url": "https://castleweb.ru"}]
                                 ]
                             }
                             await send_reply_message(chat_id, welcome_lead, reply_markup=buttons)
@@ -738,12 +707,7 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                             # Уведомляем группу инженеров
                             if settings.TELEGRAM_CHAT_ID:
                                 client_handle = f"@{username}" if username else f"ID: <code>{from_id}</code>"
-                                notify_eng = (
-                                    f"🔔 <b>Клиент по заявке #{lead.id} подключился к боту в Telegram!</b>\n"
-                                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                                    f"👤 <b>Клиент:</b> {html.escape(lead.name)}\n"
-                                    f"💬 <b>Контакт:</b> {client_handle}"
-                                )
+                                notify_eng = f"🔔 Клиент по заявке #{lead.id} ({html.escape(lead.name)}) открыл диалог с ботом ({client_handle})."
                                 direct_btn = [{"text": "💬 Написать клиенту", "url": f"https://t.me/{username}"}] if username else []
                                 reply_markup = {"inline_keyboard": [direct_btn]} if direct_btn else None
                                 await send_reply_message(settings.TELEGRAM_CHAT_ID, notify_eng, reply_markup=reply_markup)
@@ -754,18 +718,14 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 # Общее приветствие нового пользователя
                 general_welcome = (
                     f"👋 <b>Здравствуйте, {html.escape(first_name)}!</b>\n\n"
-                    f"Добро пожаловать в <b>CASTLEWEB Studio</b> 🏰\n\n"
-                    f"Мы проектируем и разрабатываем надежные веб-сервисы, высоконагруженные SaaS-платформы "
-                    f"и интерактивные сайты «под ключ» напрямую с сеньор-инженерами — без лишних менеджеров.\n\n"
-                    f"💬 <b>Как мы можем вам помочь?</b>\n"
-                    f"Опишите вашу задачу прямо в этом диалоге или оставьте заявку на нашем сайте. "
-                    f"Дежурный инженер ответит вам в течение <b>15 минут</b>."
+                    f"<b>CASTLEWEB Studio</b> — разработка веб-сервисов, SaaS и сайтов под ключ.\n\n"
+                    f"Опишите задачу прямо в этом диалоге или оставьте заявку — дежурный инженер ответит в течение 15 минут."
                 )
                 welcome_buttons = {
                     "inline_keyboard": [
-                        [{"text": "💼 Портфолио проектов", "callback_data": "client_cases"}],
+                        [{"text": "💼 Портфолио", "callback_data": "client_cases"}],
                         [{"text": "📊 Калькулятор сметы", "url": "https://castleweb.ru/#calculator"}],
-                        [{"text": "🌐 Открыть сайт castleweb.ru", "url": "https://castleweb.ru"}]
+                        [{"text": "🌐 Сайт", "url": "https://castleweb.ru"}]
                     ]
                 }
                 await send_reply_message(chat_id, general_welcome, reply_markup=welcome_buttons)
@@ -773,32 +733,27 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
 
             # 2. Любое сообщение / вопрос / фото / документ от клиента в ЛС
             has_media = bool(msg.get("document") or msg.get("photo") or msg.get("voice"))
-            user_msg_text = text if text else ("📎 [Вложенный файл / документ / фото]" if has_media else "👋 [Обращение]")
+            user_msg_text = text if text else ("📎 [Вложенный файл]" if has_media else "👋 [Обращение]")
 
             # 2.1. Автоответ клиенту
             client_reply = (
-                f"✅ <b>Спасибо за обращение!</b>\n\n"
-                f"🏰 Дежурный инженер CASTLEWEB уже получил ваше сообщение и ответит вам прямо в этом чате в течение <b>15 минут</b>.\n\n"
-                f"Если у вас есть дополнительные материалы (ТЗ, макеты, ссылки) — можете отправить их сюда следующим сообщением."
+                f"✅ <b>Сообщение принято.</b>\n"
+                f"Дежурный инженер ответит вам в этом чате в течение 15 минут."
             )
             await send_reply_message(chat_id, client_reply)
 
             # 2.2. Мгновенная пересылка и оповещение в закрытый чат инженеров
             if settings.TELEGRAM_CHAT_ID:
                 direct_url = f"https://t.me/{username}" if username else f"tg://user?id={from_id}"
-                reply_btn_text = f"💬 Ответить @{username}" if username else "💬 Открыть диалог с клиентом"
-                media_note = "\n📎 <i>Клиент также прикрепил файл/медиа</i>" if has_media else ""
+                reply_btn_text = f"💬 @{username}" if username else "💬 Клиент"
+                media_note = "\n📎 <i>[Прикреплен файл/медиа]</i>" if has_media else ""
 
                 eng_alert = (
-                    f"📩 <b>НОВОЕ СООБЩЕНИЕ В ЛИЧКУ БОТА</b>\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"👤 <b>Клиент:</b> {html.escape(user_display)}\n"
-                    f"💬 <b>Username:</b> {f'@{username}' if username else 'Не задан'}\n"
-                    f"🆔 <b>Telegram ID:</b> <code>{from_id}</code>\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"📝 <b>Сообщение:</b>\n"
+                    f"📩 <b>Сообщение от клиента</b>\n"
+                    f"👤 {html.escape(user_display)} (ID: <code>{from_id}</code>)\n\n"
                     f"<blockquote>{html.escape(user_msg_text)}</blockquote>"
-                    f"{media_note}"
+                    f"{media_note}\n\n"
+                    f"<i>Ответьте Reply на это сообщение, чтобы написать клиенту.</i>"
                 )
                 eng_buttons = {
                     "inline_keyboard": [
