@@ -1,269 +1,133 @@
-/* ==============================================================================
-   🏰 CASTLEWEB — Obsidian Dark Luxury Design System
-   Aesthetic: Pure Pitch Black / Liquid Chrome / White Pill Accents / Salesrocket
-   ============================================================================== */
-
-:root {
-  /* Surfaces */
-  --bg-darkest: #000000;
-  --bg-primary: #050608;
-  --bg-secondary: #090b10;
-  --bg-card: #0d0f15;
-  --bg-card-hover: #12151e;
-  --bg-input: #08090d;
-  
-  /* Text */
-  --text-primary: #ffffff;
-  --text-secondary: #8e95a5;
-  --text-muted: #585e6e;
-  --text-highlight: #ffffff;
-
-  /* Accents */
-  --accent-white: #ffffff;
-  --accent-cyan: #06b6d4;
-  --accent-emerald: #10b981;
-  --accent-indigo: #6366f1;
-
-  /* Borders */
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-medium: rgba(255, 255, 255, 0.14);
-  --border-glow: rgba(255, 255, 255, 0.22);
-
-  /* Shadows */
-  --shadow-card: 0 20px 40px -10px rgba(0, 0, 0, 0.8);
-
-  /* Typography */
-  --font-display: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
-
-  /* Transitions */
-  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-slow: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-*, *::before, *::after {
-  box-sizing: border-box;
+* {
   margin: 0;
   padding: 0;
+  box-sizing: border-box;
 }
 
-html {
-  scroll-behavior: smooth;
-  color-scheme: dark;
+:root {
+  --bg-color: #191919;
+  --text-primary: #ffffff;
+  --text-muted: #a1a1a1;
+  --navbar-bg: rgba(62, 62, 62, 0.75);
+  --btn-bg: #d9d9d9;
+  --btn-text: #191919;
+  --circle-bg: #1f1f1f;
+  --font-heading: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-family: var(--font-body);
+
+  /* Studio Motion Curves */
+  --ease-studio: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-press: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-smooth: cubic-bezier(0.25, 0.1, 0.25, 1);
 }
 
-body {
-  font-family: var(--font-body);
-  background-color: var(--bg-darkest);
-  color: var(--text-primary);
-  line-height: 1.6;
-  min-height: 100vh;
-  overflow-x: hidden;
-  position: relative;
-  -webkit-font-smoothing: antialiased;
-}
-
-/* Atmospheric subtle top spotlight like in reference */
-body::before {
-  content: "";
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background-image: 
-    radial-gradient(ellipse 90% 45% at 50% -10%, rgba(255, 255, 255, 0.07) 0%, transparent 65%),
-    radial-gradient(circle at 80% 30%, rgba(99, 102, 241, 0.03) 0%, transparent 50%),
-    radial-gradient(circle at 15% 70%, rgba(6, 182, 212, 0.02) 0%, transparent 50%);
-  pointer-events: none;
-  z-index: 0;
-}
-
-/* Headings */
 h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-display);
-  font-weight: 700;
-  color: var(--text-highlight);
-  letter-spacing: -0.025em;
-  line-height: 1.15;
+  font-family: var(--font-heading);
 }
 
-p {
-  color: var(--text-secondary);
+html,
+body {
+  width: 100%;
+  min-height: 100vh;
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: clip;
+}
+
+button {
+  font-family: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
 
 a {
   color: inherit;
   text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
-button {
-  cursor: pointer;
-  border: none;
-  background: none;
-  font-family: inherit;
+/* ==========================================================================
+   Studio Void Reveal System ("Появление из пустоты")
+   ========================================================================== */
+
+.reveal-void {
+  opacity: 0;
+  filter: blur(18px);
+  transform: translateY(48px) scale(0.965);
+  transition:
+    opacity 1.15s var(--ease-studio),
+    transform 1.15s var(--ease-studio),
+    filter 1.15s var(--ease-studio);
+  will-change: opacity, transform, filter;
 }
 
-.container {
-  width: 100%;
-  max-width: 1220px;
-  margin: 0 auto;
-  padding: 0 24px;
-  position: relative;
-  z-index: 1;
+.reveal-void.is-revealed {
+  opacity: 1;
+  filter: blur(0px);
+  transform: translateY(0) scale(1);
 }
 
-/* Capsule Pill Badge */
-.badge-capsule {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  border-radius: 9999px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--border-subtle);
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-secondary);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+/* Stagger Delay Utility Classes */
+.delay-50  { transition-delay: 50ms; }
+.delay-100 { transition-delay: 100ms; }
+.delay-150 { transition-delay: 150ms; }
+.delay-200 { transition-delay: 200ms; }
+.delay-250 { transition-delay: 250ms; }
+.delay-300 { transition-delay: 300ms; }
+.delay-400 { transition-delay: 400ms; }
+.delay-500 { transition-delay: 500ms; }
+.delay-600 { transition-delay: 600ms; }
+
+/* Horizontal Void Reveal Variants */
+.reveal-void-left {
+  opacity: 0;
+  filter: blur(18px);
+  transform: translateX(-40px) scale(0.97);
+  transition:
+    opacity 1.15s var(--ease-studio),
+    transform 1.15s var(--ease-studio),
+    filter 1.15s var(--ease-studio);
+  will-change: opacity, transform, filter;
 }
 
-.badge-capsule .badge-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
-  font-size: 0.7rem;
+.reveal-void-left.is-revealed {
+  opacity: 1;
+  filter: blur(0px);
+  transform: translateX(0) scale(1);
 }
 
-.badge-capsule-emerald {
-  border-color: rgba(16, 185, 129, 0.3);
-  color: #34d399;
-}
-.badge-capsule-emerald .badge-icon {
-  background: rgba(16, 185, 129, 0.2);
-  color: #34d399;
-}
-
-/* Buttons — Solid pure white pill (Primary) & Translucent dark (Secondary) */
-.btn-primary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 12px 26px;
-  background: #ffffff;
-  color: #000000;
-  border-radius: 9999px;
-  font-family: var(--font-display);
-  font-size: 0.92rem;
-  font-weight: 600;
-  transition: all var(--transition-fast);
-  box-shadow: 0 4px 20px rgba(255, 255, 255, 0.15);
+.reveal-void-right {
+  opacity: 0;
+  filter: blur(18px);
+  transform: translateX(40px) scale(0.97);
+  transition:
+    opacity 1.15s var(--ease-studio),
+    transform 1.15s var(--ease-studio),
+    filter 1.15s var(--ease-studio);
+  will-change: opacity, transform, filter;
 }
 
-.btn-primary:hover {
-  background: #f1f3f6;
-  transform: translateY(-2px);
-  box-shadow: 0 8px 30px rgba(255, 255, 255, 0.3);
+.reveal-void-right.is-revealed {
+  opacity: 1;
+  filter: blur(0px);
+  transform: translateX(0) scale(1);
 }
 
-.btn-primary:active {
-  transform: translateY(0);
-}
+/* ==========================================================================
+   Tactile Press & Hover Micro-Interactions
+   ========================================================================== */
 
-.btn-secondary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 12px 24px;
-  background: rgba(255, 255, 255, 0.04);
-  color: #ffffff;
-  border: 1px solid var(--border-medium);
-  border-radius: 9999px;
-  font-family: var(--font-display);
-  font-size: 0.92rem;
-  font-weight: 500;
-  transition: all var(--transition-fast);
-  backdrop-filter: blur(10px);
-}
-
-.btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.09);
-  border-color: rgba(255, 255, 255, 0.3);
-  transform: translateY(-2px);
-}
-
-/* Dark Minimalist Card */
-.dark-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 20px;
-  padding: 32px;
-  transition: all var(--transition-normal);
-  position: relative;
-  overflow: hidden;
-}
-
-.dark-card:hover {
-  border-color: var(--border-glow);
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-card);
-  background: var(--bg-card-hover);
-}
-
-/* Squircle Icon Container */
-.squircle-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--border-subtle);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #ffffff;
-  margin-bottom: 20px;
-}
-
-/* Pulse Beacon */
-.pulse-beacon {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent-emerald);
-  box-shadow: 0 0 10px var(--accent-emerald);
-  display: inline-block;
-  animation: pulseBeacon 2s infinite;
-}
-
-@keyframes pulseBeacon {
-  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-  70% { transform: scale(1); box-shadow: 0 0 0 7px rgba(16, 185, 129, 0); }
-  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-}
-
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-}
-::-webkit-scrollbar-track {
-  background: var(--bg-darkest);
-}
-::-webkit-scrollbar-thumb {
-  background: #1c212c;
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #2b3242;
+/* Universal tactile button press */
+button:active,
+.interactive-tap:active {
+  transform: scale(0.96) !important;
+  transition: transform 0.1s var(--ease-press) !important;
 }

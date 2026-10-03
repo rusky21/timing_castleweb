@@ -1,0 +1,507 @@
+/* ==========================================================================
+   Theo Showcase Section (Block 2)
+   Dynamic 3D Arched Carousel ("Листающиеся" подвижные карточки)
+   ========================================================================== */
+
+.theo-showcase-section {
+  position: relative;
+  width: 100%;
+  min-height: auto;
+  background-color: #0b0b0c;
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding: clamp(90px, 12vh, 160px) clamp(20px, 3.5vw, 64px) clamp(380px, 46vh, 640px);
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* --- Top 3D Curved Cards Ribbon --- */
+.showcase-cards-wrapper {
+  position: relative;
+  width: 100%;
+  height: clamp(470px, 53vh, 600px);
+  perspective: 1400px;
+  perspective-origin: 50% 48%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: pan-y;
+  overflow: visible;
+  margin-bottom: clamp(70px, 9vh, 130px);
+}
+
+.showcase-cards-wrapper.is-dragging {
+  cursor: grabbing !important;
+}
+
+.showcase-cards-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* --- Individual 3D Card --- */
+.showcase-card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  will-change: transform, opacity;
+  transform-origin: 50% 50%;
+  outline: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.showcase-card:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 4px;
+}
+
+.card-media-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 22px;
+  overflow: hidden;
+  background: linear-gradient(155deg, rgba(28, 29, 35, 0.92) 0%, rgba(13, 14, 17, 0.98) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 20px 48px -10px rgba(0, 0, 0, 0.5),
+    0 6px 18px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 0 40px rgba(255, 255, 255, 0.015);
+  transition:
+    transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.4s ease,
+    border-color 0.35s ease;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.showcase-card:hover .card-media-shell {
+  transform: translateY(-8px) scale(1.02);
+  border-color: rgba(255, 255, 255, 0.35);
+  box-shadow:
+    0 28px 60px -12px rgba(0, 0, 0, 0.7),
+    0 10px 26px rgba(0, 0, 0, 0.35),
+    0 0 30px rgba(255, 255, 255, 0.06),
+    inset 0 1px 1px rgba(255, 255, 255, 0.38);
+}
+
+.showcase-card.is-active-center .card-media-shell {
+  border-color: rgba(255, 255, 255, 0.28);
+  box-shadow:
+    0 24px 52px -10px rgba(0, 0, 0, 0.6),
+    0 8px 20px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.26);
+}
+
+/* Card Media Image Artwork */
+.card-media-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Empty Card Surface details */
+.card-empty-surface {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 2;
+}
+
+.card-empty-grid {
+  position: absolute;
+  inset: 0;
+  background-image: 
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.07) 1px, transparent 0);
+  background-size: 26px 26px;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.card-empty-corners {
+  position: absolute;
+  inset: 18px;
+  pointer-events: none;
+}
+
+.card-empty-corners::before,
+.card-empty-corners::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: rgba(255, 255, 255, 0.16);
+  border-style: solid;
+  transition: border-color 0.3s ease;
+}
+
+.card-empty-corners::before {
+  top: 0;
+  left: 0;
+  border-width: 1.5px 0 0 1.5px;
+}
+
+.card-empty-corners::after {
+  bottom: 0;
+  right: 0;
+  border-width: 0 1.5px 1.5px 0;
+}
+
+.showcase-card:hover .card-empty-corners::before,
+.showcase-card:hover .card-empty-corners::after {
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+/* Glass Reflection and Vignette Overlays */
+.card-sheen-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.16) 0%,
+    rgba(255, 255, 255, 0.03) 40%,
+    transparent 65%,
+    rgba(0, 0, 0, 0.4) 100%
+  );
+  pointer-events: none;
+  mix-blend-mode: overlay;
+}
+
+.card-vignette {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 60%;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.2) 50%, transparent 100%);
+  pointer-events: none;
+}
+
+/* --- Floating Carousel Controls Dock --- */
+.carousel-control-dock {
+  position: absolute;
+  bottom: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(18, 18, 20, 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  padding: 6px 14px 6px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 30;
+  pointer-events: auto;
+}
+
+.carousel-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: #27272a;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease, opacity 0.2s ease;
+  outline: none;
+}
+
+.carousel-btn:hover {
+  transform: scale(1.08);
+  background: #3f3f46;
+}
+
+.carousel-btn:active {
+  transform: scale(0.95);
+}
+
+.play-btn {
+  background: transparent;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.play-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.carousel-drag-hint {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: 6px;
+  user-select: none;
+}
+
+.hint-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  animation: pulse-ring 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.3);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0.8;
+  }
+}
+
+.hint-label {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: #a1a1aa;
+  text-transform: uppercase;
+}
+
+/* --- Bottom Showcase Info Bar --- */
+.showcase-bottom {
+  width: 100%;
+  max-width: 1848px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: clamp(32px, 4vw, 56px);
+  padding-top: clamp(36px, 4.5vh, 64px);
+  margin-top: clamp(80px, 11vh, 160px);
+  position: relative;
+  z-index: 10;
+  box-sizing: border-box;
+}
+
+/* Big Bold THEO Logo */
+.theo-heading {
+  font-family: var(--font-heading);
+  font-size: clamp(80px, 12.8vw, 240px);
+  font-weight: 800;
+  line-height: 0.82;
+  letter-spacing: -0.048em;
+  color: #ffffff;
+  margin: 0;
+  white-space: nowrap;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+/* Right Column (Button & Description) */
+.showcase-right-col {
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 22px;
+  flex-shrink: 1;
+  padding-bottom: clamp(6px, 1vw, 14px);
+  box-sizing: border-box;
+}
+
+/* "LET'S CONNECT" badge with 4 corner reticle dots */
+.connect-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 13px 26px;
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition:
+    transform 0.35s var(--ease-studio),
+    background-color 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.35s var(--ease-studio);
+  will-change: transform;
+}
+
+.connect-text {
+  font-family: var(--font-heading);
+  font-size: clamp(14px, 0.98vw, 17px);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #ffffff;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: color 0.25s ease;
+}
+
+/* 4 Corner Reticle Dots */
+.reticle-dot {
+  position: absolute;
+  width: 3.5px;
+  height: 3.5px;
+  background-color: #ffffff;
+  border-radius: 50%;
+  pointer-events: none;
+  transition: transform 0.35s var(--ease-out-back), background-color 0.25s ease;
+}
+
+.dot-tl {
+  top: 0;
+  left: 0;
+}
+
+.dot-tr {
+  top: 0;
+  right: 0;
+}
+
+.dot-bl {
+  bottom: 0;
+  left: 0;
+}
+
+.dot-br {
+  bottom: 0;
+  right: 0;
+}
+
+.connect-badge:hover {
+  transform: translateY(-2px) scale(1.03);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 16px rgba(255, 255, 255, 0.1);
+}
+
+.connect-badge:active {
+  transform: scale(0.96);
+  transition-duration: 0.1s;
+}
+
+.connect-badge:hover .dot-tl {
+  transform: translate(-3px, -3px) scale(1.4);
+}
+
+.connect-badge:hover .dot-tr {
+  transform: translate(3px, -3px) scale(1.4);
+}
+
+.connect-badge:hover .dot-bl {
+  transform: translate(-3px, 3px) scale(1.4);
+}
+
+.connect-badge:hover .dot-br {
+  transform: translate(3px, 3px) scale(1.4);
+}
+
+/* Showcase Description */
+.showcase-description {
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: clamp(14px, 1.02vw, 15.5px);
+  font-weight: 400;
+  line-height: 1.62;
+  letter-spacing: -0.01em;
+  color: #a1a1aa;
+  text-align: right;
+  margin: 0;
+  text-wrap: pretty;
+  transition: color 0.3s ease;
+}
+
+/* --- Responsive Breakpoints --- */
+
+@media (max-width: 1200px) {
+  .showcase-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 28px;
+    padding-top: 28px;
+    margin-top: clamp(60px, 8vh, 110px);
+  }
+
+  .showcase-right-col {
+    align-items: flex-start;
+    padding-top: 0;
+    max-width: 640px;
+    width: 100%;
+  }
+
+  .showcase-description {
+    text-align: left;
+  }
+}
+
+@media (max-width: 768px) {
+  .theo-showcase-section {
+    padding: 36px 16px clamp(200px, 26vh, 320px);
+    min-height: auto;
+    gap: 36px;
+  }
+
+  .showcase-cards-wrapper {
+    height: 430px;
+    margin-bottom: 40px;
+  }
+
+  .showcase-bottom {
+    margin-top: 40px;
+    padding-top: 16px;
+  }
+
+  .theo-heading {
+    font-size: clamp(54px, 18vw, 110px);
+  }
+
+  .desc-break {
+    display: none;
+  }
+
+  .showcase-description {
+    font-size: 14px;
+    line-height: 1.55;
+    text-align: left;
+  }
+
+  .carousel-control-dock {
+    bottom: -4px;
+    scale: 0.92;
+  }
+}

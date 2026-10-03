@@ -1,0 +1,706 @@
+/* ==========================================================================
+   Final CTA Section — Fullscreen Split Ratio Matching Exact Reference
+   - Left side: Emerald green aurora panel almost to the screen edge (55% width)
+   - Right side: Clean Sign Up menu form (45% width) on pure black canvas
+   ========================================================================== */
+
+.final-cta-section {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  background-color: #000000;
+  margin: 0;
+  padding: 14px clamp(14px, 2vw, 36px) 14px 14px;
+  display: grid;
+  grid-template-columns: 55fr 45fr;
+  gap: clamp(24px, 3.5vw, 64px);
+  align-items: stretch;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* ==========================================================================
+   1. Left Column (55vw): Emerald Aurora Canvas (Almost to the screen edge)
+   ========================================================================== */
+
+.signup-emerald-screen {
+  position: relative;
+  width: 100%;
+  min-height: calc(100vh - 28px);
+  border-radius: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: clamp(36px, 4.2vw, 56px);
+
+  /* Solid monotone blue (#1b3554) matching user sample without any glow or gradients */
+  background-color: #1b3554;
+  background: #1b3554;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 32px 80px -20px rgba(0, 0, 0, 0.85);
+}
+
+/* Glow orbs disabled for pure monotone flat look */
+.emerald-glow-ambient,
+.emerald-glow-core {
+  display: none !important;
+}
+
+/* Atmospheric spacer: keeps top ~50% of the card open for the organic nebula */
+.emerald-top-spacer {
+  flex: 1;
+  min-height: clamp(120px, 16vh, 220px);
+  pointer-events: none;
+}
+
+/* Lower Content Zone */
+.emerald-lower-content {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+}
+
+/* Headline & Subtitle Row */
+.emerald-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+  margin-bottom: clamp(32px, 3.8vh, 44px);
+}
+
+.emerald-main-heading {
+  font-family: var(--font-heading);
+  font-size: clamp(32px, 3.2vw, 46px);
+  font-weight: 700;
+  line-height: 1.14;
+  letter-spacing: -0.035em;
+  color: #ffffff;
+  margin: 0;
+  user-select: none;
+}
+
+.emerald-step-hint {
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  font-weight: 400;
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+  color: rgba(255, 255, 255, 0.72);
+  max-width: 220px;
+  margin: 0;
+  user-select: none;
+}
+
+/* 3 Step Tiles Row */
+.emerald-steps-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: clamp(10px, 1.2vw, 16px);
+  width: 100%;
+}
+
+.step-tile-card {
+  min-height: clamp(150px, 18vh, 185px);
+  border-radius: 18px;
+  padding: clamp(20px, 2vw, 24px) clamp(16px, 1.6vw, 20px) clamp(18px, 1.8vw, 22px);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+  transition:
+    transform 0.4s var(--ease-studio),
+    background-color 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.4s var(--ease-studio);
+  box-sizing: border-box;
+  will-change: transform, box-shadow;
+
+  /* Inactive Glass Tile */
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.step-tile-card:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
+}
+
+.step-tile-card:active {
+  transform: scale(0.97);
+  transition-duration: 0.1s;
+}
+
+.step-num-circle {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  font-weight: 700;
+  transition: transform 0.4s var(--ease-out-back), background-color 0.2s ease;
+}
+
+.step-tile-card:hover .step-num-circle {
+  transform: scale(1.15);
+}
+
+.step-label-lines {
+  font-family: var(--font-body);
+  font-size: clamp(13px, 1.05vw, 14.5px);
+  font-weight: 500;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.88);
+  display: flex;
+  flex-direction: column;
+  transition: color 0.2s ease;
+}
+
+/* Active Tile (Step 1 by default: Solid White Card) */
+.step-tile-card.is-active {
+  background: #ffffff;
+  border-color: #ffffff;
+  box-shadow: 0 18px 40px -10px rgba(0, 0, 0, 0.55);
+}
+
+.step-tile-card.is-active .step-num-circle {
+  background: #000000;
+  color: #ffffff;
+}
+
+.step-tile-card.is-active .step-label-lines {
+  color: #000000;
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   2. Right Column (45vw): Clean Sign Up Form on Pitch-Black Canvas
+   ========================================================================== */
+
+.signup-form-screen {
+  position: relative;
+  width: 100%;
+  min-height: calc(100vh - 28px);
+  background-color: #000000;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.signup-form-inner {
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+/* Header */
+.form-header-group {
+  text-align: center;
+  margin-bottom: 26px;
+}
+
+.form-title-text {
+  font-family: var(--font-heading);
+  font-size: clamp(26px, 2.2vw, 32px);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: #ffffff;
+  margin: 0 0 8px 0;
+}
+
+.form-subtitle-text {
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #82828c;
+  margin: 0;
+}
+
+/* Form Inputs Group */
+.form-fields-stack {
+  display: flex;
+  flex-direction: column;
+}
+
+.fields-row-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.form-input-field {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 15px;
+  position: relative;
+}
+
+.input-field-label {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  color: #a1a1aa;
+  margin-bottom: 7px;
+  user-select: none;
+}
+
+.input-box-control {
+  width: 100%;
+  background: #141417;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 12px;
+  padding: 12px 16px;
+  color: #ffffff;
+  font-family: var(--font-body);
+  font-size: 14px;
+  outline: none;
+  box-sizing: border-box;
+  transition:
+    border-color 0.25s ease,
+    background-color 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+.input-box-control::placeholder {
+  color: #52525b;
+}
+
+.input-box-control:focus {
+  background: #1a1a1f;
+  border-color: rgba(255, 255, 255, 0.45);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.08);
+}
+
+/* Custom Messenger Picker Plashka */
+.messenger-select-container {
+  position: relative;
+}
+
+.messenger-picker-button {
+  width: 100%;
+  background: #141417;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 12px;
+  padding: 12px 14px;
+  color: #ffffff;
+  font-family: var(--font-body);
+  font-size: 14px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+  transition: all 0.2s ease;
+}
+
+.messenger-picker-button:hover,
+.messenger-picker-button.is-open {
+  background: #1a1a1f;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.messenger-selected-display {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.messenger-icon {
+  flex-shrink: 0;
+}
+
+.messenger-name-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #ffffff;
+}
+
+.dropdown-chevron-arrow {
+  color: #71717a;
+  transition: transform 0.2s ease;
+}
+
+.dropdown-chevron-arrow.chevron-rotated {
+  transform: rotate(180deg);
+  color: #ffffff;
+}
+
+/* Options Dropdown */
+.messenger-options-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #18181c;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.7);
+  padding: 6px;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  animation: fadeInDown 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.messenger-option-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: #ffffff;
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  user-select: none;
+}
+
+.messenger-option-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.messenger-option-item.is-selected {
+  background: rgba(255, 255, 255, 0.12);
+  font-weight: 600;
+}
+
+/* Textarea Field */
+.textarea-field-control {
+  resize: vertical;
+  min-height: 82px;
+  line-height: 1.45;
+  font-family: inherit;
+}
+
+/* File Upload Dropzone */
+.file-upload-wrapper {
+  margin-bottom: 12px;
+}
+
+.file-hidden-input {
+  display: none;
+}
+
+.file-dropzone-box {
+  width: 100%;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.025);
+  padding: 14px 16px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.file-dropzone-box:hover,
+.file-dropzone-box.drag-over {
+  border-color: rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.file-dropzone-box.has-file {
+  border-style: solid;
+  border-color: rgba(59, 130, 246, 0.45);
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.file-dropzone-empty-state {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #e4e4e7;
+  user-select: none;
+}
+
+.upload-cloud-icon {
+  color: #a1a1aa;
+  flex-shrink: 0;
+}
+
+.file-dropzone-primary-text {
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #e4e4e7;
+}
+
+.file-attached-info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 10px;
+}
+
+.attached-filename-details {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attached-filename-text {
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #ffffff;
+}
+
+.attached-filesize-text {
+  font-size: 12px;
+  color: #a1a1aa;
+}
+
+.remove-attached-file-btn {
+  background: transparent;
+  border: none;
+  color: #71717a;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1;
+  transition: all 0.2s ease;
+}
+
+.remove-attached-file-btn:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.file-size-limit-notice {
+  display: block;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: #71717a;
+  margin-top: 6px;
+  font-weight: 500;
+  user-select: none;
+}
+
+/* White Submit Button */
+.submit-white-action-btn {
+  width: 100%;
+  padding: 14px 22px;
+  background: #ffffff;
+  color: #000000;
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  margin-top: 14px;
+  user-select: none;
+  transition:
+    transform 0.35s var(--ease-studio),
+    background-color 0.2s ease,
+    box-shadow 0.35s var(--ease-studio);
+  will-change: transform, box-shadow;
+}
+
+.submit-white-action-btn:hover {
+  background: #ffffff;
+  transform: translateY(-3px) scale(1.015);
+  box-shadow: 0 14px 34px rgba(255, 255, 255, 0.22);
+}
+
+.submit-white-action-btn:active {
+  transform: translateY(0px) scale(0.96);
+  transition-duration: 0.1s;
+}
+
+/* ==========================================================================
+   Responsive Breakpoints
+   ========================================================================== */
+
+@media (max-width: 1024px) {
+  .final-cta-section {
+    grid-template-columns: 1fr;
+    padding: 16px;
+    gap: 40px;
+  }
+
+  .signup-emerald-screen {
+    min-height: 580px;
+    padding: 32px 24px;
+  }
+
+  .emerald-top-spacer {
+    min-height: 100px;
+  }
+
+  .emerald-steps-row {
+    gap: 10px;
+  }
+
+  .step-tile-card {
+    min-height: 105px;
+    padding: 14px 12px;
+  }
+
+  .step-label-lines {
+    font-size: 11.5px;
+  }
+
+  .signup-form-screen {
+    min-height: auto;
+    padding-bottom: 40px;
+  }
+}
+
+@media (max-width: 640px) {
+  .emerald-title-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .emerald-step-hint {
+    max-width: 100%;
+  }
+
+  .fields-row-2col {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .emerald-steps-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .step-tile-card {
+    flex-direction: row;
+    align-items: center;
+    min-height: auto;
+    gap: 14px;
+    padding: 14px 16px;
+  }
+
+  .step-label-lines {
+    flex-direction: row;
+    gap: 4px;
+  }
+}
+
+/* ==========================================================================
+   Form Submission Feedback & Success Screen
+   ========================================================================== */
+
+.form-submit-error-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 10px;
+  padding: 12px 14px;
+  color: #fca5a5;
+  font-size: 13.5px;
+  line-height: 1.4;
+  margin-top: 10px;
+}
+
+.form-success-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: 16px;
+  padding: clamp(32px, 4vw, 48px) 24px;
+  margin-top: 24px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+
+.success-icon-badge {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid #10b981;
+  color: #10b981;
+  font-size: 26px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+  box-shadow: 0 0 30px rgba(16, 185, 129, 0.3);
+}
+
+.success-card-title {
+  font-family: var(--font-heading);
+  font-size: 24px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 12px 0;
+}
+
+.success-card-text {
+  font-family: var(--font-body);
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.75);
+  max-width: 420px;
+  margin: 0 0 20px 0;
+}
+
+.success-telegram-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #38bdf8;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  transition: all 0.2s ease;
+}
+
+.success-telegram-link:hover {
+  background: rgba(56, 189, 248, 0.16);
+  border-color: rgba(56, 189, 248, 0.4);
+}
