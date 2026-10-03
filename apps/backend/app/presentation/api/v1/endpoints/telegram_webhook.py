@@ -200,6 +200,114 @@ async def get_webhook_info():
         return {"ok": False, "error": str(e)}
 
 
+async def get_server_status_card(db: AsyncSession) -> tuple[str, dict]:
+    """
+    Формирует интерактивную карточку телеметрии сервера
+    с инлайн-кнопками для мгновенного обновления.
+    """
+    # 1. CPU Load
+    load_str = "0.08, 0.12, 0.09"
+    if hasattr(os, "getloadavg"):
+        try:
+            l1, l5, l15 = os.getloadavg()
+            load_str = f"{l1:.2f}, {l5:.2f}, {l15:.2f}"
+        except Exception:
+            pass
+
+    # 2. RAM
+    ram_str = "N/A"
+    try:
+        if os.path.exists("/proc/meminfo"):
+            mem = {}
+            with open("/proc/meminfo") as f:
+                for line in f:
+                    p = line.split(":")
+                    if len(p) == 2:
+                        v = p[1].strip().split()[0]
+                        if v.isdigit():
+                            mem[p[0].strip()] = int(v) * 1024
+            tot = mem.get("MemTotal", 0)
+            free = mem.get("MemAvailable", mem.get("MemFree", 0))
+            used = tot - free
+            if tot > 0:
+                pct = round((used / tot) * 100, 1)
+                ram_str = f"{round(used/(1024**3), 1)} GB / {round(tot/(1024**3), 1)} GB ({pct}%)"
+    except Exception:
+        pass
+
+    # 3. Disk (/)
+    disk_str = "N/A"
+    try:
+        du_path = "/" if os.name != "nt" else "C:\\"
+        du = shutil.disk_usage(du_path)
+        pct = round((du.used / du.total) * 100, 1)
+        disk_str = f"{round(du.used/(1024**3), 1)} GB / {round(du.total/(1024**3), 1)} GB ({pct}%)"
+    except Exception:
+        pass
+
+    # 4. Uptime
+    uptime_str = "Активен"
+    try:
+        if os.path.exists("/proc/uptime"):
+            with open("/proc/uptime") as f:
+                sec = float(f.readline().split()[0])
+                d = int(sec // 86400)
+                h = int((sec % 86400) // 3600)
+                m = int((sec % 3600) // 60)
+                uptime_str = f"{d}д {h}ч {m}м" if d > 0 else f"{h}ч {m}м"
+    except Exception:
+        pass
+
+    # 5. Database ping & latency
+    db_status = "🔴 Offline"
+    try:
+        t0 = time.perf_counter()
+        await db.execute(sql_text("SELECT 1"))
+        lat = (time.perf_counter() - t0) * 1000
+        db_status = f"🟢 OK ({lat:.1f} ms)"
+    except Exception as e:
+        db_status = f"🔴 Ошибка ({str(e)[:25]})"
+
+    # 6. Redis ping & latency
+    redis_status = "🟡 N/A"
+    try:
+        redis_client = await get_redis_client()
+        if redis_client:
+            t0 = time.perf_counter()
+            await redis_client.ping()
+            lat = (time.perf_counter() - t0) * 1000
+            redis_status = f"🟢 OK ({lat:.1f} ms)"
+    except Exception:
+        pass
+
+    now_str = time.strftime("%H:%M:%S UTC")
+    server_report = (
+        f"🏰 <b>CASTLEWEB • Мониторинг сервера</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"🟢 <b>Статус:</b> В штатном режиме\n\n"
+        f"⚙️ <b>Ресурсы хоста:</b>\n"
+        f"• CPU Load: <code>{load_str}</code>\n"
+        f"• RAM: <code>{ram_str}</code>\n"
+        f"• SSD (/): <code>{disk_str}</code>\n"
+        f"• Uptime: <code>{uptime_str}</code>\n\n"
+        f"🛡️ <b>Инфраструктура:</b>\n"
+        f"• PostgreSQL: {db_status}\n"
+        f"• Redis: {redis_status}\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"⏱ <i>Обновлено: {now_str}</i>"
+    )
+
+    kb = {
+        "inline_keyboard": [
+            [
+                {"text": "🔄 Обновить метрики", "callback_data": "server_refresh"},
+                {"text": "📊 Статистика лидов", "callback_data": "server_stats"}
+            ]
+        ]
+    }
+    return server_report, kb
+
+
 @router.post("/webhook", summary="Telegram Bot Webhook Handler (Headless CRM)")
 async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     """
@@ -351,6 +459,44 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 if chat_id:
                     await send_reply_message(chat_id, "\n\n".join(lines))
 
+        elif data == "server_refresh":
+            report, kb = await get_server_status_card(db)
+            await answer_callback_query(cb_id, "Метрики обновлены ⚡")
+            if message_id and chat_id:
+                try:
+                    await TelegramBotService.edit_message_text(chat_id, message_id, report, kb)
+                except Exception:
+                    pass
+
+        elif data == "server_stats":
+            total_leads = (await db.execute(select(func.count(Lead.id)))).scalar() or 0
+            pending = (await db.execute(select(func.count(Lead.id)).where(Lead.status.in_([LeadStatus.PENDING, LeadStatus.DELIVERED])))).scalar() or 0
+            in_progress = (await db.execute(select(func.count(Lead.id)).where(Lead.status == LeadStatus.IN_PROGRESS))).scalar() or 0
+            contacted = (await db.execute(select(func.count(Lead.id)).where(Lead.status == LeadStatus.CONTACTED))).scalar() or 0
+            spam = (await db.execute(select(func.count(Lead.id)).where(Lead.status == LeadStatus.SPAM))).scalar() or 0
+
+            stats_msg = (
+                f"📊 <b>Статистика заявок</b>\n"
+                f"• Всего: <b>{total_leads}</b>\n"
+                f"• В ожидании: <b>{pending}</b>\n"
+                f"• В работе: <b>{in_progress}</b>\n"
+                f"• Связались: <b>{contacted}</b>\n"
+                f"• Спам: <b>{spam}</b>"
+            )
+            kb = {
+                "inline_keyboard": [
+                    [
+                        {"text": "🖥 Сервер", "callback_data": "server_refresh"}
+                    ]
+                ]
+            }
+            await answer_callback_query(cb_id, "Статистика лидов")
+            if message_id and chat_id:
+                try:
+                    await TelegramBotService.edit_message_text(chat_id, message_id, stats_msg, kb)
+                except Exception:
+                    pass
+
         elif data == "noop":
             await answer_callback_query(cb_id, "OK")
 
@@ -490,92 +636,9 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                     await send_reply_message(chat_id, "\n\n".join(lines))
             return {"ok": True}
 
-        elif text.startswith("/server") or text.startswith("/sys"):
-            # 1. CPU Load
-            load_str = "0.08, 0.12, 0.09"
-            if hasattr(os, "getloadavg"):
-                try:
-                    l1, l5, l15 = os.getloadavg()
-                    load_str = f"{l1:.2f}, {l5:.2f}, {l15:.2f}"
-                except Exception:
-                    pass
-
-            # 2. RAM
-            ram_str = "N/A"
-            try:
-                if os.path.exists("/proc/meminfo"):
-                    mem = {}
-                    with open("/proc/meminfo") as f:
-                        for line in f:
-                            p = line.split(":")
-                            if len(p) == 2:
-                                v = p[1].strip().split()[0]
-                                if v.isdigit():
-                                    mem[p[0].strip()] = int(v) * 1024
-                    tot = mem.get("MemTotal", 0)
-                    free = mem.get("MemAvailable", mem.get("MemFree", 0))
-                    used = tot - free
-                    if tot > 0:
-                        pct = round((used / tot) * 100, 1)
-                        ram_str = f"{round(used/(1024**3), 1)} GB / {round(tot/(1024**3), 1)} GB ({pct}%)"
-            except Exception:
-                pass
-
-            # 3. Disk (/)
-            disk_str = "N/A"
-            try:
-                du_path = "/" if os.name != "nt" else "C:\\"
-                du = shutil.disk_usage(du_path)
-                pct = round((du.used / du.total) * 100, 1)
-                disk_str = f"{round(du.used/(1024**3), 1)} GB / {round(du.total/(1024**3), 1)} GB ({pct}%)"
-            except Exception:
-                pass
-
-            # 4. Uptime
-            uptime_str = "Активен"
-            try:
-                if os.path.exists("/proc/uptime"):
-                    with open("/proc/uptime") as f:
-                        sec = float(f.readline().split()[0])
-                        d = int(sec // 86400)
-                        h = int((sec % 86400) // 3600)
-                        m = int((sec % 3600) // 60)
-                        uptime_str = f"{d} дн. {h} ч. {m} мин." if d > 0 else f"{h} ч. {m} мин."
-            except Exception:
-                pass
-
-            # 5. Database ping & latency
-            db_status = "🔴 Offline"
-            try:
-                t0 = time.perf_counter()
-                await db.execute(sql_text("SELECT 1"))
-                lat = (time.perf_counter() - t0) * 1000
-                db_status = f"🟢 OK ({lat:.1f} ms)"
-            except Exception as e:
-                db_status = f"🔴 Ошибка ({str(e)[:25]})"
-
-            # 6. Redis ping & latency
-            redis_status = "🟡 Нет подключения"
-            try:
-                redis_client = await get_redis_client()
-                if redis_client:
-                    t0 = time.perf_counter()
-                    await redis_client.ping()
-                    lat = (time.perf_counter() - t0) * 1000
-                    redis_status = f"🟢 OK ({lat:.1f} ms)"
-            except Exception:
-                pass
-
-            server_report = (
-                f"🖥 <b>Сервер CASTLEWEB</b>\n"
-                f"• CPU Load: <code>{load_str}</code>\n"
-                f"• RAM: <code>{ram_str}</code>\n"
-                f"• SSD (/): <code>{disk_str}</code>\n"
-                f"• Uptime: <code>{uptime_str}</code>\n"
-                f"• PostgreSQL: {db_status}\n"
-                f"• Redis: {redis_status}"
-            )
-            await send_reply_message(chat_id, server_report)
+        elif text.startswith("/server") or text.startswith("/sys") or text.startswith("/monitor"):
+            server_report, kb = await get_server_status_card(db)
+            await send_reply_message(chat_id, server_report, kb)
             return {"ok": True}
 
         elif text.startswith("/cases") or text.startswith("/portfolio"):

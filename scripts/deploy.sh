@@ -424,6 +424,14 @@ HEALTHEOF
         HEALTH_CRON="*/5 * * * * ${HEALTH_SCRIPT}"
         (crontab -l 2>/dev/null | grep -v "healthcheck.sh" ; echo "$HEALTH_CRON") | crontab -
         log_success "Dead Man's Switch: мониторинг здоровья каждые 5 минут → алерт в Telegram."
+
+        # Установка CASTLEWEB Sentinel (полный мониторинг хоста, памяти, диска, контейнеров и дайджеста)
+        MONITOR_SCRIPT="${ROOT_DIR}/scripts/server_monitor.sh"
+        if [ -f "$MONITOR_SCRIPT" ]; then
+            chmod +x "$MONITOR_SCRIPT"
+            bash "$MONITOR_SCRIPT" --install >/dev/null 2>&1 || true
+            log_success "CASTLEWEB Sentinel: полный мониторинг сервера установлен (проверки каждые 3 мин + дайджест в TG)."
+        fi
     fi
 }
 
