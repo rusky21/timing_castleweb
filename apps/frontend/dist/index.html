@@ -1,19 +1,252 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Castleweb</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap"
-      rel="stylesheet"
-    />
-    <script type="module" crossorigin src="/assets/index-B1_wC13b.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-qCc5YGKL.css">
-  </head>
-  <body>
-    <div id="root"></div>
-  </body>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Castleweb Studio</title>
+  <meta name="description" content="Создаём сайты, которые точно передают суть бизнеса и помогают клиенту чувствовать уверенность в выборе. Продумываем каждый этап — от структуры до визуального языка и финальной реализации" />
+  
+  <meta property="og:url" content="https://castleweb.ru" />
+  <meta property="og:title" content="Castleweb Studio" />
+  <meta property="og:description" content="Создаём сайты, которые точно передают суть бизнеса и помогают клиенту чувствовать уверенность в выборе. Продумываем каждый этап — от структуры до визуального языка и финальной реализации" />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="/assets/photo-kgBufYtb.png" />
+  
+  <link rel="icon" type="image/svg+xml" sizes="any" href="/assets/cw_logo-CvQeH2S4.svg" />
+  <link rel="apple-touch-icon" href="/assets/avatar_logo-DBYJaO7P.png" />
+  
+  <script>document.documentElement.classList.add('js-ready');</script>
+  <script type="module" crossorigin src="/assets/main-BTFcyXRn.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/style-DVC92454.css">
+</head>
+<body>
+
+  <!-- ==================== FIXED VIEWPORT STAGE ==================== -->
+  <div class="fixed-stage">
+    <!-- Top-Left: Logo & Socials -->
+    <div class="stage-top-left">
+      <a href="index.html" class="brand-logo" aria-label="Castleweb Studio">
+        <img src="/assets/cw_logo-CvQeH2S4.svg" alt="Castleweb Studio Logo" />
+      </a>
+      <div class="stage-socials">
+        <a href="https://t.me/propssagency" target="_blank" rel="noopener">TELEGRAM</a>
+        <a href="https://www.instagram.com/propss.agency/" target="_blank" rel="noopener">INSTAGRAM</a>
+      </div>
+    </div>
+
+    <!-- Pinned Navigation: [•] ГЛАВНАЯ / [ ] КЕЙСЫ -->
+    <nav class="stage-nav" aria-label="Navigation">
+      <a href="index.html" class="nav-link active">[•]&nbsp;ГЛАВНАЯ</a>
+      <a href="cases.html" class="nav-link">[ ]&nbsp;КЕЙСЫ</a>
+    </nav>
+
+    <!-- Top-Right: CTA -->
+    <div class="stage-top-right">
+      <div class="stage-cta">
+        <a href="brief.html" class="stage-cta-link">
+          <span>ОБСУДИТЬ ПРОЕКТ</span>
+          <img src="data:image/svg+xml,%3c?xml%20version='1.0'%20encoding='UTF-8'?%3e%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='17'%20height='17'%20viewBox='0%200%2017%2017'%20fill='none'%3e%3cpath%20d='M6.83984%209.33984V15.1729H5.17383V12.1865L1.18066%2016.1797L0.00195312%2015.001L3.99609%2011.0059H1.00684V9.33984H6.83984ZM15.1729%2011.0059H12.1846L16.1787%2015L15%2016.1787L11.0068%2012.1846V15.1729H9.33984V9.33984H15.1729V11.0059ZM5.17285%203.99414V1.00586H6.83984V6.83984H1.00586V5.17285H3.99414L0%201.17871L1.17871%200L5.17285%203.99414ZM16.1787%201.17871L12.1846%205.17285H15.1729V6.83984H9.33984V1.00586H11.0068V3.99414L15.001%200L16.1787%201.17871Z'%20fill='%23DEE3E8'%3e%3c/path%3e%3c/svg%3e" alt="" class="stage-cta-icon" />
+        </a>
+        <div class="stage-cta-line"></div>
+      </div>
+    </div>
+
+    <!-- Pinned Bottom-Left Branding Anchor -->
+    <div class="stage-bottom-left" id="pinned-brand-block">
+      <p class="pinned-descriptor">
+        Создаём цифровые продукты, которые<br />дают клиенту уверенность в результате
+      </p>
+      <div class="pinned-brand-title">
+        CASTLE<br />WEB
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== SCROLLING FLOW ==================== -->
+  <main class="scroll-flow">
+
+    <!-- SCREEN 1: HERO (Clean Black Background, Exact Zero Block Layout) -->
+    <section class="stage-screen screen-hero" id="hero">
+      <!-- Mobile Hero Brand Block (visible only on mobile/tablets, hidden on desktop >= 1101px) -->
+      <div class="hero-mobile-brand">
+        <div class="hero-mobile-title">
+          CASTLE<br />WEB
+        </div>
+        <p class="hero-mobile-descriptor">
+          Создаём цифровые продукты, которые<br />дают клиенту уверенность в результате
+        </p>
+      </div>
+
+      <!-- Featured Event Platform Card on the right -->
+      <a href="cases.html" class="hero-feature-card" data-case-id="event-platform">
+        <div class="hero-feature-visual">
+          <img src="/assets/post-2-DCy3OoBK.png" alt="Event Platform" class="hero-feature-img" />
+        </div>
+      </a>
+
+      <!-- Process text at the bottom center-left of stage -->
+      <p class="hero-process-text">
+        Структурируем процесс, формируем направление<br />в дизайне и доводим проект до финала
+      </p>
+    </section>
+
+    <!-- SCREEN 2: VALUES / APPROACH (FULL-HEIGHT 67% PHOTO WITH RESTORED 3 COLUMNS) -->
+    <section class="stage-screen screen-values" id="values">
+      <div class="values-full-photo-container reveal-item reveal-photo">
+        <img src="/assets/img-2-ZQA37rmH.png" alt="Castleweb Studio Dynamics" class="values-full-bg-img" />
+        <div class="values-bottom-content">
+          <div class="val-col val-col-left reveal-item" style="--reveal-delay: 0.1s;">
+            <span class="val-title">СПОКОЙНЫЙ ПРОЦЕСС</span>
+            <p class="val-desc">Строим работу по понятной структуре, с прозрачными этапами и согласованными сроками</p>
+          </div>
+
+          <div class="val-col val-col-center reveal-item" style="--reveal-delay: 0.22s;">
+            <span class="val-title">ИНДИВИДУАЛЬНЫЙ ПОДХОД</span>
+            <p class="val-desc">Предлагаем решения, которые учитывают задачи, масштаб и особенности вашего бизнеса</p>
+          </div>
+
+          <div class="val-col val-col-right reveal-item" style="--reveal-delay: 0.34s;">
+            <span class="val-title">СОВРЕМЕННЫЙ ДИЗАЙН</span>
+            <p class="val-desc">Создаём современный и аккуратный дизайн, который отражает характер бизнеса</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN 3: SELECTED WORKS (EXACT ASYMMETRIC ZERO BLOCK COMPOSITION) -->
+    <section class="stage-screen screen-cases" id="cases">
+      <div class="cases-composition-stage">
+        <!-- 1. Marina Mate (Vertical Phone Mockup - Bottom Left of content stage) -->
+        <a href="cases.html" class="case-elem case-elem-marina reveal-item reveal-scale" style="--reveal-delay: 0.08s;" data-case-id="marina-mate">
+          <div class="case-elem-visual">
+            <img src="/assets/case-cover-2-4mEGQ6wK.png" alt="Marina Mate" class="case-elem-img" />
+          </div>
+          <span class="case-elem-title">Marina Mate</span>
+        </a>
+
+        <!-- 2. GlobalTrans Logistic (Top Right of middle column) -->
+        <a href="cases.html" class="case-elem case-elem-gtl reveal-item reveal-scale" style="--reveal-delay: 0.2s;" data-case-id="gtl">
+          <div class="case-elem-visual">
+            <img src="/assets/case_cover-2-CvoSiuhZ.png" alt="GlobalTrans Logistic" class="case-elem-img" />
+          </div>
+          <span class="case-elem-title">GlobalTrans Logistic</span>
+        </a>
+
+        <!-- 3. Mintina Jewellery (Far Right - Centered vertically) -->
+        <a href="cases.html" class="case-elem case-elem-mintina reveal-item reveal-scale" style="--reveal-delay: 0.32s;" data-case-id="mintina">
+          <div class="case-elem-visual">
+            <img src="/assets/case_img-2-DraZ2ycv.png" alt="Mintina Jewellery" class="case-elem-img" />
+          </div>
+          <span class="case-elem-title">Mintina Jewellery</span>
+        </a>
+
+        <!-- 4. Bottom CTA: СМОТРЕТЬ ВСЕ (Under GlobalTrans column at bottom) -->
+        <div class="cases-bottom-cta reveal-item" style="--reveal-delay: 0.44s;">
+          <a href="cases.html" class="cases-link-more">
+            <span>СМОТРЕТЬ ВСЕ</span>
+            <img src="data:image/svg+xml,%3c?xml%20version='1.0'%20encoding='UTF-8'?%3e%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='17'%20height='17'%20viewBox='0%200%2017%2017'%20fill='none'%3e%3cpath%20d='M6.83984%209.33984V15.1729H5.17383V12.1865L1.18066%2016.1797L0.00195312%2015.001L3.99609%2011.0059H1.00684V9.33984H6.83984ZM15.1729%2011.0059H12.1846L16.1787%2015L15%2016.1787L11.0068%2012.1846V15.1729H9.33984V9.33984H15.1729V11.0059ZM5.17285%203.99414V1.00586H6.83984V6.83984H1.00586V5.17285H3.99414L0%201.17871L1.17871%200L5.17285%203.99414ZM16.1787%201.17871L12.1846%205.17285H15.1729V6.83984H9.33984V1.00586H11.0068V3.99414L15.001%200L16.1787%201.17871Z'%20fill='%23DEE3E8'%3e%3c/path%3e%3c/svg%3e" alt="↗" />
+          </a>
+          <div class="cases-cta-line"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN 4: MANIFESTO & FOUNDER (EXACT ZERO BLOCK LAYOUT) -->
+    <section class="stage-screen screen-founder" id="founder">
+      <div class="founder-composition-stage">
+        <!-- Top-Right Quote -->
+        <div class="founder-giant-quote founder-quote-top reveal-item reveal-quote" style="--reveal-delay: 0.05s;">”</div>
+
+        <!-- Top-Left Statement -->
+        <p class="founder-statement-top reveal-item" style="--reveal-delay: 0.12s;">
+          Берем проекты любой сложности:<br />от нагруженных сервисов и программ<br />до современных быстрых сайтов.
+        </p>
+
+        <!-- Centered Portrait of Oleg Sudakov -->
+        <div class="founder-portrait-box reveal-item reveal-scale" style="--reveal-delay: 0.22s;">
+          <div class="founder-portrait-frame">
+            <img src="/assets/photo_dev1-Bka4gjWq.jpg" alt="Олег Судаков" class="founder-portrait-img" />
+          </div>
+          <div class="founder-portrait-meta">
+            <div class="founder-name">Олег Судаков</div>
+            <div class="founder-role">Co-Founder & Lead Backend</div>
+          </div>
+        </div>
+
+        <!-- Bottom-Right Statement -->
+        <p class="founder-statement-bottom reveal-item" style="--reveal-delay: 0.32s;">
+          Никаких джунов и испорченного телефона:<br />проектируем надежную архитектуру,<br />базы данных и отказоустойчивость.
+        </p>
+      </div>
+    </section>
+
+    <!-- SCREEN 4.2: DEVELOPER / TEAM MEMBER (LIGHT EDITORIAL COMPOSITION) -->
+    <section class="stage-screen screen-founder screen-developer" id="developer">
+      <div class="founder-composition-stage dev-composition-stage">
+        <!-- Portrait shifted to left-center column -->
+        <div class="founder-portrait-box dev-portrait-box reveal-item reveal-scale" style="--reveal-delay: 0.12s;">
+          <div class="founder-portrait-frame">
+            <img src="/assets/photo_dev2-B1qjUVFT.jpg" alt="Эмиль Герасимов" class="founder-portrait-img" />
+          </div>
+          <div class="founder-portrait-meta">
+            <div class="founder-name">Эмиль Герасимов</div>
+            <div class="founder-role">Co-Founder & Lead Frontend</div>
+          </div>
+        </div>
+
+        <!-- Single airy quote statement on the right -->
+        <div class="dev-statement-box reveal-item" style="--reveal-delay: 0.24s;">
+          <div class="dev-statement-quote reveal-item reveal-quote" style="--reveal-delay: 0.18s;">”</div>
+          <p class="dev-statement-text">
+            Превращаем сложные сервисы и сайты<br />в эстетичный, быстрый интерфейс<br />с адаптивностью каждого экрана.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN 5: FINAL SOCIALS (EXACT ZERO BLOCK LAYOUT) -->
+    <section class="stage-screen screen-links" id="links">
+      <div class="links-composition-stage">
+        <!-- Floating Links on the right -->
+        <div class="links-floating-container reveal-item" style="--reveal-delay: 0.12s;">
+          <div class="links-col-dprofile">
+            <a href="https://dprofile.ru/props" target="_blank" rel="noopener">DPROFILE</a>
+            <a href="https://www.behance.net/propssagency" target="_blank" rel="noopener">BEHANCE</a>
+          </div>
+          <div class="links-col-socials">
+            <a href="https://t.me/propssagency" target="_blank" rel="noopener">TELEGRAM</a>
+            <a href="https://www.instagram.com/propss.agency/" target="_blank" rel="noopener">INSTAGRAM</a>
+            <a href="https://t.me/ddesignel" target="_blank" rel="noopener">@DDESIGNEL</a>
+          </div>
+        </div>
+
+        <!-- Bottom Policy Link -->
+        <a href="policy.html" class="policy-sublink reveal-item" style="--reveal-delay: 0.26s;">Политика конфиденциальности</a>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==================== CASE DETAIL MODAL ==================== -->
+  <div class="case-modal-overlay" id="case-modal">
+    <div class="case-modal-box">
+      <div class="case-modal-header">
+        <h3 class="case-modal-title" id="modal-case-title">Кейс</h3>
+        <button class="case-modal-close" id="case-modal-close">✕</button>
+      </div>
+      <div class="case-modal-body">
+        <img src="" alt="" class="case-modal-img" id="modal-case-img" />
+        <p id="modal-case-desc" style="font-size: 16px; line-height: 1.4; color: var(--text-primary); max-width: 700px;"></p>
+        <div style="margin-top: 10px;">
+          <a href="brief.html" class="stage-cta-link" style="display: inline-flex; width: 232px;">
+            <span>ОБСУДИТЬ ПОДОБНЫЙ</span>
+            <img src="data:image/svg+xml,%3c?xml%20version='1.0'%20encoding='UTF-8'?%3e%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='17'%20height='17'%20viewBox='0%200%2017%2017'%20fill='none'%3e%3cpath%20d='M6.83984%209.33984V15.1729H5.17383V12.1865L1.18066%2016.1797L0.00195312%2015.001L3.99609%2011.0059H1.00684V9.33984H6.83984ZM15.1729%2011.0059H12.1846L16.1787%2015L15%2016.1787L11.0068%2012.1846V15.1729H9.33984V9.33984H15.1729V11.0059ZM5.17285%203.99414V1.00586H6.83984V6.83984H1.00586V5.17285H3.99414L0%201.17871L1.17871%200L5.17285%203.99414ZM16.1787%201.17871L12.1846%205.17285H15.1729V6.83984H9.33984V1.00586H11.0068V3.99414L15.001%200L16.1787%201.17871Z'%20fill='%23DEE3E8'%3e%3c/path%3e%3c/svg%3e" alt="↗" />
+          </a>
+          <div style="width: 232px; height: 1px; background: var(--hairline-color);"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
 </html>

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Бриф на разработку сайта — Castleweb Studio</title>
+  <meta name="description" content="Заполните небольшую форму брифа или свяжитесь с нами в Telegram. Castleweb Studio — разработка сайтов для бизнеса" />
+  
+  <link rel="icon" type="image/svg+xml" sizes="any" href="/assets/cw_logo-CvQeH2S4.svg" />
+  <script>document.documentElement.classList.add('js-ready');</script>
+  <script type="module" crossorigin src="/assets/main-BTFcyXRn.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/style-DVC92454.css">
+</head>
+<body>
+
+  <!-- ==================== FIXED HEADER ==================== -->
+  <header class="site-header">
+    <div class="stage-top-left">
+      <a href="index.html" class="brand-logo" aria-label="Castleweb Studio">
+        <img src="/assets/cw_logo-CvQeH2S4.svg" alt="Castleweb Studio Logo" />
+      </a>
+      <div class="stage-socials">
+        <a href="https://t.me/propssagency" target="_blank" rel="noopener">TELEGRAM</a>
+        <a href="https://www.instagram.com/propss.agency/" target="_blank" rel="noopener">INSTAGRAM</a>
+      </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="stage-nav" aria-label="Navigation">
+      <a href="index.html" class="nav-link">[ ]&nbsp;ГЛАВНАЯ</a>
+      <a href="cases.html" class="nav-link">[ ]&nbsp;КЕЙСЫ</a>
+    </nav>
+
+    <!-- Right: CTA -->
+    <div class="stage-top-right">
+      <div class="stage-cta">
+        <a href="brief.html" class="stage-cta-link">
+          <span>ОБСУДИТЬ ПРОЕКТ</span>
+          <img src="data:image/svg+xml,%3c?xml%20version='1.0'%20encoding='UTF-8'?%3e%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='17'%20height='17'%20viewBox='0%200%2017%2017'%20fill='none'%3e%3cpath%20d='M6.83984%209.33984V15.1729H5.17383V12.1865L1.18066%2016.1797L0.00195312%2015.001L3.99609%2011.0059H1.00684V9.33984H6.83984ZM15.1729%2011.0059H12.1846L16.1787%2015L15%2016.1787L11.0068%2012.1846V15.1729H9.33984V9.33984H15.1729V11.0059ZM5.17285%203.99414V1.00586H6.83984V6.83984H1.00586V5.17285H3.99414L0%201.17871L1.17871%200L5.17285%203.99414ZM16.1787%201.17871L12.1846%205.17285H15.1729V6.83984H9.33984V1.00586H11.0068V3.99414L15.001%200L16.1787%201.17871Z'%20fill='%23DEE3E8'%3e%3c/path%3e%3c/svg%3e" alt="" class="stage-cta-icon" />
+        </a>
+        <div class="stage-cta-line"></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================== BRIEF FORM (CASTLEWEB STUDIO) ==================== -->
+  <main class="page-container">
+    <div class="brief-wrapper">
+      <div class="brief-header reveal-item">
+        <h1 class="brief-hero-title">
+          РАССКАЖИТЕ О ВАШИХ ЗАДАЧАХ,<br />А МЫ ПРЕДЛОЖИМ РЕШЕНИЕ
+        </h1>
+        <p class="brief-desc-text">
+          Заполните небольшую форму ниже или свяжитесь с нами в <a href="https://t.me/propssagency" target="_blank" rel="noopener">Telegram</a>
+        </p>
+      </div>
+
+      <form id="project-brief-form" class="brief-native-form">
+        <!-- Anti-Spam Honeypot Field -->
+        <input type="text" name="hp_website" style="display:none !important; opacity:0; position:absolute; left:-9999px;" tabindex="-1" autocomplete="off" />
+        <!-- 1. Имя -->
+        <div class="underline-field reveal-item">
+          <input type="text" name="name" class="underline-input" placeholder="Имя" required />
+        </div>
+
+        <!-- 2. Связь -->
+        <div class="underline-field reveal-item">
+          <input type="text" name="contact" class="underline-input" placeholder="Ник Telegram или номер WhatsApp" required />
+        </div>
+
+        <!-- 3. Детали -->
+        <div class="underline-field reveal-item">
+          <input type="text" name="details" class="underline-input" placeholder="Детали проекта" />
+        </div>
+
+        <!-- 4. Тип проекта (Radio) -->
+        <div class="reveal-item">
+          <div class="form-group-title">Тип проекта</div>
+          <div class="radio-options-2col">
+            <label class="circle-radio-item">
+              <input type="radio" name="site_type" value="website" checked />
+              <span class="circle-radio-label">Веб-сайт</span>
+            </label>
+            <label class="circle-radio-item">
+              <input type="radio" name="site_type" value="service" />
+              <span class="circle-radio-label">Веб-сервис / SaaS</span>
+            </label>
+            <label class="circle-radio-item">
+              <input type="radio" name="site_type" value="parser" />
+              <span class="circle-radio-label">Парсер данных</span>
+            </label>
+            <label class="circle-radio-item">
+              <input type="radio" name="site_type" value="telegram" />
+              <span class="circle-radio-label">Telegram-бот / приложение</span>
+            </label>
+            <label class="circle-radio-item">
+              <input type="radio" name="site_type" value="software" />
+              <span class="circle-radio-label">Кастомный софт</span>
+            </label>
+            <label class="circle-radio-item">
+              <input type="radio" name="site_type" value="other" />
+              <span class="circle-radio-label">Другое</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- 5. Когда вы готовы начать? (Radio) -->
+        <div class="reveal-item">
+          <div class="form-group-title">Когда вы готовы начать?</div>
+          <div class="radio-options-row">
+            <label class="circle-radio-item">
+              <input type="radio" name="timeline" value="now" checked />
+              <span class="circle-radio-label">Прямо сейчас</span>
+            </label>
+            <label class="circle-radio-item">
+              <input type="radio" name="timeline" value="weeks" />
+              <span class="circle-radio-label">В течение 1-2 недель</span>
+            </label>
+            <label class="circle-radio-item">
+              <input type="radio" name="timeline" value="month" />
+              <span class="circle-radio-label">Через месяц</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- 6. Согласие -->
+        <div class="reveal-item">
+          <label class="terms-checkbox">
+            <input type="checkbox" name="consent" required checked />
+            <span>Я согласен с условиями политики конфиденциальности</span>
+          </label>
+        </div>
+
+        <!-- 7. Кнопка Отправить -->
+        <div class="brief-submit-white reveal-item">
+          <button type="submit" class="btn-solid-white">
+            <span>Отправить</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </main>
+
+</body>
+</html>
