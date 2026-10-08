@@ -440,6 +440,12 @@ launch_and_post_install() {
     log_step "Блок 6: Запуск контейнеров, миграций и регистрация Webhook"
     docker compose -f "$DOCKER_COMPOSE_FILE" up -d --build --remove-orphans
 
+    # Синхронизация пароля PostgreSQL с .env на случай повторного деплоя с новым паролем
+    if [ -n "$POSTGRES_PASSWORD" ]; then
+        docker compose -f "$DOCKER_COMPOSE_FILE" exec -T postgres psql -U "${POSTGRES_USER:-castleweb_user}" -d "${POSTGRES_DB:-castleweb_db}" -c "ALTER USER \"${POSTGRES_USER:-castleweb_user}\" WITH PASSWORD '${POSTGRES_PASSWORD}';" >/dev/null 2>&1 || true
+        docker compose -f "$DOCKER_COMPOSE_FILE" restart backend >/dev/null 2>&1 || true
+    fi
+
     log_info "Ожидание готовности FastAPI (до 30 сек)..."
     BACKEND_HEALTHY=false
     for _ in $(seq 1 30); do
