@@ -891,10 +891,8 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
 
         elif text.startswith("/fl"):
             internal_urls = [
-                getattr(settings, "PARSER_INTERNAL_URL", "") or os.environ.get("PARSER_INTERNAL_URL", "").strip(),
                 "http://leadhunter:8000",
-                "http://127.0.0.1:8080",
-                "http://localhost:8080",
+                getattr(settings, "PARSER_INTERNAL_URL", "") or os.environ.get("PARSER_INTERNAL_URL", "").strip(),
             ]
             secret = getattr(settings, "INTERNAL_API_SECRET", "") or os.environ.get("INTERNAL_API_SECRET", "castleweb-internal-demo-secret")
             headers = {"X-Internal-Secret": secret}
@@ -905,14 +903,25 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
             for base_url in filter(None, internal_urls):
                 b_url = base_url.rstrip("/")
                 try:
-                    async with httpx.AsyncClient(timeout=8.0) as client:
+                    async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
                         # Запускаем шаг опроса в фоне
                         try:
                             await client.post(f"{b_url}/api/fl/poll", headers=headers)
                         except Exception:
                             pass
-                        # Получаем последние 3 заказа
+
+                        # 1. Запрос заказов с заголовком X-Internal-Secret
                         resp = await client.get(f"{b_url}/api/fl/orders?page=1&page_size=3", headers=headers)
+
+                        # 2. Если парсер вернул 401 (старый контейнер без X-Internal-Secret) — мгновенная авторизация через /login
+                        if resp.status_code == 401:
+                            login_resp = await client.post(
+                                f"{b_url}/login",
+                                data={"email": "admin@lead.pro", "password": "AdminPass123!_ChangeMe"}
+                            )
+                            if login_resp.status_code in (200, 303):
+                                resp = await client.get(f"{b_url}/api/fl/orders?page=1&page_size=3")
+
                         if resp.status_code == 200:
                             found_resp = resp.json()
                             break

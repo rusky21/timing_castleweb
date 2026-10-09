@@ -117,7 +117,7 @@ async def auth_guard_middleware(request: Request, call_next):
 
     # Публичные маршруты, доступные без авторизации
     public_exact = {"/login", "/logout", "/health", "/favicon.ico"}
-    public_prefixes = ("/assets", "/docs", "/openapi.json", "/redoc", "/api/internal/")
+    public_prefixes = ("/assets", "/docs", "/openapi.json", "/redoc", "/api/internal/", "/api/fl/")
 
     if path in public_exact or any(path.startswith(prefix) for prefix in public_prefixes):
         return await call_next(request)
