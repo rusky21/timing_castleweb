@@ -532,6 +532,10 @@ launch_and_post_install() {
     log_info "Применение миграций базы данных (Alembic)..."
     docker compose -f "$DOCKER_COMPOSE_FILE" exec -T backend alembic upgrade head || log_warn "Alembic завершил выполнение с предупреждением (проверьте таблицы)."
 
+    # Перезапуск Nginx для сброса DNS upstream кэша и подключения к новым IP контейнеров
+    log_info "Перезапуск шлюза Nginx для актуализации сетевых маршрутов..."
+    docker compose -f "$DOCKER_COMPOSE_FILE" restart nginx
+
     # 2. Автоматическая привязка Telegram Webhook
     if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ "$TELEGRAM_BOT_TOKEN" != "your_bot_token_here" ]; then
         log_info "Активация Telegram Webhook..."
@@ -596,18 +600,20 @@ main() {
             load_env
             docker compose -f "$DOCKER_COMPOSE_FILE" build backend
             docker compose -f "$DOCKER_COMPOSE_FILE" up -d --no-deps backend
+            docker compose -f "$DOCKER_COMPOSE_FILE" restart nginx
             docker compose -f "$DOCKER_COMPOSE_FILE" exec -T backend alembic upgrade head || true
             docker compose -f "$DOCKER_COMPOSE_FILE" exec -u 0 -T backend chmod -R 777 /app/uploads /tmp/uploads 2>/dev/null || true
             curl -sf -X POST http://127.0.0.1:8000/api/v1/telegram/setup-webhook >/dev/null 2>&1 || true
             curl -sf -X POST http://127.0.0.1:8000/api/v1/telegram/test >/dev/null 2>&1 || true
-            log_success "Бэкенд обновлен, права на uploads настроены и Telegram Webhook активирован!"
+            log_success "Бэкенд обновлен, Nginx синхронизирован и Telegram Webhook активирован!"
             ;;
         --parser-only)
             log_banner
             load_env
             docker compose -f "$DOCKER_COMPOSE_FILE" build leadhunter
             docker compose -f "$DOCKER_COMPOSE_FILE" up -d --no-deps leadhunter
-            log_success "Парсер LeadHunter Pro обновлен и перезапущен!"
+            docker compose -f "$DOCKER_COMPOSE_FILE" restart nginx
+            log_success "Парсер LeadHunter Pro обновлен и Nginx синхронизирован!"
             ;;
         --migrate)
             load_env
