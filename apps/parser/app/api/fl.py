@@ -1,7 +1,7 @@
 import logging
 from typing import Optional, List
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, Query, HTTPException, status, Request
+from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc, or_
 from sqlalchemy.orm import selectinload
@@ -27,7 +27,6 @@ async def get_categories():
 
 @router.get("/orders", summary="Получить список заказов FL.ru с фильтрами")
 async def get_orders(
-    request: Request,
     category_id: Optional[str] = Query(None, description="ID категории FL"),
     min_price: Optional[int] = Query(None, ge=0, description="Минимальный бюджет в рублях"),
     is_favorite: Optional[bool] = Query(None, description="Только избранные"),
@@ -40,12 +39,6 @@ async def get_orders(
     page_size: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db)
 ):
-    user = getattr(request.state, "user", None)
-    if user and user.get("role") == "demo":
-        raise HTTPException(
-            status_code=403,
-            detail="Биржа FL.ru недоступна в тестовом режиме. В демо-версии доступен только поиск компаний по Яндекс.Картам."
-        )
     query = select(FLOrder).options(selectinload(FLOrder.interaction))
 
     # Скрытые / не скрытые

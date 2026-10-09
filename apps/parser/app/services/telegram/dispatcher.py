@@ -111,19 +111,35 @@ class TelegramDispatcher:
             return
 
         try:
+            from app.config import ADMIN_TELEGRAM_IDS, MANAGER_TELEGRAM_CHAT_ID
+
             async with async_session_factory() as db:
                 # Получаем активных пользователей с включенными уведомлениями FL
                 stmt = (
-                    select(TelegramUserSettings)
-                    .join(TelegramUser)
+                    select(TelegramUserSettings, TelegramUser)
+                    .join(TelegramUser, TelegramUserSettings.chat_id == TelegramUser.chat_id)
                     .where(TelegramUser.is_active == True)
                     .where(TelegramUserSettings.fl_enabled == True)
                 )
                 res = await db.execute(stmt)
-                subscribers = res.scalars().all()
+                subscriber_pairs = res.all()
 
-                for sub in subscribers:
+                dispatched_chats = set()
+
+                for sub, user in subscriber_pairs:
                     chat_id = sub.chat_id
+
+                    # СТРОГАЯ ПРОВЕРКА: уведомления с FL.ru отправляются ТОЛЬКО администраторам студии!
+                    user_login = (getattr(user, "username", "") or "").lower().lstrip("@")
+                    is_admin_sub = (
+                        user_login in ("kupidon996", "ya_emildjan", "castleweb_admin", "admin")
+                        or (ADMIN_TELEGRAM_IDS and chat_id in ADMIN_TELEGRAM_IDS)
+                        or (str(chat_id) in ("1878543896", str(MANAGER_TELEGRAM_CHAT_ID)))
+                    )
+                    if not is_admin_sub:
+                        continue
+
+                    dispatched_chats.add(chat_id)
 
                     # 0. Проверка тумблера Live-режима FL (если отключен — не спамим в реальном времени)
                     if not getattr(sub, "fl_live_mode", True):
@@ -189,7 +205,24 @@ class TelegramDispatcher:
                         existing_del.is_sent = True
                         existing_del.sent_at = utc_now()
 
-                    await self._queue.put((chat_id, msg_text, kb, disable_notif))
+                # Также гарантированно отправляем в закрытый чат команды/инженеров, если он задан
+                if MANAGER_TELEGRAM_CHAT_ID and MANAGER_TELEGRAM_CHAT_ID not in dispatched_chats:
+                    delivery_key = (order.id, MANAGER_TELEGRAM_CHAT_ID)
+                    existing_del = await db.get(FLOrderDelivery, delivery_key)
+                    if not existing_del or not existing_del.is_sent:
+                        msg_text = format_fl_order_message(order)
+                        kb = order_inline_keyboard(order_id=order.id, url=order.url, is_favorite=False)
+                        if not existing_del:
+                            db.add(FLOrderDelivery(
+                                order_id=order.id,
+                                chat_id=MANAGER_TELEGRAM_CHAT_ID,
+                                is_sent=True,
+                                sent_at=utc_now()
+                            ))
+                        else:
+                            existing_del.is_sent = True
+                            existing_del.sent_at = utc_now()
+                        await self._queue.put((MANAGER_TELEGRAM_CHAT_ID, msg_text, kb, False))
 
                 await db.commit()
 

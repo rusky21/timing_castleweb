@@ -970,7 +970,7 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
         elif text.startswith("/admin"):
             clean_user = (username or "").lower().lstrip("@")
             is_adm = (
-                clean_user in ("kupidon996", "castleweb_admin", "admin")
+                clean_user in ("kupidon996", "ya_emildjan", "castleweb_admin", "admin")
                 or str(from_id) in ("1878543896", str(settings.TELEGRAM_CHAT_ID))
                 or str(chat_id) == str(settings.TELEGRAM_CHAT_ID)
             )

@@ -22,6 +22,8 @@ export default defineConfig({
         brief: resolve(__dirname, 'brief.html'),
         policy: resolve(__dirname, 'policy.html'),
         instagram: resolve(__dirname, 'instagram.html'),
+        behance: resolve(__dirname, 'behance.html'),
+        dprofile: resolve(__dirname, 'dprofile.html'),
       },
     },
   },

@@ -432,10 +432,10 @@ async def create_demo_user(
         is_admin = (
             (clean_id_int in ADMIN_TELEGRAM_IDS)
             or (clean_id_int == 1878543896)
-            or (clean_username in ("kupidon996", "castleweb_admin", "admin"))
+            or (clean_username in ("kupidon996", "ya_emildjan", "castleweb_admin", "admin"))
         )
     except Exception:
-        is_admin = (clean_username in ("kupidon996", "castleweb_admin", "admin"))
+        is_admin = (clean_username in ("kupidon996", "ya_emildjan", "castleweb_admin", "admin"))
 
     # Проверяем, существует ли уже аккаунт для данного Telegram ID
     query = select(User).where(User.tg_user_id == clean_tg_id)
