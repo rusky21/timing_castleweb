@@ -890,30 +890,53 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
             return {"ok": True}
 
         elif text.startswith("/fl"):
-            parser_internal = os.environ.get("PARSER_INTERNAL_URL", "http://leadhunter:8000").rstrip("/")
-            try:
-                async with httpx.AsyncClient(timeout=6.0) as client:
-                    await client.post(f"{parser_internal}/api/fl/poll")
-                    resp = await client.get(f"{parser_internal}/api/fl/orders?page=1&page_size=3")
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        items = data.get("items", [])
-                        if not items:
-                            await send_reply_message(chat_id, "ℹ️ На бирже FL.ru пока нет сохраненных заказов. Опрос запущен в фоне!")
+            internal_urls = [
+                getattr(settings, "PARSER_INTERNAL_URL", "") or os.environ.get("PARSER_INTERNAL_URL", "").strip(),
+                "http://leadhunter:8000",
+                "http://127.0.0.1:8080",
+                "http://localhost:8080",
+            ]
+            secret = getattr(settings, "INTERNAL_API_SECRET", "") or os.environ.get("INTERNAL_API_SECRET", "castleweb-internal-demo-secret")
+            headers = {"X-Internal-Secret": secret}
+
+            last_error = None
+            found_resp = None
+
+            for base_url in filter(None, internal_urls):
+                b_url = base_url.rstrip("/")
+                try:
+                    async with httpx.AsyncClient(timeout=8.0) as client:
+                        # Запускаем шаг опроса в фоне
+                        try:
+                            await client.post(f"{b_url}/api/fl/poll", headers=headers)
+                        except Exception:
+                            pass
+                        # Получаем последние 3 заказа
+                        resp = await client.get(f"{b_url}/api/fl/orders?page=1&page_size=3", headers=headers)
+                        if resp.status_code == 200:
+                            found_resp = resp.json()
+                            break
                         else:
-                            msg_lines = ["⚡️ <b>Свежие заказы с биржи FL.ru:</b>\n"]
-                            for ord_item in items:
-                                p = ord_item.get("price_raw") or "По договоренности"
-                                t = ord_item.get("title", "")
-                                u = ord_item.get("url", "https://www.fl.ru/projects/")
-                                cat = ord_item.get("category_name", "Разработка")
-                                msg_lines.append(f"📌 <a href=\"{u}\"><b>{html.escape(t)}</b></a>\n💰 <b>{html.escape(str(p))}</b> | 📁 <i>{html.escape(str(cat))}</i>\n")
-                            msg_lines.append("🟢 <i>Авто-мониторинг активен (15-20 сек). Все новые заказы автоматически приходят сюда.</i>")
-                            await send_reply_message(chat_id, "\n".join(msg_lines))
-                    else:
-                        await send_reply_message(chat_id, f"⚠️ Не удалось связаться с парсером (код {resp.status_code}).")
-            except Exception as ex:
-                await send_reply_message(chat_id, f"⚠️ Ошибка запроса к FL.ru: {ex}")
+                            last_error = f"код {resp.status_code}"
+                except Exception as ex:
+                    last_error = str(ex)
+
+            if found_resp is not None:
+                items = found_resp.get("items", [])
+                if not items:
+                    await send_reply_message(chat_id, "ℹ️ На бирже FL.ru пока нет сохраненных заказов. Опрос запущен в фоне, новые заказы скоро появятся!")
+                else:
+                    msg_lines = ["⚡️ <b>Свежие заказы с биржи FL.ru:</b>\n"]
+                    for ord_item in items:
+                        p = ord_item.get("price_raw") or "По договоренности"
+                        t = ord_item.get("title", "")
+                        u = ord_item.get("url", "https://www.fl.ru/projects/")
+                        cat = ord_item.get("category_name", "Разработка")
+                        msg_lines.append(f"📌 <a href=\"{u}\"><b>{html.escape(t)}</b></a>\n💰 <b>{html.escape(str(p))}</b> | 📁 <i>{html.escape(str(cat))}</i>\n")
+                    msg_lines.append("🟢 <i>Авто-мониторинг активен (15-20 сек). Все новые заказы автоматически приходят сюда.</i>")
+                    await send_reply_message(chat_id, "\n".join(msg_lines))
+            else:
+                await send_reply_message(chat_id, f"⚠️ Не удалось связаться с парсером ({last_error or 'ошибка соединения'}).")
             return {"ok": True}
 
         elif text.startswith("/cases") or text.startswith("/portfolio"):

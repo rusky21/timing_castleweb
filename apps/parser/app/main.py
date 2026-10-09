@@ -1,4 +1,5 @@
 import sys
+import os
 import asyncio
 
 if sys.platform == "win32" and sys.version_info < (3, 14):
@@ -119,6 +120,12 @@ async def auth_guard_middleware(request: Request, call_next):
     public_prefixes = ("/assets", "/docs", "/openapi.json", "/redoc", "/api/internal/")
 
     if path in public_exact or any(path.startswith(prefix) for prefix in public_prefixes):
+        return await call_next(request)
+
+    # Межсервисная авторизация (Backend студии <-> LeadHunter)
+    internal_secret = request.headers.get("X-Internal-Secret") or request.query_params.get("internal_secret")
+    expected_secret = os.environ.get("INTERNAL_API_SECRET", "castleweb-internal-demo-secret")
+    if internal_secret and internal_secret == expected_secret:
         return await call_next(request)
 
     # Проверка сессии из Cookie
