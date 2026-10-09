@@ -62,7 +62,7 @@ def get_admin_ids() -> set[int]:
     if raw:
         for part in raw.split(","):
             part = part.strip()
-            if part.isdigit():
+            if part.lstrip("-").isdigit():
                 ids.add(int(part))
     return ids
 

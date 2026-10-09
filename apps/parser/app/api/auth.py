@@ -423,10 +423,63 @@ async def create_demo_user(
     if not clean_tg_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="tg_user_id is required")
 
+    from app.config import ADMIN_TELEGRAM_IDS
+    is_admin = False
+    try:
+        clean_id_int = int(clean_tg_id)
+        is_admin = clean_id_int in ADMIN_TELEGRAM_IDS
+    except Exception:
+        pass
+
     # Проверяем, существует ли уже аккаунт для данного Telegram ID
     query = select(User).where(User.tg_user_id == clean_tg_id)
     res = await db.execute(query)
     existing_user = res.scalar_one_or_none()
+
+    if is_admin:
+        new_password = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(10))
+        if existing_user:
+            existing_user.role = "admin"
+            existing_user.demo_searches_left = 999999
+            existing_user.max_companies_per_search = 1000
+            existing_user.is_active = True
+            existing_user.password_hash = hash_password(new_password)
+            await db.commit()
+            return {
+                "status": "admin",
+                "email": existing_user.email,
+                "password": new_password,
+                "role": "admin",
+                "demo_searches_left": 999999,
+                "max_companies_per_search": 1000,
+                "cooldown_minutes": 0,
+                "message": "Безграничный доступ Администратора активирован"
+            }
+        else:
+            suffix = clean_tg_id[-4:] if len(clean_tg_id) >= 4 else clean_tg_id
+            email = f"admin_{suffix}@castleweb.ru"
+            new_user = User(
+                email=email,
+                password_hash=hash_password(new_password),
+                role="admin",
+                is_active=True,
+                tg_user_id=clean_tg_id,
+                demo_searches_left=999999,
+                max_companies_per_search=1000,
+                created_at=datetime.now(timezone.utc)
+            )
+            db.add(new_user)
+            await db.commit()
+            return {
+                "status": "admin",
+                "email": email,
+                "password": new_password,
+                "role": "admin",
+                "demo_searches_left": 999999,
+                "max_companies_per_search": 1000,
+                "cooldown_minutes": 0,
+                "message": "Безграничный доступ Администратора активирован"
+            }
 
     if existing_user:
         # Если попытки уже исчерпаны — тестовый режим повторно не выдается

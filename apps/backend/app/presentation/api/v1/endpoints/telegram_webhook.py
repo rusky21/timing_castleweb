@@ -349,6 +349,28 @@ def format_demo_access_response(res: dict, parser_public_url: str) -> tuple[str,
     """
     status = res.get("status")
 
+    if status == "admin":
+        text = (
+            "👑 <b>Панель Администратора LeadHunter Pro</b>\n\n"
+            "Вы авторизованы как <b>Администратор / Разработчик</b> студии.\n\n"
+            f"🌐 <b>Адрес веб-панели:</b> <a href=\"{parser_public_url}\">{parser_public_url}</a>\n"
+            f"👤 <b>Логин:</b> <code>{res['email']}</code>\n"
+            f"🔑 <b>Пароль:</b> <code>{res['password']}</code>\n\n"
+            "⚡️ <b>Ваши безграничные права:</b>\n"
+            "• Безлимитный сбор организаций по Яндекс.Картам\n"
+            "• Без таймеров и ограничений по количеству\n"
+            "• Мониторинг заказов FL.ru и глубокий аудит сайтов\n"
+            "• Экспорт всей базы в Excel (.xlsx) / CSV\n\n"
+            "💡 <i>Нажмите на логин или пароль, чтобы скопировать.</i>"
+        )
+        kb = {
+            "inline_keyboard": [
+                [{"text": "🚀 Войти в панель администратора", "url": parser_public_url}],
+                [{"text": "🔙 Главное меню", "callback_data": "client_menu"}]
+            ]
+        }
+        return text, kb
+
     if status == "exhausted":
         text = (
             "⛔️ <b>Тестовый период уже завершён</b>\n\n"
