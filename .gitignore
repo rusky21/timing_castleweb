@@ -58,6 +58,10 @@ out/
 dist/
 !apps/frontend/dist/
 !apps/frontend/dist/**
+!apps/parser/dist/
+!apps/parser/dist/**
+!apps/parser/frontend/dist/
+!apps/parser/frontend/dist/**
 
 # Parser & LeadHunter artifacts
 -_-/
