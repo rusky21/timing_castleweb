@@ -115,11 +115,15 @@ app.include_router(outreach_router)
 async def auth_guard_middleware(request: Request, call_next):
     path = request.url.path
 
-    # Публичные маршруты, доступные без авторизации
-    public_exact = {"/login", "/logout", "/health", "/favicon.ico"}
+    # Публичные маршруты и статические ресурсы, доступные без авторизации
+    public_exact = {
+        "/login", "/logout", "/health", "/favicon.ico",
+        "/mini-cat.png", "/bg-video.mp4", "/favicon.svg", "/avatar.png"
+    }
     public_prefixes = ("/assets", "/docs", "/openapi.json", "/redoc", "/api/internal/", "/api/fl/")
+    static_extensions = (".png", ".jpg", ".jpeg", ".svg", ".ico", ".mp4", ".webp", ".woff2", ".woff", ".css", ".js")
 
-    if path in public_exact or any(path.startswith(prefix) for prefix in public_prefixes):
+    if path in public_exact or any(path.startswith(prefix) for prefix in public_prefixes) or any(path.endswith(ext) for ext in static_extensions):
         return await call_next(request)
 
     # Межсервисная авторизация (Backend студии <-> LeadHunter)

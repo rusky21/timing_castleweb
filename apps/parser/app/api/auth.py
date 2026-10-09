@@ -19,190 +19,666 @@ COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "true").lower() in ("true", "1",
 
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request, returnUrl: str = "/", error: Optional[str] = None):
-    """Страница входа в систему LeadHunter Pro"""
+    """Страница входа в систему LeadHunter Pro в стилистике основного интерфейса"""
     token = request.cookies.get("access_token")
     if token and decode_session_token(token):
         return RedirectResponse(url=returnUrl or "/", status_code=status.HTTP_303_SEE_OTHER)
 
     error_html = ""
     if error == "invalid_credentials":
-        error_html = '<div class="alert alert-error">❌ Неверный email или пароль</div>'
+        error_html = '''
+        <div class="alert alert-error">
+            <svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <div>
+                <div class="alert-title">Ошибка авторизации</div>
+                <div class="alert-desc">Неверный логин или мастер-пароль</div>
+            </div>
+        </div>
+        '''
     elif error == "inactive":
-        error_html = '<div class="alert alert-error">🚫 Учетная запись деактивирована</div>'
+        error_html = '''
+        <div class="alert alert-error">
+            <svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636"></path>
+            </svg>
+            <div>
+                <div class="alert-title">Доступ заблокирован</div>
+                <div class="alert-desc">Учетная запись деактивирована администратором</div>
+            </div>
+        </div>
+        '''
     elif error == "session_expired":
-        error_html = '<div class="alert alert-warn">⚠️ Срок действия сессии истек. Войдите заново</div>'
+        error_html = '''
+        <div class="alert alert-warn">
+            <svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            <div>
+                <div class="alert-title">Сессия завершена</div>
+                <div class="alert-desc">Срок действия токена истек. Войдите заново</div>
+            </div>
+        </div>
+        '''
 
     html_content = f"""<!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Авторизация | LeadHunter Pro</title>
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <title>LeadHunter Pro | Вход в систему</title>
+    <link rel="icon" type="image/png" href="/mini-cat.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        *, *::before, *::after {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }}
+
+        ::selection {{
+            background: rgba(255, 255, 255, 0.2);
+            color: #ffffff;
+        }}
+
         body {{
-            background-color: #07090e;
-            color: #f1f5f9;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #000000;
+            color: #ededed;
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            min-height: 100vh;
-            padding: 20px;
-            background-image: 
-                radial-gradient(circle at 50% 10%, rgba(37, 99, 235, 0.15) 0%, transparent 60%),
-                radial-gradient(circle at 80% 80%, rgba(14, 165, 233, 0.08) 0%, transparent 50%);
+            position: relative;
+            overflow-x: hidden;
+            padding: 24px;
         }}
-        .card {{
-            background: rgba(15, 23, 42, 0.75);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 20px;
-            padding: 40px;
+
+        /* Ambient Video Background */
+        .bg-video {{
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+            object-position: center;
+            z-index: 0;
+            opacity: 0.32;
+            filter: contrast(1.15) brightness(0.9);
+            pointer-events: none;
+        }}
+
+        /* Dark Vignette Overlay */
+        .bg-overlay {{
+            position: fixed;
+            inset: 0;
+            z-index: 1;
+            background: 
+                radial-gradient(circle at 50% 35%, rgba(13, 17, 28, 0.55) 0%, rgba(0, 0, 0, 0.94) 80%),
+                linear-gradient(180deg, rgba(0, 0, 0, 0.3) 0%, rgba(0, 0, 0, 0.85) 100%);
+            pointer-events: none;
+        }}
+
+        /* Top Corner Status Bar */
+        .top-bar {{
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            z-index: 20;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }}
+
+        .status-badge {{
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.25);
+            border-radius: 9999px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            font-weight: 600;
+            color: #34d399;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }}
+
+        .status-dot {{
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #10b981;
+            box-shadow: 0 0 8px #10b981;
+            animation: pulse-dot 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
+        }}
+
+        @keyframes pulse-dot {{
+            0%, 100% {{ opacity: 1; transform: scale(1); }}
+            50% {{ opacity: 0.4; transform: scale(0.85); }}
+        }}
+
+        /* Main Container */
+        .auth-container {{
+            position: relative;
+            z-index: 10;
             width: 100%;
-            max-width: 420px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.05);
+            max-width: 440px;
         }}
+
+        /* Glassmorphic Card */
+        .auth-card {{
+            background: rgba(14, 14, 18, 0.82);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 40px;
+            box-shadow: 
+                0 30px 60px -15px rgba(0, 0, 0, 0.9),
+                0 0 0 1px rgba(255, 255, 255, 0.04),
+                0 0 50px rgba(56, 189, 248, 0.04);
+            transition: border-color 0.3s ease;
+        }}
+
+        .auth-card:hover {{
+            border-color: rgba(255, 255, 255, 0.16);
+        }}
+
+        /* Brand Header */
         .brand {{
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 14px;
             margin-bottom: 24px;
         }}
-        .badge {{
-            display: inline-flex;
+
+        .logo-wrap {{
+            width: 44px;
+            height: 44px;
+            background: #121215;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 12px;
+            display: flex;
             align-items: center;
-            padding: 4px 12px;
-            background: rgba(56, 189, 248, 0.1);
-            color: #38bdf8;
-            border: 1px solid rgba(56, 189, 248, 0.25);
-            border-radius: 9999px;
-            font-size: 11px;
+            justify-content: center;
+            padding: 3px;
+            flex-shrink: 0;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+            transition: border-color 0.2s ease, transform 0.2s ease;
+        }}
+
+        .logo-wrap:hover {{
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: scale(1.04);
+        }}
+
+        .logo-img {{
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            filter: invert(100%);
+        }}
+
+        .brand-text {{
+            display: flex;
+            flex-direction: column;
+        }}
+
+        .brand-title {{
+            font-size: 17px;
             font-weight: 700;
-            letter-spacing: 0.05em;
+            letter-spacing: -0.02em;
+            color: #ffffff;
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+        }}
+
+        .brand-title .pro {{
+            font-size: 12px;
+            font-weight: 600;
+            color: #38bdf8;
+            font-family: 'JetBrains Mono', monospace;
             text-transform: uppercase;
         }}
+
+        .brand-tagline {{
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: #64748b;
+            letter-spacing: 0.02em;
+            margin-top: 2px;
+        }}
+
+        .title-block {{
+            margin-bottom: 26px;
+        }}
+
         h1 {{
             font-size: 22px;
             font-weight: 700;
             color: #ffffff;
-            margin-bottom: 8px;
-            letter-spacing: -0.02em;
+            letter-spacing: -0.025em;
+            margin-bottom: 6px;
         }}
-        p.subtitle {{
+
+        p.description {{
             font-size: 13px;
             color: #94a3b8;
-            margin-bottom: 28px;
             line-height: 1.5;
         }}
+
+        /* Alerts */
         .alert {{
-            padding: 12px 14px;
-            border-radius: 10px;
+            padding: 13px 15px;
+            border-radius: 14px;
             font-size: 13px;
-            font-weight: 500;
-            margin-bottom: 20px;
+            margin-bottom: 22px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            line-height: 1.4;
+            animation: fadeIn 0.25s ease-out;
+        }}
+
+        @keyframes fadeIn {{
+            from {{ opacity: 0; transform: translateY(-4px); }}
+            to {{ opacity: 1; transform: translateY(0); }}
+        }}
+
+        .alert-error {{
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+            color: #fca5a5;
+        }}
+
+        .alert-warn {{
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.25);
+            color: #fde047;
+        }}
+
+        .alert-icon {{
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }}
+
+        .alert-title {{
+            font-weight: 600;
+            font-size: 13px;
+            margin-bottom: 2px;
+        }}
+
+        .alert-desc {{
+            font-size: 12px;
+            opacity: 0.9;
+        }}
+
+        /* Form */
+        form {{
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }}
+
+        .form-group {{
+            display: flex;
+            flex-direction: column;
+        }}
+
+        label {{
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #a1a1aa;
+            margin-bottom: 8px;
             display: flex;
             align-items: center;
-            gap: 8px;
+            justify-content: space-between;
         }}
-        .alert-error {{
-            background: rgba(239, 68, 68, 0.12);
-            border: 1px solid rgba(239, 68, 68, 0.25);
-            color: #f87171;
+
+        .input-wrapper {{
+            position: relative;
+            display: flex;
+            align-items: center;
         }}
-        .alert-warn {{
-            background: rgba(245, 158, 11, 0.12);
-            border: 1px solid rgba(245, 158, 11, 0.25);
-            color: #fbbf24;
+
+        .input-icon {{
+            position: absolute;
+            left: 14px;
+            width: 17px;
+            height: 17px;
+            color: #71717a;
+            pointer-events: none;
+            transition: color 0.2s ease;
         }}
-        .form-group {{
-            margin-bottom: 20px;
-        }}
-        label {{
-            display: block;
-            font-size: 12px;
-            font-weight: 600;
-            color: #cbd5e1;
-            margin-bottom: 8px;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }}
+
         input[type="email"],
-        input[type="password"] {{
+        input[type="password"],
+        input[type="text"] {{
             width: 100%;
-            padding: 13px 16px;
-            background: rgba(8, 12, 22, 0.8);
-            border: 1px solid #1e293b;
-            border-radius: 12px;
+            height: 48px;
+            padding: 0 42px 0 42px;
+            background: #101013;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 14px;
             color: #ffffff;
             font-size: 14px;
+            font-family: 'Inter', sans-serif;
             outline: none;
-            transition: all 0.2s ease;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
         }}
-        input[type="email"]:focus,
-        input[type="password"]:focus {{
-            border-color: #38bdf8;
-            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
-            background: rgba(11, 17, 32, 0.95);
+
+        input[type="email"]::placeholder,
+        input[type="password"]::placeholder,
+        input[type="text"]::placeholder {{
+            color: #52525b;
+            font-size: 13px;
         }}
-        button.btn-primary {{
-            width: 100%;
-            padding: 13px;
-            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-            color: #ffffff;
+
+        input:hover {{
+            border-color: rgba(255, 255, 255, 0.2);
+            background: #121216;
+        }}
+
+        input:focus {{
+            border-color: rgba(255, 255, 255, 0.35);
+            background: #141418;
+            box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08);
+        }}
+
+        input:focus + .input-icon,
+        .input-wrapper:focus-within .input-icon {{
+            color: #e4e4e7;
+        }}
+
+        .toggle-pwd-btn {{
+            position: absolute;
+            right: 12px;
+            background: none;
             border: none;
-            border-radius: 12px;
+            padding: 4px;
+            color: #71717a;
+            cursor: pointer;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s ease, background 0.2s ease;
+        }}
+
+        .toggle-pwd-btn:hover {{
+            color: #e4e4e7;
+            background: rgba(255, 255, 255, 0.06);
+        }}
+
+        .toggle-pwd-btn svg {{
+            width: 16px;
+            height: 16px;
+        }}
+
+        /* Submit Button */
+        .btn-submit {{
+            width: 100%;
+            height: 50px;
+            margin-top: 8px;
+            background: #ffffff;
+            color: #000000;
+            border: none;
+            border-radius: 14px;
             font-size: 14px;
             font-weight: 600;
+            letter-spacing: -0.01em;
             cursor: pointer;
-            box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
-            transition: all 0.2s ease;
-            margin-top: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 20px rgba(255, 255, 255, 0.15);
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
         }}
-        button.btn-primary:hover {{
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-            box-shadow: 0 6px 20px rgba(37, 99, 235, 0.45);
+
+        .btn-submit:hover {{
+            background: #e5e5e5;
+            box-shadow: 0 6px 24px rgba(255, 255, 255, 0.25);
             transform: translateY(-1px);
         }}
-        button.btn-primary:active {{
-            transform: translateY(0);
+
+        .btn-submit:active {{
+            transform: scale(0.98);
         }}
-        .footer-note {{
-            margin-top: 24px;
-            text-align: center;
+
+        .btn-submit svg.arrow-icon {{
+            width: 16px;
+            height: 16px;
+            transition: transform 0.2s ease;
+        }}
+
+        .btn-submit:hover svg.arrow-icon {{
+            transform: translateX(3px);
+        }}
+
+        .btn-submit:disabled {{
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }}
+
+        .spinner {{
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(0, 0, 0, 0.2);
+            border-top-color: #000000;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }}
+
+        @keyframes spin {{
+            to {{ transform: rotate(360deg); }}
+        }}
+
+        /* Footer Meta Info */
+        .card-footer {{
+            margin-top: 28px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-family: 'JetBrains Mono', monospace;
             font-size: 11px;
-            color: #64748b;
+            color: #52525b;
+        }}
+
+        .security-badge {{
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            color: #71717a;
+        }}
+
+        .security-badge svg {{
+            width: 12px;
+            height: 12px;
+            color: #38bdf8;
+        }}
+
+        @media (max-width: 480px) {{
+            body {{
+                padding: 16px;
+            }}
+            .auth-card {{
+                padding: 28px 22px;
+            }}
+            .top-bar {{
+                top: 16px;
+                right: 16px;
+            }}
         }}
     </style>
 </head>
 <body>
-    <div class="card">
-        <div class="brand">
-            <span class="badge">LeadHunter Core</span>
-        </div>
-        <h1>Вход в систему</h1>
-        <p class="subtitle">Изолированный контур лидогенерации и аудита</p>
+    <!-- Ambient Background Video -->
+    <video class="bg-video" autoplay loop muted playsinline src="/bg-video.mp4" poster=""></video>
+    <div class="bg-overlay"></div>
 
-        {error_html}
-
-        <form method="POST" action="/login">
-            <input type="hidden" name="returnUrl" value="{returnUrl}">
-            <div class="form-group">
-                <label for="email">Электронная почта</label>
-                <input type="email" id="email" name="email" required autocomplete="username" placeholder="admin@lead.pro" autofocus>
-            </div>
-            <div class="form-group">
-                <label for="password">Пароль</label>
-                <input type="password" id="password" name="password" required autocomplete="current-password" placeholder="••••••••">
-            </div>
-            <button type="submit" class="btn-primary">Войти в панель</button>
-        </form>
-        <div class="footer-note">
-            Защищено Cloudflare Proxy • HTTPS TLS
+    <!-- Live System Badge in Top-Right -->
+    <div class="top-bar">
+        <div class="status-badge">
+            <span class="status-dot"></span>
+            <span>SYSTEM ONLINE</span>
         </div>
     </div>
+
+    <!-- Centered Card Container -->
+    <div class="auth-container">
+        <div class="auth-card">
+            <!-- Brand -->
+            <div class="brand">
+                <div class="logo-wrap">
+                    <img src="/mini-cat.png" alt="LeadHunter Core" class="logo-img">
+                </div>
+                <div class="brand-text">
+                    <div class="brand-title">LeadGen & Audit <span class="pro">PRO</span></div>
+                    <div class="brand-tagline">// HIGH-PERFORMANCE SCRAPER & AUDIT</div>
+                </div>
+            </div>
+
+            <!-- Title & Subtitle -->
+            <div class="title-block">
+                <h1>Вход в систему</h1>
+                <p class="description">Авторизуйтесь для доступа к панели лидогенерации, картам и бирже FL.ru</p>
+            </div>
+
+            {error_html}
+
+            <!-- Form -->
+            <form method="POST" action="/login" id="loginForm">
+                <input type="hidden" name="returnUrl" value="{returnUrl}">
+
+                <div class="form-group">
+                    <label for="email">
+                        <span>Электронная почта</span>
+                        <span style="color: #52525b;">AUTH ID</span>
+                    </label>
+                    <div class="input-wrapper">
+                        <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect width="20" height="16" x="2" y="4" rx="2"></rect>
+                            <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path>
+                        </svg>
+                        <input 
+                            type="email" 
+                            id="email" 
+                            name="email" 
+                            required 
+                            autocomplete="username" 
+                            placeholder="admin@lead.pro" 
+                            autofocus
+                        >
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">
+                        <span>Пароль доступа</span>
+                        <span style="color: #52525b;">SECURITY KEY</span>
+                    </label>
+                    <div class="input-wrapper">
+                        <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                        </svg>
+                        <input 
+                            type="password" 
+                            id="password" 
+                            name="password" 
+                            required 
+                            autocomplete="current-password" 
+                            placeholder="••••••••••••"
+                        >
+                        <button type="button" class="toggle-pwd-btn" id="togglePwd" title="Показать пароль" aria-label="Показать пароль">
+                            <svg id="eyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-submit" id="submitBtn">
+                    <span>Войти в систему</span>
+                    <svg class="arrow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M5 12h14"></path>
+                        <path d="m12 5 7 7-7 7"></path>
+                    </svg>
+                </button>
+            </form>
+
+            <div class="card-footer">
+                <div class="security-badge">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                    </svg>
+                    <span>TLS Encrypted Node</span>
+                </div>
+                <div>v2.4.0 PRO</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Toggle password visibility
+        const toggleBtn = document.getElementById('togglePwd');
+        const pwdInput = document.getElementById('password');
+        const eyeIcon = document.getElementById('eyeIcon');
+
+        toggleBtn.addEventListener('click', () => {{
+            if (pwdInput.type === 'password') {{
+                pwdInput.type = 'text';
+                eyeIcon.innerHTML = `
+                    <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"></path>
+                    <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"></path>
+                    <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"></path>
+                    <line x1="2" y1="2" x2="22" y2="22"></line>
+                `;
+                toggleBtn.title = 'Скрыть пароль';
+            }} else {{
+                pwdInput.type = 'password';
+                eyeIcon.innerHTML = `
+                    <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                `;
+                toggleBtn.title = 'Показать пароль';
+            }}
+        }});
+
+        // Button submit spinner state
+        const form = document.getElementById('loginForm');
+        const submitBtn = document.getElementById('submitBtn');
+
+        form.addEventListener('submit', () => {{
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = `
+                <span class="spinner"></span>
+                <span>Авторизация...</span>
+            `;
+        }});
+    </script>
 </body>
 </html>"""
     return HTMLResponse(content=html_content)
