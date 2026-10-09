@@ -1,7 +1,8 @@
+import os
 import logging
 from typing import Optional, List
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, Query, HTTPException, status
+from fastapi import APIRouter, Depends, Query, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc, or_
 from sqlalchemy.orm import selectinload
@@ -11,9 +12,35 @@ from app.db.models import FLOrder, FLOrderInteraction, FLCategorySync, utc_now
 from app.services.fl.constants import FL_CATEGORIES, CATEGORY_BY_ID
 from app.services.fl.fl_worker import fl_worker
 from app.services.connection_manager import ws_manager
+from app.core.security import decode_session_token
 
 logger = logging.getLogger("fl_api")
-router = APIRouter(prefix="/api/fl", tags=["Биржа FL.ru"])
+
+def require_fl_access(request: Request):
+    """
+    Разрешает доступ к бирже FL.ru только:
+    1) Запросам с валидным секретом X-Internal-Secret (Telegram-бот студии)
+    2) Авторизованным пользователям с ролью 'admin'
+    """
+    internal_secret = request.headers.get("X-Internal-Secret") or request.query_params.get("internal_secret")
+    expected_secret = os.environ.get("INTERNAL_API_SECRET", "castleweb-internal-demo-secret")
+    if internal_secret and internal_secret == expected_secret:
+        return {"role": "admin", "sub": "internal_service"}
+
+    user_data = getattr(request.state, "user", None)
+    if not user_data:
+        token = request.cookies.get("access_token")
+        if token:
+            user_data = decode_session_token(token)
+
+    if not user_data or user_data.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Доступ к бирже фриланса и заказам разрешен только администраторам"
+        )
+    return user_data
+
+router = APIRouter(prefix="/api/fl", tags=["Биржа FL.ru"], dependencies=[Depends(require_fl_access)])
 
 class InteractionUpdate(BaseModel):
     is_favorite: Optional[bool] = None

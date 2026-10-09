@@ -120,7 +120,7 @@ async def auth_guard_middleware(request: Request, call_next):
         "/login", "/logout", "/health", "/favicon.ico",
         "/mini-cat.png", "/bg-video.mp4", "/favicon.svg", "/avatar.png"
     }
-    public_prefixes = ("/assets", "/docs", "/openapi.json", "/redoc", "/api/internal/", "/api/fl/")
+    public_prefixes = ("/assets", "/docs", "/openapi.json", "/redoc", "/api/internal/")
     static_extensions = (".png", ".jpg", ".jpeg", ".svg", ".ico", ".mp4", ".webp", ".woff2", ".woff", ".css", ".js")
 
     if path in public_exact or any(path.startswith(prefix) for prefix in public_prefixes) or any(path.endswith(ext) for ext in static_extensions):
