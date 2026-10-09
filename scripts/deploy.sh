@@ -619,7 +619,10 @@ main() {
             log_banner
             load_env
             log_step "Выпуск / Обновление SSL сертификата Let's Encrypt для ${DOMAIN_NAME} и leads.${DOMAIN_NAME}..."
-            docker compose -f "$DOCKER_COMPOSE_FILE" run --rm certbot certonly \
+            docker run --rm \
+                -v /etc/letsencrypt:/etc/letsencrypt \
+                -v /var/www/certbot:/var/www/certbot \
+                certbot/certbot certonly \
                 --webroot -w /var/www/certbot \
                 --cert-name "${DOMAIN_NAME}" \
                 -d "${DOMAIN_NAME}" \
