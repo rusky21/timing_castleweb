@@ -615,6 +615,28 @@ main() {
             docker compose -f "$DOCKER_COMPOSE_FILE" restart nginx
             log_success "Парсер LeadHunter Pro обновлен и Nginx синхронизирован!"
             ;;
+        --ssl)
+            log_banner
+            load_env
+            log_step "Выпуск / Обновление SSL сертификата Let's Encrypt для ${DOMAIN_NAME} и leads.${DOMAIN_NAME}..."
+            docker compose -f "$DOCKER_COMPOSE_FILE" run --rm certbot certonly \
+                --webroot -w /var/www/certbot \
+                --cert-name "${DOMAIN_NAME}" \
+                -d "${DOMAIN_NAME}" \
+                -d "www.${DOMAIN_NAME}" \
+                -d "leads.${DOMAIN_NAME}" \
+                --email "${ADMIN_EMAIL}" \
+                --agree-tos --no-eff-email --expand || \
+            docker compose -f "$DOCKER_COMPOSE_FILE" run --rm certbot certonly \
+                --webroot -w /var/www/certbot \
+                --cert-name "${DOMAIN_NAME}" \
+                -d "${DOMAIN_NAME}" \
+                -d "leads.${DOMAIN_NAME}" \
+                --email "${ADMIN_EMAIL}" \
+                --agree-tos --no-eff-email --force-renewal
+            docker compose -f "$DOCKER_COMPOSE_FILE" exec -T nginx nginx -s reload
+            log_success "SSL сертификат успешно обновлен и Nginx перезапущен!"
+            ;;
         --migrate)
             load_env
             docker compose -f "$DOCKER_COMPOSE_FILE" exec -T backend alembic upgrade head
@@ -625,7 +647,7 @@ main() {
             curl -s http://localhost:8000/api/v1/status | jq . 2>/dev/null || true
             ;;
         *)
-            echo "Использование: $0 [--full | --frontend-only | --backend-only | --parser-only | --migrate | --status]"
+            echo "Использование: $0 [--full | --frontend-only | --backend-only | --parser-only | --ssl | --migrate | --status]"
             ;;
     esac
 }
