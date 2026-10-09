@@ -61,6 +61,7 @@ async def init_db():
             "ALTER TABLE users ADD COLUMN max_companies_per_search INTEGER DEFAULT 5",
             "ALTER TABLE users ADD COLUMN last_search_at TIMESTAMP",
             "ALTER TABLE users ADD COLUMN tg_user_id VARCHAR(100)",
+            "ALTER TABLE search_campaigns ADD COLUMN user_id INTEGER",
         ]
         for mig in migrations:
             try:

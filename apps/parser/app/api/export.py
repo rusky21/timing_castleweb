@@ -20,6 +20,21 @@ async def export_excel(
     Формирует и скачивает файл Excel с цветовой маркировкой статусов, кликабельными ссылками и скриптами звонков.
     """
     user = getattr(request.state, "user", None)
+    if not user:
+        from app.core.security import decode_session_token
+        token = request.cookies.get("access_token")
+        if token:
+            user = decode_session_token(token)
+
+    role = (user.get("role") or "").lower() if user else ""
+    is_admin = role in ("admin", "superuser", "root")
+    uid = None
+    if user and user.get("sub"):
+        try:
+            uid = int(user.get("sub"))
+        except (ValueError, TypeError):
+            pass
+
     if user and user.get("role") == "demo":
         raise HTTPException(
             status_code=403,
@@ -35,6 +50,9 @@ async def export_excel(
 
     if not campaign:
         raise HTTPException(status_code=404, detail="Кампания не найдена")
+
+    if not is_admin and (campaign.user_id is None or campaign.user_id != uid):
+        raise HTTPException(status_code=403, detail="У вас нет прав для выгрузки этого отчета")
 
     excel_stream = ExcelExporter.generate_campaign_excel(campaign, campaign.organizations)
     

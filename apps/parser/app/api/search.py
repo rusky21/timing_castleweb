@@ -11,6 +11,7 @@ from app.schemas.search import (
     SearchStopRequest, SearchStopResponse,
     CaptchaResolvedRequest
 )
+from app.core.security import decode_session_token
 from app.services.task_manager import task_manager
 
 router = APIRouter(prefix="/api/search", tags=["Поиск и сбор"])
@@ -24,15 +25,31 @@ async def start_search(
     """
     Запускает сбор лидов по нише и городу с выбранных геосервисов (Яндекс.Карты / 2ГИС).
     Создает поисковую кампанию и запускает фоновый воркер с отправкой событий через WebSocket.
+    Для администраторов доступен полный лимит (до 100 компаний).
+    Для обычных/тестовых пользователей действует фиксированный лимит: до 10 компаний.
     Для пользователей с ролью 'demo' действуют лимиты: 5 запросов, до 5 компаний, кулдаун 15 минут.
     """
-    effective_limit = req.limit
-
-    # Проверка демо-пользователя и его лимитов
     user_payload = getattr(request.state, "user", None)
+    if not user_payload:
+        token = request.cookies.get("access_token")
+        if token:
+            user_payload = decode_session_token(token)
+
+    role = (user_payload.get("role") or "").lower() if user_payload else ""
+    is_admin = role in ("admin", "superuser", "root")
+    uid = None
     if user_payload and user_payload.get("sub"):
         try:
             uid = int(user_payload.get("sub"))
+        except (ValueError, TypeError):
+            pass
+
+    # Для администраторов действует выбранный лимит, для тестов — строго не более 10
+    effective_limit = req.limit if is_admin else min(req.limit, 10)
+
+    # Проверка демо-пользователя и его лимитов
+    if uid:
+        try:
             u_res = await db.execute(select(User).where(User.id == uid))
             current_user = u_res.scalar_one_or_none()
             if current_user and current_user.role == "demo":
@@ -59,7 +76,7 @@ async def start_search(
                         )
 
                 # 3. Ограничение: максимум 5 компаний за один запуск
-                effective_limit = min(req.limit, current_user.max_companies_per_search or 5)
+                effective_limit = min(effective_limit, current_user.max_companies_per_search or 5)
 
                 # 4. Списание попытки и фиксация времени
                 current_user.demo_searches_left -= 1
@@ -70,13 +87,14 @@ async def start_search(
         except Exception:
             pass
 
-    # Создаем запись кампании
+    # Создаем запись кампании с привязкой к пользователю
     campaign = SearchCampaign(
         niche=req.niche.strip(),
         city=req.city.strip(),
         source=req.source,
         target_limit=effective_limit,
-        status="RUNNING"
+        status="RUNNING",
+        user_id=uid
     )
     db.add(campaign)
     await db.commit()

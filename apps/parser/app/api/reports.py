@@ -1,5 +1,5 @@
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import List, Tuple
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -8,20 +8,47 @@ from app.db.database import get_db
 from app.db.models import SearchCampaign, Organization
 from app.schemas.report import ReportListItem, ReportDetailResponse, ReportSummary
 from app.schemas.lead import LeadItem, PitchDetail
+from app.core.security import decode_session_token
 
 router = APIRouter(prefix="/api/reports", tags=["Отчёты (История поисков)"])
 
-@router.get("", response_model=List[ReportListItem], summary="Получить историю всех поисковых кампаний")
-async def get_reports(db: AsyncSession = Depends(get_db)):
+def get_user_access(request: Request) -> Tuple[bool, int | None]:
+    user_payload = getattr(request.state, "user", None)
+    if not user_payload:
+        token = request.cookies.get("access_token")
+        if token:
+            user_payload = decode_session_token(token)
+
+    role = (user_payload.get("role") or "").lower() if user_payload else ""
+    is_admin = role in ("admin", "superuser", "root")
+    uid = None
+    if user_payload and user_payload.get("sub"):
+        try:
+            uid = int(user_payload.get("sub"))
+        except (ValueError, TypeError):
+            pass
+    return is_admin, uid
+
+@router.get("", response_model=List[ReportListItem], summary="Получить историю поисковых кампаний")
+async def get_reports(request: Request, db: AsyncSession = Depends(get_db)):
     """
-    Возвращает список всех когда-либо запущенных поисков для вкладки «Отчёты»:
-    дата, ниша, город, источник карт, сколько лидов собрано, статус и сводка по проблемам.
+    Возвращает список запущенных поисков для вкладки «Отчёты»:
+    - Для администраторов: вся глобальная история студии.
+    - Для тестовых/обычных пользователей: только их собственные поиски.
     """
+    is_admin, uid = get_user_access(request)
+
     stmt = (
         select(SearchCampaign)
         .options(selectinload(SearchCampaign.organizations).selectinload(Organization.audit))
-        .order_by(SearchCampaign.created_at.desc())
     )
+    if not is_admin:
+        if uid:
+            stmt = stmt.where(SearchCampaign.user_id == uid)
+        else:
+            stmt = stmt.where(SearchCampaign.user_id == -1)
+
+    stmt = stmt.order_by(SearchCampaign.created_at.desc())
     result = await db.execute(stmt)
     campaigns = result.scalars().all()
 
@@ -44,7 +71,7 @@ async def get_reports(db: AsyncSession = Depends(get_db)):
     return items
 
 @router.get("/{campaign_id}", response_model=ReportDetailResponse, summary="Детальный просмотр отчета по кампании")
-async def get_report_detail(campaign_id: int, db: AsyncSession = Depends(get_db)):
+async def get_report_detail(campaign_id: int, request: Request, db: AsyncSession = Depends(get_db)):
     """
     Возвращает полную сводку по кампании и список всех ее лидов.
     """
@@ -58,6 +85,10 @@ async def get_report_detail(campaign_id: int, db: AsyncSession = Depends(get_db)
 
     if not c:
         raise HTTPException(status_code=404, detail="Кампания не найдена")
+
+    is_admin, uid = get_user_access(request)
+    if not is_admin and (c.user_id is None or c.user_id != uid):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="У вас нет доступа к этому отчету")
 
     leads = []
     for org in c.organizations:
@@ -132,12 +163,16 @@ async def get_report_detail(campaign_id: int, db: AsyncSession = Depends(get_db)
     )
 
 @router.delete("/{campaign_id}", summary="Удалить кампанию и связанные лиды")
-async def delete_report(campaign_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_report(campaign_id: int, request: Request, db: AsyncSession = Depends(get_db)):
     stmt = select(SearchCampaign).where(SearchCampaign.id == campaign_id)
     res = await db.execute(stmt)
     c = res.scalar_one_or_none()
     if not c:
         raise HTTPException(status_code=404, detail="Кампания не найдена")
+
+    is_admin, uid = get_user_access(request)
+    if not is_admin and (c.user_id is None or c.user_id != uid):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Недостаточно прав для удаления этого отчета")
 
     await db.delete(c)
     await db.commit()

@@ -23,6 +23,7 @@ class SearchCampaign(Base):
     status: Mapped[str] = mapped_column(String(50), default="PENDING")  # PENDING, RUNNING, PAUSED_CAPTCHA, COMPLETED, STOPPED, FAILED
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
+    user_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
