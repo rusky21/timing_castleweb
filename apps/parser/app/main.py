@@ -1,5 +1,6 @@
 import sys
 import os
+import json
 import asyncio
 
 if sys.platform == "win32" and sys.version_info < (3, 14):
@@ -217,14 +218,39 @@ if FRONTEND_DIST.exists():
         app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
 
     @app.get("/{full_path:path}")
-    async def serve_frontend(full_path: str):
+    async def serve_frontend(full_path: str, request: Request):
         # Исключаем API и Swagger роуты
         if full_path.startswith(("api", "docs", "openapi.json", "ws")):
             raise HTTPException(status_code=404, detail="Not found")
         file_candidate = FRONTEND_DIST / full_path
         if full_path and file_candidate.is_file():
             return FileResponse(file_candidate)
-        return FileResponse(FRONTEND_DIST / "index.html")
+
+        index_file = FRONTEND_DIST / "index.html"
+        if not index_file.exists():
+            raise HTTPException(status_code=404, detail="Frontend index.html not found")
+
+        user_payload = getattr(request.state, "user", None)
+        if not user_payload:
+            token = request.cookies.get("access_token")
+            if token:
+                user_payload = decode_session_token(token)
+
+        try:
+            content = index_file.read_text(encoding="utf-8")
+            if user_payload:
+                role = (user_payload.get("role") or "user").lower()
+                user_json = json.dumps({
+                    "id": user_payload.get("sub"),
+                    "email": user_payload.get("email"),
+                    "role": role,
+                    "is_admin": role in ("admin", "superuser", "root")
+                })
+                injection = f'<script>window.__CURRENT_USER__ = {user_json};</script>'
+                content = content.replace("<head>", f"<head>{injection}", 1)
+            return HTMLResponse(content)
+        except Exception:
+            return FileResponse(index_file)
 else:
     @app.get("/")
     async def fallback_no_frontend():

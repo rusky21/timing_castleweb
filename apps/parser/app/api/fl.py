@@ -33,7 +33,8 @@ def require_fl_access(request: Request):
         if token:
             user_data = decode_session_token(token)
 
-    if not user_data or user_data.get("role") != "admin":
+    role = (user_data.get("role") or "").lower() if user_data else ""
+    if not user_data or role not in ("admin", "superuser", "root"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Доступ к бирже фриланса и заказам разрешен только администраторам"

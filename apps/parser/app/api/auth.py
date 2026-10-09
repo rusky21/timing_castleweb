@@ -754,15 +754,22 @@ async def logout():
     return response
 
 @router.get("/api/auth/me")
+@router.get("/api/me")
 async def get_current_user_info(request: Request):
     """Получение информации о текущем пользователе (для фронтенда)"""
     user_data = getattr(request.state, "user", None)
     if not user_data:
+        token = request.cookies.get("access_token")
+        if token:
+            user_data = decode_session_token(token)
+    if not user_data:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    role = (user_data.get("role") or "user").lower()
     return {
         "id": user_data.get("sub"),
         "email": user_data.get("email"),
-        "role": user_data.get("role")
+        "role": role,
+        "is_admin": role in ("admin", "superuser", "root")
     }
 
 # ====================================================================
