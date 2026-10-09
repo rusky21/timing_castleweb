@@ -626,14 +626,8 @@ main() {
                 -d "www.${DOMAIN_NAME}" \
                 -d "leads.${DOMAIN_NAME}" \
                 --email "${ADMIN_EMAIL}" \
-                --agree-tos --no-eff-email --expand || \
-            docker compose -f "$DOCKER_COMPOSE_FILE" run --rm certbot certonly \
-                --webroot -w /var/www/certbot \
-                --cert-name "${DOMAIN_NAME}" \
-                -d "${DOMAIN_NAME}" \
-                -d "leads.${DOMAIN_NAME}" \
-                --email "${ADMIN_EMAIL}" \
-                --agree-tos --no-eff-email --force-renewal
+                --agree-tos --no-eff-email \
+                --force-renewal
             docker compose -f "$DOCKER_COMPOSE_FILE" exec -T nginx nginx -s reload
             log_success "SSL сертификат успешно обновлен и Nginx перезапущен!"
             ;;
