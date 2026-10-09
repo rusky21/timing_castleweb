@@ -59,6 +59,7 @@ async def send_reply_message(chat_id: int | str, text: str, reply_markup: dict |
             resp = await client.post(url, json=payload)
             data = resp.json()
             if not data.get("ok"):
+                logger.warning(f"Telegram sendMessage returned not ok for {chat_id}: {data}")
                 # Handle supergroup migration
                 migrate_to = data.get("parameters", {}).get("migrate_to_chat_id")
                 if migrate_to:
@@ -77,9 +78,13 @@ async def send_reply_message(chat_id: int | str, text: str, reply_markup: dict |
                     clean_text = re.sub(r"<[^>]+>", "", text)
                     payload["text"] = clean_text
                     payload["parse_mode"] = None
-                    await client.post(url, json=payload)
+                    fb_resp = await client.post(url, json=payload)
+                    if not fb_resp.json().get("ok"):
+                        logger.error(f"Fallback plain-text sendMessage also failed: {fb_resp.json()}")
+            else:
+                logger.info(f"✅ Telegram message delivered to {chat_id}")
     except Exception as e:
-        logger.warning(f"Failed to send reply to chat {chat_id}: {e}")
+        logger.error(f"Failed to send reply to chat {chat_id}: {e}", exc_info=True)
 
 
 @router.api_route("/test", methods=["GET", "POST"], summary="Send Test Notification to Telegram")
@@ -465,14 +470,15 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
     - Команды инженеров: /stats, /leads
     - Сообщения и документы от пользователей (автоответчик + пересылка инженерам)
     """
-    # Verify secret token to prevent forged webhook updates
-    if settings.TELEGRAM_WEBHOOK_SECRET:
-        incoming_token = request.headers.get("x-telegram-bot-api-secret-token", "")
-        if incoming_token != settings.TELEGRAM_WEBHOOK_SECRET:
-            logger.warning(f"Webhook rejected: invalid secret token from {request.client.host if request.client else 'unknown'}")
-            return {"ok": False}
+    # Verify secret token to prevent forged webhook updates (tolerant if unset in webhook or headers stripped)
+    expected_secret = (settings.TELEGRAM_WEBHOOK_SECRET or "").strip().strip("'\"")
+    incoming_token = (request.headers.get("x-telegram-bot-api-secret-token", "") or "").strip().strip("'\"")
+    if expected_secret and incoming_token and incoming_token != expected_secret:
+        logger.warning(f"Webhook rejected: invalid secret token from {request.client.host if request.client else 'unknown'}")
+        return {"ok": False}
 
     update = await request.json()
+    logger.info(f"📩 Telegram webhook update received: keys={list(update.keys())}")
 
     # 1. Обработка нажатий инлайн-кнопок (Callback Query)
     if "callback_query" in update:
@@ -1019,96 +1025,96 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
             return {"ok": True}
 
 
-        # Б. ЛИЧНЫЕ СООБЩЕНИЯ ОТ КЛИЕНТА (chat_type == "private")
-        if chat_type == "private":
-            # 1. Прямая команда /demo
-            if text.startswith("/demo") or (text.startswith("/start") and "demo" in text.lower()):
-                domain = getattr(settings, "DOMAIN_NAME", None) or "castleweb.ru"
-                parser_public_url = os.environ.get("PARSER_PUBLIC_URL", f"https://leads.{domain}").rstrip("/")
-                try:
-                    res = await request_parser_demo_access(from_id, username)
-                    demo_text, demo_kb = format_demo_access_response(res, parser_public_url)
+        # Б. Интерактивные команды для всех типов чатов (/demo, /start, /menu)
+        # 1. Прямая команда /demo
+        if text.startswith("/demo") or (text.startswith("/start") and "demo" in text.lower()):
+            domain = getattr(settings, "DOMAIN_NAME", None) or "castleweb.ru"
+            parser_public_url = os.environ.get("PARSER_PUBLIC_URL", f"https://leads.{domain}").rstrip("/")
+            try:
+                res = await request_parser_demo_access(from_id, username)
+                demo_text, demo_kb = format_demo_access_response(res, parser_public_url)
 
-                    # Фиксируем в БД CRM выдачу, если аккаунт создан впервые
-                    if res.get("status") == "created":
-                        try:
-                            grant_check = await db.execute(select(DemoGrant).where(DemoGrant.tg_user_id == str(from_id)))
-                            if not grant_check.scalar_one_or_none():
-                                db.add(DemoGrant(
-                                    tg_user_id=str(from_id),
-                                    tg_username=username,
-                                    first_name=first_name,
-                                    email=res.get("email", "")
-                                ))
-                                await db.commit()
-                        except Exception as ge:
-                            logger.warning(f"Failed to record DemoGrant: {ge}")
-
-                    await send_reply_message(chat_id, demo_text, reply_markup=demo_kb)
-
-                    if settings.TELEGRAM_CHAT_ID:
-                        st = res.get("status")
-                        if st == "created":
-                            alert = f"🔔 Клиент {user_display} (ID: <code>{from_id}</code>) впервые активировал демо к парсеру ({res.get('email')})."
-                        elif st == "exhausted":
-                            alert = f"⚠️ Клиент {user_display} (ID: <code>{from_id}</code>) повторно запросил демо, но его лимит исчерпан."
-                        else:
-                            alert = f"ℹ️ Клиент {user_display} (ID: <code>{from_id}</code>) запросил данные своего демо-доступа повторно."
-                        await send_reply_message(settings.TELEGRAM_CHAT_ID, alert)
-                except Exception as e:
-                    logger.error(f"Error creating demo user via /demo: {e}")
-                    err_text = (
-                        "⚠️ Сервер парсера сейчас перезагружается или временно недоступен.\n"
-                        "Пожалуйста, повторите попытку через минуту или напишите дежурному разработчику: @kupidon996"
-                    )
-                    await send_reply_message(chat_id, err_text)
-                return {"ok": True}
-
-            # 2. Приветствие и главное меню (/start или /menu)
-            if text.startswith("/start") or text.startswith("/menu"):
-                parts = text.split(maxsplit=1)
-                start_payload = parts[1] if len(parts) > 1 else ""
-
-                if start_payload.startswith("lead_") or start_payload.isdigit():
-                    lead_id_str = start_payload.replace("lead_", "")
+                # Фиксируем в БД CRM выдачу, если аккаунт создан впервые
+                if res.get("status") == "created":
                     try:
-                        lead_id = int(lead_id_str)
-                        res = await db.execute(select(Lead).where(Lead.id == lead_id))
-                        lead = res.scalar_one_or_none()
-                        if lead:
-                            welcome_lead = (
-                                f"👋 <b>Здравствуйте, {html.escape(lead.name)}!</b>\n\n"
-                                f"Заявка <b>#{lead.id}</b> принята в работу.\n"
-                                f"Сюда можно присылать любые файлы, ссылки и вопросы — дежурный инженер ответит в течение 15 минут."
-                            )
-                            buttons = {
-                                "inline_keyboard": [
-                                    [{"text": "🌐 Сайт castleweb.ru", "url": "https://castleweb.ru"}]
-                                ]
-                            }
-                            await send_reply_message(chat_id, welcome_lead, reply_markup=buttons)
+                        grant_check = await db.execute(select(DemoGrant).where(DemoGrant.tg_user_id == str(from_id)))
+                        if not grant_check.scalar_one_or_none():
+                            db.add(DemoGrant(
+                                tg_user_id=str(from_id),
+                                tg_username=username,
+                                first_name=first_name,
+                                email=res.get("email", "")
+                            ))
+                            await db.commit()
+                    except Exception as ge:
+                        logger.warning(f"Failed to record DemoGrant: {ge}")
 
-                            # Уведомляем группу инженеров
-                            if settings.TELEGRAM_CHAT_ID:
-                                client_handle = f"@{username}" if username else f"ID: <code>{from_id}</code>"
-                                notify_eng = f"🔔 Клиент по заявке #{lead.id} ({html.escape(lead.name)}) открыл диалог с ботом ({client_handle})."
-                                direct_btn = [{"text": "💬 Написать клиенту", "url": f"https://t.me/{username}"}] if username else []
-                                reply_markup = {"inline_keyboard": [direct_btn]} if direct_btn else None
-                                await send_reply_message(settings.TELEGRAM_CHAT_ID, notify_eng, reply_markup=reply_markup)
-                            return {"ok": True}
-                    except ValueError:
-                        pass
+                await send_reply_message(chat_id, demo_text, reply_markup=demo_kb)
 
-                # Общее главное меню для клиента
-                menu_text, menu_kb = get_client_main_menu(first_name)
-                await send_reply_message(chat_id, menu_text, reply_markup=menu_kb)
-                return {"ok": True}
+                if settings.TELEGRAM_CHAT_ID:
+                    st = res.get("status")
+                    if st == "created":
+                        alert = f"🔔 Клиент {user_display} (ID: <code>{from_id}</code>) впервые активировал демо к парсеру ({res.get('email')})."
+                    elif st == "exhausted":
+                        alert = f"⚠️ Клиент {user_display} (ID: <code>{from_id}</code>) повторно запросил демо, но его лимит исчерпан."
+                    else:
+                        alert = f"ℹ️ Клиент {user_display} (ID: <code>{from_id}</code>) запросил данные своего демо-доступа повторно."
+                    await send_reply_message(settings.TELEGRAM_CHAT_ID, alert)
+            except Exception as e:
+                logger.error(f"Error creating demo user via /demo: {e}")
+                err_text = (
+                    "⚠️ Сервер парсера сейчас перезагружается или временно недоступен.\n"
+                    "Пожалуйста, повторите попытку через минуту или напишите дежурному разработчику: @kupidon996"
+                )
+                await send_reply_message(chat_id, err_text)
+            return {"ok": True}
 
-            # 2. Любое сообщение / вопрос / фото / документ от клиента в ЛС
+        # 2. Приветствие и главное меню (/start или /menu)
+        if text.startswith("/start") or text.startswith("/menu"):
+            parts = text.split(maxsplit=1)
+            start_payload = parts[1] if len(parts) > 1 else ""
+
+            if start_payload.startswith("lead_") or start_payload.isdigit():
+                lead_id_str = start_payload.replace("lead_", "")
+                try:
+                    lead_id = int(lead_id_str)
+                    res = await db.execute(select(Lead).where(Lead.id == lead_id))
+                    lead = res.scalar_one_or_none()
+                    if lead:
+                        welcome_lead = (
+                            f"👋 <b>Здравствуйте, {html.escape(lead.name)}!</b>\n\n"
+                            f"Заявка <b>#{lead.id}</b> принята в работу.\n"
+                            f"Сюда можно присылать любые файлы, ссылки и вопросы — дежурный инженер ответит в течение 15 минут."
+                        )
+                        buttons = {
+                            "inline_keyboard": [
+                                [{"text": "🌐 Сайт castleweb.ru", "url": "https://castleweb.ru"}]
+                            ]
+                        }
+                        await send_reply_message(chat_id, welcome_lead, reply_markup=buttons)
+
+                        # Уведомляем группу инженеров
+                        if settings.TELEGRAM_CHAT_ID:
+                            client_handle = f"@{username}" if username else f"ID: <code>{from_id}</code>"
+                            notify_eng = f"🔔 Клиент по заявке #{lead.id} ({html.escape(lead.name)}) открыл диалог с ботом ({client_handle})."
+                            direct_btn = [{"text": "💬 Написать клиенту", "url": f"https://t.me/{username}"}] if username else []
+                            reply_markup = {"inline_keyboard": [direct_btn]} if direct_btn else None
+                            await send_reply_message(settings.TELEGRAM_CHAT_ID, notify_eng, reply_markup=reply_markup)
+                        return {"ok": True}
+                except ValueError:
+                    pass
+
+            # Общее главное меню для клиента
+            menu_text, menu_kb = get_client_main_menu(first_name)
+            await send_reply_message(chat_id, menu_text, reply_markup=menu_kb)
+            return {"ok": True}
+
+        # В. Произвольные сообщения от клиентов в ЛС (автоответчик + пересылка инженерам)
+        if chat_type == "private" and not text.startswith("/"):
             has_media = bool(msg.get("document") or msg.get("photo") or msg.get("voice"))
             user_msg_text = text if text else ("📎 [Вложенный файл]" if has_media else "👋 [Обращение]")
 
-            # 2.1. Автоответ клиенту
+            # 1. Автоответ клиенту
             client_reply = (
                 f"✅ <b>Сообщение принято.</b>\n"
                 f"Дежурный инженер ответит вам в этом чате в течение 15 минут."
