@@ -28,8 +28,8 @@
         <img src="assets/cw_logo.svg" alt="Castleweb Studio Logo" />
       </a>
       <div class="stage-socials">
-        <a href="https://t.me/propssagency" target="_blank" rel="noopener">TELEGRAM</a>
-        <a href="https://www.instagram.com/propss.agency/" target="_blank" rel="noopener">INSTAGRAM</a>
+        <a href="https://t.me/kupidon996" target="_blank" rel="noopener">TELEGRAM</a>
+        <a href="instagram.html">INSTAGRAM</a>
       </div>
     </div>
 
@@ -115,28 +115,28 @@
     <!-- SCREEN 3: SELECTED WORKS (EXACT ASYMMETRIC ZERO BLOCK COMPOSITION) -->
     <section class="stage-screen screen-cases" id="cases">
       <div class="cases-composition-stage">
-        <!-- 1. Marina Mate (Vertical Phone Mockup - Bottom Left of content stage) -->
-        <a href="cases.html" class="case-elem case-elem-marina reveal-item reveal-scale" style="--reveal-delay: 0.08s;" data-case-id="marina-mate">
+        <!-- 1. Skog Chalet & Hytte Control (Vertical Phone Mockup - Bottom Left of content stage) -->
+        <a href="cases.html" class="case-elem case-elem-marina reveal-item reveal-scale" style="--reveal-delay: 0.08s;" data-case-id="event-platform">
           <div class="case-elem-visual">
-            <img src="assets/case-cover-2.png" alt="Marina Mate" class="case-elem-img" />
+            <img src="assets/post-2.png" alt="Skog Chalet & Hytte Control" class="case-elem-img" />
           </div>
-          <span class="case-elem-title">Marina Mate</span>
+          <span class="case-elem-title">Skog Chalet & Hytte Control</span>
         </a>
 
-        <!-- 2. GlobalTrans Logistic (Top Right of middle column) -->
-        <a href="cases.html" class="case-elem case-elem-gtl reveal-item reveal-scale" style="--reveal-delay: 0.2s;" data-case-id="gtl">
+        <!-- 2. Onyx OS (Top Right of middle column) -->
+        <a href="cases.html" class="case-elem case-elem-gtl reveal-item reveal-scale" style="--reveal-delay: 0.2s;" data-case-id="onyx-os">
           <div class="case-elem-visual">
-            <img src="assets/case_cover-2.png" alt="GlobalTrans Logistic" class="case-elem-img" />
+            <img src="assets/onyx-launcher.jpg" alt="Onyx OS — Шелл для ПК-клуба" class="case-elem-img" />
           </div>
-          <span class="case-elem-title">GlobalTrans Logistic</span>
+          <span class="case-elem-title">Onyx OS</span>
         </a>
 
-        <!-- 3. Mintina Jewellery (Far Right - Centered vertically) -->
-        <a href="cases.html" class="case-elem case-elem-mintina reveal-item reveal-scale" style="--reveal-delay: 0.32s;" data-case-id="mintina">
+        <!-- 3. LeadHunter Pro (Far Right - Centered vertically) -->
+        <a href="cases.html" class="case-elem case-elem-mintina reveal-item reveal-scale" style="--reveal-delay: 0.32s;" data-case-id="leadhunter">
           <div class="case-elem-visual">
-            <img src="assets/case_img-2.png" alt="Mintina Jewellery" class="case-elem-img" />
+            <img src="assets/leadhunter-dashboard.png" alt="LeadHunter — Парсер Яндекс.Карт" class="case-elem-img" />
           </div>
-          <span class="case-elem-title">Mintina Jewellery</span>
+          <span class="case-elem-title">LeadHunter</span>
         </a>
 
         <!-- 4. Bottom CTA: СМОТРЕТЬ ВСЕ (Under GlobalTrans column at bottom) -->
@@ -213,9 +213,8 @@
             <a href="https://www.behance.net/propssagency" target="_blank" rel="noopener">BEHANCE</a>
           </div>
           <div class="links-col-socials">
-            <a href="https://t.me/propssagency" target="_blank" rel="noopener">TELEGRAM</a>
-            <a href="https://www.instagram.com/propss.agency/" target="_blank" rel="noopener">INSTAGRAM</a>
-            <a href="https://t.me/ddesignel" target="_blank" rel="noopener">@DDESIGNEL</a>
+            <a href="https://t.me/kupidon996" target="_blank" rel="noopener">TELEGRAM</a>
+            <a href="instagram.html">INSTAGRAM</a>
           </div>
         </div>
 
@@ -231,17 +230,23 @@
     <div class="case-modal-box">
       <div class="case-modal-header">
         <h3 class="case-modal-title" id="modal-case-title">Кейс</h3>
-        <button class="case-modal-close" id="case-modal-close">✕</button>
+        <button class="case-modal-close" id="case-modal-close" aria-label="Закрыть">✕</button>
       </div>
       <div class="case-modal-body">
-        <img src="" alt="" class="case-modal-img" id="modal-case-img" />
+        <div class="case-modal-tabs" id="modal-case-tabs" style="display: none;"></div>
+        <div class="case-modal-gallery" id="modal-case-gallery">
+          <img src="" alt="" class="case-modal-single-img" id="modal-case-img" />
+        </div>
         <p id="modal-case-desc" style="font-size: 16px; line-height: 1.4; color: var(--text-primary); max-width: 700px;"></p>
-        <div style="margin-top: 10px;">
+        <div style="margin-top: 10px; display: flex; gap: 14px; flex-wrap: wrap; align-items: center;" id="modal-actions-container">
           <a href="brief.html" class="stage-cta-link" style="display: inline-flex; width: 232px;">
             <span>ОБСУДИТЬ ПОДОБНЫЙ</span>
             <img src="assets/btn_icon.svg" alt="↗" />
           </a>
-          <div style="width: 232px; height: 1px; background: var(--hairline-color);"></div>
+          <a href="https://t.me/castleweb_bot?start=demo" target="_blank" class="stage-cta-link demo-cta-btn" id="modal-demo-btn" style="display: none; width: auto; padding: 0 16px; background: #ffffff; color: #000000; border-color: #ffffff;">
+            <span>ЕСЛИ ХОТИТЕ ПРОТЕСТИРОВАТЬ, НАПИШИТЕ В TELEGRAM БОТУ</span>
+            <img src="assets/btn_icon.svg" alt="↗" style="filter: invert(1);" />
+          </a>
         </div>
       </div>
     </div>

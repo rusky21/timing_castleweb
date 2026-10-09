@@ -114,3 +114,16 @@ class Blacklist(Base):
     contact: Mapped[Optional[str]] = mapped_column(String(200), unique=True, nullable=True, index=True)
     reason: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class DemoGrant(Base):
+    """Журнал выдачи демо-доступа к парсеру: гарантирует выдачу строго один раз на пользователя Telegram"""
+    __tablename__ = "demo_grants"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tg_user_id: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
+    tg_username: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
+    first_name: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
+    email: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+

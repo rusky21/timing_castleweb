@@ -85,6 +85,11 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("R2_PUBLIC_DOMAIN", "CLOUDFLARE_R2_PUBLIC_URL", "R2_PUBLIC_URL")
     )
 
+    # LeadHunter Pro Parser Integration
+    PARSER_INTERNAL_URL: str = "http://leadhunter:8000"
+    INTERNAL_API_SECRET: str = "castleweb-internal-demo-secret"
+    PARSER_PUBLIC_URL: str = ""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

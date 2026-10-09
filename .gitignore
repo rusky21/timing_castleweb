@@ -27,10 +27,13 @@ wheels/
 
 # Database & Local Storage
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
 data/uploads/
 uploads/
+apps/parser/data/
 
 # Environment Variables
 .env
@@ -59,6 +62,7 @@ dist/
 # Parser & LeadHunter artifacts
 -_-/
 apps/leadhunter/
+парсеп/
 *.backup.mp4
 
 # OS

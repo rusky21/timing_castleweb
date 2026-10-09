@@ -44,7 +44,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const modalClose = document.getElementById('case-modal-close');
   const modalTitle = document.getElementById('modal-case-title');
   const modalDesc = document.getElementById('modal-case-desc');
-  const modalImg = document.getElementById('modal-case-img');
+  const modalTabs = document.getElementById('modal-case-tabs');
+  const modalGallery = document.getElementById('modal-case-gallery');
 
   const caseData = {
     'mintina': {
@@ -53,11 +54,83 @@ document.addEventListener('DOMContentLoaded', () => {
       desc: 'Разработать сайт для ювелирной студии ручной работы, который подчеркнет индивидуальный подход, передаст ценности бренда и выстроит доверие.',
       img: 'assets/post.png'
     },
+    'onyx-os': {
+      title: 'Onyx OS — Шелл для ПК-клуба',
+      number: '[01]',
+      desc: '', // Без текста по запросу
+      img: 'assets/onyx-launcher.jpg',
+      images: [
+        {
+          src: 'assets/onyx-launcher.jpg',
+          title: 'Игровой лаунчер ПК-клуба',
+          tag: 'Onyx OS',
+          aspect: '16:9'
+        },
+        {
+          src: 'assets/onyx-racing.png',
+          title: 'Сим-рейсинг Huracán GT3',
+          tag: 'Onyx Racing Center',
+          aspect: '16:9'
+        },
+        {
+          src: 'assets/onyx-settings.png',
+          title: 'Параметры системы и звук',
+          tag: 'Аппаратная конфигурация',
+          aspect: '16:9'
+        }
+      ]
+    },
     'gtl': {
-      title: 'GlobalTrans Logistic',
-      number: '[08]',
-      desc: 'Цифровая трансформация международной логистической компании. Интуитивный расчет ставок, отслеживание грузов и строгий корпоративный стиль.',
-      img: 'assets/case_cover-2.png'
+      title: 'Onyx OS — Шелл для ПК-клуба',
+      number: '[01]',
+      desc: '',
+      img: 'assets/onyx-launcher.jpg',
+      images: [
+        {
+          src: 'assets/onyx-launcher.jpg',
+          title: 'Игровой лаунчер ПК-клуба',
+          tag: 'Onyx OS',
+          aspect: '16:9'
+        },
+        {
+          src: 'assets/onyx-racing.png',
+          title: 'Сим-рейсинг Huracán GT3',
+          tag: 'Onyx Racing Center',
+          aspect: '16:9'
+        },
+        {
+          src: 'assets/onyx-settings.png',
+          title: 'Параметры системы и звук',
+          tag: 'Аппаратная конфигурация',
+          aspect: '16:9'
+        }
+      ]
+    },
+    'onyx-racing': {
+      title: 'Onyx OS — Шелл для ПК-клуба',
+      number: '[01]',
+      desc: '',
+      img: 'assets/onyx-racing.png',
+      images: [
+        {
+          src: 'assets/onyx-launcher.jpg',
+          title: 'Игровой лаунчер ПК-клуба',
+          tag: 'Onyx OS',
+          aspect: '16:9'
+        },
+        {
+          src: 'assets/onyx-racing.png',
+          title: 'Сим-рейсинг Huracán GT3',
+          tag: 'Onyx Racing Center',
+          aspect: '16:9'
+        },
+        {
+          src: 'assets/onyx-settings.png',
+          title: 'Параметры системы и звук',
+          tag: 'Аппаратная конфигурация',
+          aspect: '16:9'
+        }
+      ]
     },
     'marina-mate': {
       title: 'Marina Mate',
@@ -66,10 +139,48 @@ document.addEventListener('DOMContentLoaded', () => {
       img: 'assets/case_cover-3.png'
     },
     'event-platform': {
-      title: 'Event Platform',
-      number: '[06]',
-      desc: 'Платформа интерактивных офлайн-квестов и мероприятий с интеграцией планшетов и синхронизацией команд в реальном времени.',
-      img: 'assets/post-2.png'
+      title: 'Skog Chalet & Hytte Control',
+      number: '[02]',
+      desc: '', // Текста не пишем по запросу пользователя
+      img: 'assets/post-2.png',
+      images: [
+        {
+          src: 'assets/post-2.png',
+          title: 'Личный кабинет гостя',
+          tag: 'Мобильный интерфейс'
+        },
+        {
+          src: 'assets/post-2-bonuses.png',
+          title: 'Финансы и бонусы',
+          tag: 'Программа лояльности'
+        },
+        {
+          src: 'assets/post-2-dashboard.png',
+          title: 'Hytte Control — Сводка и бронирования',
+          tag: 'Панель управления'
+        }
+      ]
+    },
+    'leadhunter': {
+      title: 'LeadHunter — Парсер Яндекс.Карт',
+      number: '[03]',
+      desc: 'Автономный сервис парсинга организаций из Яндекс.Карт. Автоматический сбор базы компаний по выбранным городам и нишам: прямые телефоны, сайты, адреса и Telegram-контакты. Доступна тестовая демо-версия через Telegram-бота студии.',
+      demoUrl: 'https://t.me/castleweb_bot?start=demo',
+      img: 'assets/leadhunter-dashboard.png',
+      images: [
+        {
+          src: 'assets/leadhunter-dashboard.png',
+          title: 'База собранных организаций из Яндекс.Карт',
+          tag: 'Яндекс.Карты',
+          aspect: '16:9'
+        },
+        {
+          src: 'assets/leadhunter-search.png',
+          title: 'Параметры сбора: город и ниша бизнеса',
+          tag: 'Поиск Яндекс.Карт',
+          aspect: '16:9'
+        }
+      ]
     },
     'quest-platform': {
       title: 'Quest Platform',
@@ -103,17 +214,160 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
+  function createImageCard(imgObj, isDesktop = false) {
+    const card = document.createElement('div');
+    card.className = `case-gallery-card ${isDesktop ? 'case-gallery-desktop-card' : ''}`;
+
+    const header = document.createElement('div');
+    header.className = 'case-gallery-card-header';
+    header.innerHTML = `
+      <span class="case-gallery-card-title">${imgObj.title || 'Экран'}</span>
+      <span class="case-gallery-card-tag">${imgObj.tag || 'Castleweb Studio'}</span>
+    `;
+
+    const imgWrapper = document.createElement('div');
+    imgWrapper.className = 'case-gallery-img-wrapper';
+
+    const img = document.createElement('img');
+    img.className = 'case-gallery-img';
+    img.src = imgObj.src;
+    img.alt = imgObj.title || 'Screen';
+    img.loading = 'lazy';
+
+    imgWrapper.appendChild(img);
+    card.appendChild(header);
+    card.appendChild(imgWrapper);
+    return card;
+  }
+
+  function renderGallery(images, activeFilter) {
+    if (!modalGallery) return;
+    modalGallery.innerHTML = '';
+
+    if (activeFilter === 'all') {
+      const mobileScreens = images.filter(img => img.aspect === '4:5' || (!img.aspect && !img.src.includes('dashboard') && !img.src.includes('onyx')));
+      const desktopScreens = images.filter(img => img.aspect === '16:9' || img.src.includes('dashboard') || img.src.includes('onyx'));
+
+      if (mobileScreens.length > 0) {
+        const grid = document.createElement('div');
+        grid.className = 'case-gallery-mobile-grid';
+        mobileScreens.forEach(imgObj => {
+          grid.appendChild(createImageCard(imgObj, false));
+        });
+        modalGallery.appendChild(grid);
+      }
+
+      desktopScreens.forEach(imgObj => {
+        modalGallery.appendChild(createImageCard(imgObj, true));
+      });
+    } else {
+      const targetImg = images[activeFilter];
+      if (targetImg) {
+        const isDesktop = targetImg.aspect === '16:9' || targetImg.src.includes('dashboard') || targetImg.src.includes('onyx');
+        modalGallery.appendChild(createImageCard(targetImg, isDesktop));
+      }
+    }
+  }
+
+  function openCase(item) {
+    if (!item || !modalOverlay) return;
+
+    if (modalTitle) {
+      modalTitle.textContent = `${item.number} ${item.title}`;
+    }
+
+    if (modalDesc) {
+      if (item.desc && item.desc.trim().length > 0) {
+        modalDesc.textContent = item.desc;
+        modalDesc.style.display = 'block';
+      } else {
+        modalDesc.textContent = '';
+        modalDesc.style.display = 'none';
+      }
+    }
+
+    if (modalGallery) {
+      modalGallery.innerHTML = '';
+
+      if (item.images && item.images.length > 1) {
+        if (modalTabs) {
+          modalTabs.innerHTML = '';
+          modalTabs.style.display = 'flex';
+
+          const allBtn = document.createElement('button');
+          allBtn.className = 'case-modal-tab-btn active';
+          allBtn.type = 'button';
+          allBtn.textContent = `Все экраны (${item.images.length})`;
+          modalTabs.appendChild(allBtn);
+
+          item.images.forEach((imgObj, idx) => {
+            const tabBtn = document.createElement('button');
+            tabBtn.className = 'case-modal-tab-btn';
+            tabBtn.type = 'button';
+            tabBtn.textContent = `0${idx + 1}. ${imgObj.title || 'Экран'}`;
+            modalTabs.appendChild(tabBtn);
+
+            tabBtn.addEventListener('click', () => {
+              modalTabs.querySelectorAll('.case-modal-tab-btn').forEach(b => b.classList.remove('active'));
+              tabBtn.classList.add('active');
+              renderGallery(item.images, idx);
+            });
+          });
+
+          allBtn.addEventListener('click', () => {
+            modalTabs.querySelectorAll('.case-modal-tab-btn').forEach(b => b.classList.remove('active'));
+            allBtn.classList.add('active');
+            renderGallery(item.images, 'all');
+          });
+        }
+
+        renderGallery(item.images, 'all');
+      } else {
+        if (modalTabs) {
+          modalTabs.style.display = 'none';
+          modalTabs.innerHTML = '';
+        }
+        const singleImg = document.createElement('img');
+        singleImg.className = 'case-modal-single-img';
+        singleImg.src = item.img || (item.images && item.images[0]?.src) || '';
+        singleImg.alt = item.title || 'Кейс';
+        modalGallery.appendChild(singleImg);
+      }
+    }
+
+    const demoBtn = document.getElementById('modal-demo-btn');
+    if (demoBtn) {
+      if (item.demoUrl) {
+        demoBtn.style.display = 'inline-flex';
+        demoBtn.href = item.demoUrl;
+      } else {
+        demoBtn.style.display = 'none';
+      }
+    }
+
+    modalOverlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+
+  // Динамически получаем актуальный юзернейм бота студии для демо-ссылки
+  fetch('/api/v1/telegram/bot-info')
+    .then(r => r.json())
+    .then(data => {
+      if (data && data.username) {
+        if (caseData['leadhunter']) {
+          caseData['leadhunter'].demoUrl = `https://t.me/${data.username}?start=demo`;
+        }
+      }
+    })
+    .catch(() => {});
+
   document.querySelectorAll('[data-case-id]').forEach(trigger => {
     trigger.addEventListener('click', (e) => {
       const caseId = trigger.getAttribute('data-case-id');
       const item = caseData[caseId];
-      if (item && modalOverlay) {
+      if (item) {
         e.preventDefault();
-        if (modalTitle) modalTitle.textContent = `${item.number} ${item.title}`;
-        if (modalDesc) modalDesc.textContent = item.desc;
-        if (modalImg) modalImg.src = item.img;
-        modalOverlay.classList.add('active');
-        document.body.style.overflow = 'hidden';
+        openCase(item);
       }
     });
   });
@@ -130,6 +384,13 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modalOverlay && modalOverlay.classList.contains('active')) {
+      modalOverlay.classList.remove('active');
+      document.body.style.overflow = '';
+    }
+  });
 
   // 4. Fade out pinned brand title when footer screen is reached
   const brandBlock = document.getElementById('pinned-brand-block');

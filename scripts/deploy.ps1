@@ -1,4 +1,4 @@
-﻿# ==============================================================================
+# ==============================================================================
 # 🏰 CASTLEWEB — Local Dev Suite for Windows
 # Architecture: Monorepo (FastAPI + Vite/React + PostgreSQL + Redis + Nginx)
 # Requires: Docker Desktop for Windows / PowerShell 5.1+
@@ -6,10 +6,11 @@
 
 [CmdletBinding()]
 param(
-    [ValidateSet("Full", "FrontendOnly", "BackendOnly", "ConfigOnly", "Migrate", "Status", "RunNative", "Help")]
+    [ValidateSet("Full", "FrontendOnly", "BackendOnly", "ParserOnly", "ConfigOnly", "Migrate", "Status", "RunNative", "Help")]
     [string]$Mode = "Full",
     [switch]$FrontendOnly,
     [switch]$BackendOnly,
+    [switch]$ParserOnly,
     [switch]$ConfigOnly,
     [switch]$Migrate,
     [switch]$Status,
@@ -50,28 +51,60 @@ function Log-Error([string]$message) { Write-Host "  [x] ERROR: $message" -Foreg
 function Test-DockerEngine {
     Log-Step "Проверка готовности Docker Desktop"
     if (-not (Get-Command "docker" -ErrorAction SilentlyContinue)) {
-        Log-Error "Docker не установлен в системе!"
+        Log-Error "Docker CLI не найден в системе!"
         Write-Host "Скачайте и установите: https://www.docker.com/products/docker-desktop/" -ForegroundColor Yellow
         exit 1
     }
 
-    $dockerOutput = & docker info 2>&1 | Out-String
-    if ($LASTEXITCODE -eq 0) {
-        Log-Success "Docker Desktop работает и готов к запуску."
-    } else {
-        Log-Error "Docker Desktop запущен, но движок контейнеров не может стартовать."
-        Write-Host "`n  [!] Причина: Docker Desktop на Windows требует подсистему WSL 2." -ForegroundColor Yellow
-        Write-Host "      В Windows она не установлена, поэтому Docker Desktop выдает ошибку." -ForegroundColor Yellow
-        Write-Host "      Чтобы запустить Docker на Windows:" -ForegroundColor White
-        Write-Host "      1. Откройте PowerShell от имени Администратора" -ForegroundColor Cyan
-        Write-Host "      2. Выполните: wsl.exe --install" -ForegroundColor Cyan
-        Write-Host "      3. Перезагрузите компьютер`n" -ForegroundColor Cyan
-        Write-Host "  💡 Но Docker на вашем компьютере НЕ ОБЯЗАТЕЛЕН для работы прямо сейчас!" -ForegroundColor Green
-        Write-Host "     * Запуск бэкенда нативно:   .\scripts\deploy.ps1 -RunNative" -ForegroundColor White
-        Write-Host "     * Настройка .env файлов:     .\scripts\deploy.ps1 -ConfigOnly" -ForegroundColor White
-        Write-Host "     * Боевой VDS сервер (Linux): sudo ./scripts/deploy.sh`n" -ForegroundColor White
-        exit 1
+    $dockerRunning = $false
+    try {
+        $tempOut = [System.IO.Path]::GetTempFileName()
+        $tempErr = [System.IO.Path]::GetTempFileName()
+        $proc = Start-Process -FilePath "docker" -ArgumentList "info" -NoNewWindow -Wait -PassThru -RedirectStandardOutput $tempOut -RedirectStandardError $tempErr
+        if ($proc.ExitCode -eq 0) {
+            $dockerRunning = $true
+        }
+        Remove-Item -Path $tempOut, $tempErr -Force -ErrorAction SilentlyContinue
+    } catch {
+        $dockerRunning = $false
     }
+
+    if ($dockerRunning) {
+        Log-Success "Docker Desktop работает и готов к запуску контейнеров."
+        return
+    }
+
+    # Docker движок не отвечает — проверяем наличие установленного приложения
+    $desktopExeCandidates = @(
+        "$env:LOCALAPPDATA\Programs\DockerDesktop\Docker Desktop.exe",
+        "C:\Program Files\Docker\Docker\Docker Desktop.exe"
+    )
+    $foundDesktopExe = $desktopExeCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+    $dockerProcesses = Get-Process -Name "*docker*" -ErrorAction SilentlyContinue
+
+    if (-not $dockerProcesses) {
+        Log-Warn "Приложение Docker Desktop сейчас не запущено."
+        if ($foundDesktopExe) {
+            Write-Host "`n  [*] Найдено установленное приложение: $foundDesktopExe" -ForegroundColor Cyan
+            $startNow = Read-Host "  Запустить Docker Desktop сейчас? [Y/n]"
+            if ($startNow -notmatch '^[nN]') {
+                Log-Info "Запускаем Docker Desktop..."
+                Start-Process -FilePath $foundDesktopExe
+                Write-Host "`n  [WAIT] Docker Desktop запускается. Подождите около 30 секунд (пока иконка кита в трее не станет зеленой)," -ForegroundColor Yellow
+                Write-Host "         затем повторите запуск: .\scripts\deploy.ps1`n" -ForegroundColor White
+                exit 0
+            }
+        }
+    } else {
+        Log-Warn "Docker Desktop запущен в процессах, но движок контейнеров еще инициализируется или требует WSL 2."
+    }
+
+    Write-Host "`n  [!] АЛЬТЕРНАТИВНЫЕ ВАРИАНТЫ ЗАПУСКА:" -ForegroundColor Green
+    Write-Host "     1. Запуск бэкенда нативно (без Docker):   .\scripts\deploy.ps1 -RunNative" -ForegroundColor White
+    Write-Host "     2. Запуск фронтенда локально:             cd apps\frontend; npm run dev" -ForegroundColor White
+    Write-Host "     3. Запуск парсера локально:               cd apps\parser; python run.py" -ForegroundColor White
+    Write-Host "     4. Деплой на боевой VDS (Ubuntu):         ssh root@<IP> -> sudo bash scripts/deploy.sh`n" -ForegroundColor White
+    exit 1
 }
 
 function New-RandomSecret([int]$length = 32) {
@@ -164,7 +197,10 @@ function Setup-AdminEnv {
         "CLOUDFLARE_R2_ACCESS_KEY_ID=$R2AccessKey",
         "CLOUDFLARE_R2_SECRET_ACCESS_KEY=$R2SecretKey",
         "CLOUDFLARE_R2_BUCKET_NAME=$R2Bucket",
-        "CLOUDFLARE_R2_PUBLIC_URL=$R2PublicUrl"
+        "CLOUDFLARE_R2_PUBLIC_URL=$R2PublicUrl",
+        "PARSER_INTERNAL_URL=http://leadhunter:8000",
+        "INTERNAL_API_SECRET=castleweb-internal-demo-secret",
+        "PARSER_PUBLIC_URL=https://leads.$DomainName"
     )
 
     [System.IO.File]::WriteAllLines($EnvFile, $lines, [System.Text.Encoding]::UTF8)
@@ -312,6 +348,7 @@ function Launch-Containers {
 # --- Router ---
 if ($FrontendOnly) { $Mode = "FrontendOnly" }
 if ($BackendOnly)  { $Mode = "BackendOnly" }
+if ($ParserOnly)   { $Mode = "ParserOnly" }
 if ($ConfigOnly)   { $Mode = "ConfigOnly" }
 if ($Migrate)      { $Mode = "Migrate" }
 if ($Status)       { $Mode = "Status" }
@@ -343,6 +380,12 @@ switch ($Mode) {
         docker compose -f $DockerComposeFile up -d --no-deps backend
         docker compose -f $DockerComposeFile exec -T backend alembic upgrade head
     }
+    "ParserOnly" {
+        Show-Banner
+        docker compose -f $DockerComposeFile build leadhunter
+        docker compose -f $DockerComposeFile up -d --no-deps leadhunter
+        Log-Success "Контейнер LeadHunter Pro обновлен и перезапущен!"
+    }
     "Migrate" {
         docker compose -f $DockerComposeFile exec -T backend alembic upgrade head
     }
@@ -362,6 +405,6 @@ switch ($Mode) {
         Launch-Containers
     }
     Default {
-        Write-Host "Команды: .\scripts\deploy.ps1 [-Full | -RunNative | -ConfigOnly | -FrontendOnly | -BackendOnly | -Migrate | -Status]"
+        Write-Host "Команды: .\scripts\deploy.ps1 [-Full | -RunNative | -ConfigOnly | -FrontendOnly | -BackendOnly | -ParserOnly | -Migrate | -Status]"
     }
 }

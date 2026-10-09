@@ -25,6 +25,7 @@ FRONTEND_DIR="${ROOT_DIR}/apps/frontend"
 FRONTEND_DIST="${FRONTEND_DIR}/dist"
 NGINX_DIR="${ROOT_DIR}/nginx"
 ENV_FILE="${BACKEND_DIR}/.env"
+PARSER_ENV_FILE="${ROOT_DIR}/apps/parser/.env"
 DOCKER_COMPOSE_FILE="${ROOT_DIR}/docker-compose.prod.yml"
 UPLOADS_DIR="${ROOT_DIR}/uploads"
 
@@ -108,8 +109,9 @@ setup_admin_env() {
     read -r -p "9. Секретный ключ приложения (SECRET_KEY) [Сгенерирован автоматически]: " SECRET_KEY
     SECRET_KEY="${SECRET_KEY:-$DEFAULT_SECRET_KEY}"
 
-    # Auto-generate Telegram Webhook secret for verifying incoming updates
+    # Auto-generate Telegram Webhook secret and Parser internal secret
     TELEGRAM_WEBHOOK_SECRET=$(openssl rand -hex 32)
+    INTERNAL_API_SECRET=$(openssl rand -hex 24)
 
     echo -e "\n${CYAN}--- Хранилище файлов портфолио и ТЗ клиентов ---${NC}"
     read -r -p "Использовать облачное хранилище Cloudflare R2? (требует карту) [y/N]: " USE_R2
@@ -200,10 +202,48 @@ CLOUDFLARE_R2_ACCESS_KEY_ID=${R2_ACCESS_KEY}
 CLOUDFLARE_R2_SECRET_ACCESS_KEY=${R2_SECRET_KEY}
 CLOUDFLARE_R2_BUCKET_NAME=${R2_BUCKET}
 CLOUDFLARE_R2_PUBLIC_URL=${R2_PUBLIC_URL}
+
+# LeadHunter Pro Integration
+PARSER_INTERNAL_URL=http://leadhunter:8000
+INTERNAL_API_SECRET=${INTERNAL_API_SECRET}
+PARSER_PUBLIC_URL=https://leads.${DOMAIN_NAME}
 EOF
     )
     chmod 600 "$ENV_FILE"
-    log_success "Файл конфигурации создан: $ENV_FILE"
+    log_success "Файл конфигурации бэкенда создан: $ENV_FILE"
+
+    # Создаем/синхронизируем конфигурацию парсера
+    mkdir -p "${ROOT_DIR}/apps/parser"
+    (
+        umask 077
+        cat > "$PARSER_ENV_FILE" <<EOF
+# ====================================================================
+# LeadHunter Pro & Yandex Maps Parser Configuration (.env)
+# Generated on: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+# ====================================================================
+
+TELEGRAM_BOT_TOKEN=${PARSER_BOT_TOKEN:-8867814063:AAHzkxMrybGKQpOECSu-ZPLo4wJNX_0N1Vg}
+TELEGRAM_API_SERVER=${TELEGRAM_PROXY_URL:-https://jolly-haze-c6cf.eprof6682-3e3.workers.dev}
+# TELEGRAM_PROXY=
+
+OUTREACH_BOT_TOKEN=${OUTREACH_BOT_TOKEN:-}
+ADMIN_TELEGRAM_IDS=${TELEGRAM_CHAT_ID:-1878543896}
+DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+
+HOST=0.0.0.0
+PORT=8000
+
+SECRET_KEY=${SECRET_KEY}
+INTERNAL_API_SECRET=${INTERNAL_API_SECRET}
+PARSER_PUBLIC_URL=https://leads.${DOMAIN_NAME}
+COOKIE_SECURE=false
+
+INITIAL_ADMIN_EMAIL=admin@lead.pro
+INITIAL_ADMIN_PASSWORD=AdminPass123!_ChangeMe
+EOF
+    )
+    chmod 600 "$PARSER_ENV_FILE"
+    log_success "Файл конфигурации парсера синхронизирован: $PARSER_ENV_FILE"
 }
 
 
@@ -376,6 +416,13 @@ setup_ssl_and_cron() {
             --webroot -w /var/www/certbot \
             --cert-name "${DOMAIN_NAME}" \
             -d "${DOMAIN_NAME}" \
+            -d "leads.${DOMAIN_NAME}" \
+            --email "${ADMIN_EMAIL}" \
+            --agree-tos --no-eff-email --keep-until-expiring || \
+        docker compose -f "$DOCKER_COMPOSE_FILE" run --rm certbot certonly \
+            --webroot -w /var/www/certbot \
+            --cert-name "${DOMAIN_NAME}" \
+            -d "${DOMAIN_NAME}" \
             --email "${ADMIN_EMAIL}" \
             --agree-tos --no-eff-email --keep-until-expiring || {
                 log_warn "DNS еще не обновился. Восстанавливаем временный сертификат (Cloudflare SSL активен)..."
@@ -514,8 +561,8 @@ launch_and_post_install() {
     echo -e "  • Сайт:           https://${DOMAIN_NAME}/"
     echo -e "  • Документация:   https://${DOMAIN_NAME}/docs"
     echo -e "  • Статус API:     https://${DOMAIN_NAME}/api/v1/status"
-    echo -e "  • LeadHunter:     ssh -L 8080:localhost:8080 root@<SERVER_IP>"
-    echo -e "                    затем: http://localhost:8080"
+    echo -e "  • LeadHunter:     https://leads.${DOMAIN_NAME}/ (резерв: https://${DOMAIN_NAME}/parser/)"
+    echo -e "                    или SSH: ssh -L 8080:localhost:8080 root@<SERVER_IP>"
     echo -e "  • Бэкапы БД:     docker volume inspect castleweb_pg_backups"
     echo -e "=================================================================\n"
 }
@@ -554,6 +601,13 @@ main() {
             curl -sf -X POST http://127.0.0.1:8000/api/v1/telegram/test >/dev/null 2>&1 || true
             log_success "Бэкенд обновлен, права на uploads настроены и Telegram Webhook активирован!"
             ;;
+        --parser-only)
+            log_banner
+            load_env
+            docker compose -f "$DOCKER_COMPOSE_FILE" build leadhunter
+            docker compose -f "$DOCKER_COMPOSE_FILE" up -d --no-deps leadhunter
+            log_success "Парсер LeadHunter Pro обновлен и перезапущен!"
+            ;;
         --migrate)
             load_env
             docker compose -f "$DOCKER_COMPOSE_FILE" exec -T backend alembic upgrade head
@@ -564,7 +618,7 @@ main() {
             curl -s http://localhost:8000/api/v1/status | jq . 2>/dev/null || true
             ;;
         *)
-            echo "Использование: $0 [--full | --frontend-only | --backend-only | --migrate | --status]"
+            echo "Использование: $0 [--full | --frontend-only | --backend-only | --parser-only | --migrate | --status]"
             ;;
     esac
 }

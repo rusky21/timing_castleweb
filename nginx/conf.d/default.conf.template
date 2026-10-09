@@ -3,11 +3,16 @@ upstream backend_upstream {
     keepalive 32;
 }
 
+upstream leadhunter_upstream {
+    server leadhunter:8000;
+    keepalive 32;
+}
+
 # HTTP: Redirect all traffic to HTTPS + Let's Encrypt validation
 server {
     listen 80;
     listen [::]:80;
-    server_name __DOMAIN__ www.__DOMAIN__ _;
+    server_name __DOMAIN__ www.__DOMAIN__ leads.__DOMAIN__ _;
 
     # Let's Encrypt ACME challenge
     location /.well-known/acme-challenge/ {
@@ -98,4 +103,80 @@ server {
         expires 30d;
         add_header Cache-Control "public, no-transform";
     }
+
+    # Parser fallback route
+    location = /parser {
+        return 301 https://leads.$host/;
+    }
+
+    location /parser/ {
+        proxy_pass http://leadhunter_upstream/;
+        proxy_http_version 1.1;
+
+        # WebSocket support
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # Forwarded Headers
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Timeouts for parsing operations
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
+        proxy_buffering off;
+    }
 }
+
+# HTTPS: LeadHunter Pro Parser (Subdomain leads.__DOMAIN__)
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name leads.__DOMAIN__;
+
+    # SSL Certificates (shares Let's Encrypt / Cloudflare Origin cert)
+    ssl_certificate /etc/letsencrypt/live/__DOMAIN__/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/__DOMAIN__/privkey.pem;
+
+    # SSL Parameters
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:SSL:50m;
+    ssl_session_tickets off;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers off;
+    ssl_buffer_size 8k;
+
+    # Security Headers
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    client_max_body_size 50M;
+
+    location / {
+        proxy_pass http://leadhunter_upstream;
+        proxy_http_version 1.1;
+
+        # WebSocket support
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # Forwarded Headers
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Timeouts for parsing operations & WebSocket
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
+        proxy_buffering off;
+    }
+}
+

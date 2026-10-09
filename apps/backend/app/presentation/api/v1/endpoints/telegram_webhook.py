@@ -11,7 +11,7 @@ from sqlalchemy import select, func, text as sql_text
 from app.core.database import get_db
 from app.core.config import get_settings
 from app.core.redis import get_redis_client
-from app.infrastructure.db.models import Lead, Blacklist, Case
+from app.infrastructure.db.models import Lead, Blacklist, Case, DemoGrant
 from app.domain.entities import LeadStatus
 from app.infrastructure.telegram.bot_service import (
     TelegramBotService, build_telegram_api_url
@@ -308,6 +308,133 @@ async def get_server_status_card(db: AsyncSession) -> tuple[str, dict]:
     return server_report, kb
 
 
+async def request_parser_demo_access(tg_user_id: str | int, username: str | None = None) -> dict:
+    """
+    Обращается к внутреннему API LeadHunter Pro для создания или обновления временного демо-аккаунта.
+    """
+    internal_urls = [
+        getattr(settings, "PARSER_INTERNAL_URL", "") or os.environ.get("PARSER_INTERNAL_URL", "").strip(),
+        "http://leadhunter:8000",
+        "http://127.0.0.1:8080",
+        "http://localhost:8080",
+    ]
+    secret = getattr(settings, "INTERNAL_API_SECRET", "") or os.environ.get("INTERNAL_API_SECRET", "castleweb-internal-demo-secret")
+    payload = {
+        "tg_user_id": str(tg_user_id),
+        "tg_username": username or "",
+        "secret_key": secret
+    }
+
+    last_error = None
+    for base_url in filter(None, internal_urls):
+        url = f"{base_url.rstrip('/')}/api/internal/create-demo-user"
+        try:
+            async with httpx.AsyncClient(timeout=6.0) as client:
+                resp = await client.post(url, json=payload, headers={"X-Internal-Secret": secret})
+                if resp.status_code == 200:
+                    return resp.json()
+                last_error = f"HTTP {resp.status_code}: {resp.text}"
+        except Exception as e:
+            last_error = str(e)
+
+    raise RuntimeError(f"Parser API unavailable: {last_error}")
+
+
+def format_demo_access_response(res: dict, parser_public_url: str) -> tuple[str, dict]:
+    """
+    Формирует текст и клавиатуру в зависимости от статуса демо-доступа:
+    - 'created': выдан впервые (5 запросов);
+    - 'already_active': напоминание данных существующего аккаунта (тест выдается только 1 раз);
+    - 'exhausted': 5 запросов полностью исчерпаны (тест завершен, связь с разработчиком).
+    """
+    status = res.get("status")
+
+    if status == "exhausted":
+        text = (
+            "⛔️ <b>Тестовый период уже завершён</b>\n\n"
+            "Вы уже использовали все 5 запросов к парсеру Яндекс.Карт.\n"
+            "Тестовый режим предоставляется строго <b>один раз</b> для каждого пользователя.\n\n"
+            "Чтобы приобрести полноценную версию парсера без ограничений "
+            "(любые города, безлимитный сбор, выгрузка прямых телефонов, сайтов, Telegram и экспорт в Excel), напишите нам:\n"
+            "👉 <b>@kupidon996</b>"
+        )
+        kb = {
+            "inline_keyboard": [
+                [{"text": "💬 Написать разработчику (@kupidon996)", "url": "https://t.me/kupidon996"}],
+                [{"text": "💼 Посмотреть кейсы студии", "callback_data": "client_cases"}],
+                [{"text": "🔙 Главное меню", "callback_data": "client_menu"}]
+            ]
+        }
+        return text, kb
+
+    if status == "already_active":
+        searches_left = res.get("demo_searches_left", 0)
+        text = (
+            "ℹ️ <b>Вы уже получали тестовый доступ ранее!</b>\n\n"
+            "Тестовый режим предоставляется строго <b>один раз</b> на пользователя (повторный тестовый период не выдаётся).\n\n"
+            f"Ваши данные для входа в панель парсера:\n"
+            f"🌐 <b>Адрес панели:</b> <a href=\"{parser_public_url}\">{parser_public_url}</a>\n"
+            f"👤 <b>Логин:</b> <code>{res['email']}</code>\n"
+            f"🔑 <b>Пароль:</b> <code>{res['password']}</code>\n\n"
+            f"⚙️ <b>Параметры вашего аккаунта:</b>\n"
+            f"• Доступный модуль: <b>Яндекс.Карты</b>\n"
+            f"• Осталось поисков: <b>{searches_left} из 5</b>\n"
+            f"• Организаций за раз: <b>до {res.get('max_companies_per_search', 5)}</b>\n"
+            f"• Интервал между поисками: <b>{res.get('cooldown_minutes', 15)} минут</b>\n\n"
+            f"💡 <i>Нажмите на логин или пароль, чтобы скопировать.</i>"
+        )
+        kb = {
+            "inline_keyboard": [
+                [{"text": "🚀 Войти в панель LeadHunter", "url": parser_public_url}],
+                [{"text": "💬 Вопрос по парсеру (@kupidon996)", "url": "https://t.me/kupidon996"}],
+                [{"text": "🔙 Главное меню", "callback_data": "client_menu"}]
+            ]
+        }
+        return text, kb
+
+    # status == "created" (первая выдача)
+    text = (
+        "🎯 <b>Демо-доступ к парсеру Яндекс.Карт активирован!</b>\n\n"
+        f"🌐 <b>Адрес панели:</b> <a href=\"{parser_public_url}\">{parser_public_url}</a>\n"
+        f"👤 <b>Логин:</b> <code>{res['email']}</code>\n"
+        f"🔑 <b>Пароль:</b> <code>{res['password']}</code>\n\n"
+        "⚙️ <b>Параметры демо-режима:</b>\n"
+        "• Доступный модуль: <b>Яндекс.Карт</b>\n"
+        f"• Поисковых запросов: <b>{res.get('demo_searches_left', 5)} из 5</b>\n"
+        f"• Организаций за раз: <b>до {res.get('max_companies_per_search', 5)}</b>\n"
+        f"• Интервал между поисками: <b>{res.get('cooldown_minutes', 15)} минут</b>\n\n"
+        "⚠️ <i>Обратите внимание: тестовый доступ предоставляется строго один раз на пользователя.</i>\n\n"
+        "💡 <i>Нажмите на логин или пароль, чтобы скопировать в буфер обмена.</i>"
+    )
+    kb = {
+        "inline_keyboard": [
+            [{"text": "🚀 Войти в панель LeadHunter", "url": parser_public_url}],
+            [{"text": "🔙 Главное меню", "callback_data": "client_menu"}]
+        ]
+    }
+    return text, kb
+
+
+def get_client_main_menu(name: str = "Гость") -> tuple[str, dict]:
+    """
+    Формирует интерактивное меню Telegram-бота студии для клиентов.
+    """
+    text = (
+        f"👋 <b>Здравствуйте, {html.escape(name)}!</b>\n\n"
+        f"🏰 <b>CASTLEWEB Studio</b> — проектируем надежный бэкенд и собираем живой, отзывчивый фронтенд без посредников.\n\n"
+        f"Выберите действие в интерактивном меню ниже:"
+    )
+    kb = {
+        "inline_keyboard": [
+            [{"text": "🔑 Демо-доступ к парсеру LeadHunter", "callback_data": "get_demo_access"}],
+            [{"text": "💼 Портфолио и кейсы", "callback_data": "client_cases"}],
+            [{"text": "📊 Калькулятор сметы", "url": "https://castleweb.ru/#calculator"}],
+            [{"text": "🌐 Официальный сайт", "url": "https://castleweb.ru"}]
+        ]
+    }
+    return text, kb
+
+
 @router.post("/webhook", summary="Telegram Bot Webhook Handler (Headless CRM)")
 async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     """
@@ -499,6 +626,90 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
 
         elif data == "noop":
             await answer_callback_query(cb_id, "OK")
+
+        elif data == "get_demo_access":
+            await answer_callback_query(cb_id, "Проверяем доступ к парсеру...")
+            domain = getattr(settings, "DOMAIN_NAME", None) or "castleweb.ru"
+            parser_public_url = os.environ.get("PARSER_PUBLIC_URL", f"https://leads.{domain}").rstrip("/")
+            try:
+                res = await request_parser_demo_access(user.get("id", ""), user.get("username", ""))
+                demo_text, demo_kb = format_demo_access_response(res, parser_public_url)
+
+                # Фиксируем в БД CRM выдачу, если аккаунт создан впервые
+                if res.get("status") == "created":
+                    try:
+                        grant_check = await db.execute(select(DemoGrant).where(DemoGrant.tg_user_id == str(user.get("id", ""))))
+                        if not grant_check.scalar_one_or_none():
+                            db.add(DemoGrant(
+                                tg_user_id=str(user.get("id", "")),
+                                tg_username=user.get("username", ""),
+                                first_name=user.get("first_name", ""),
+                                email=res.get("email", "")
+                            ))
+                            await db.commit()
+                    except Exception as ge:
+                        logger.warning(f"Failed to record DemoGrant: {ge}")
+
+                if message_id and chat_id:
+                    try:
+                        await TelegramBotService.edit_message_text(chat_id, message_id, demo_text, demo_kb)
+                    except Exception:
+                        await send_reply_message(chat_id, demo_text, demo_kb)
+                else:
+                    await send_reply_message(chat_id, demo_text, demo_kb)
+
+                if settings.TELEGRAM_CHAT_ID:
+                    st = res.get("status")
+                    if st == "created":
+                        alert = f"🔔 Клиент {user_display} (ID: <code>{user.get('id')}</code>) впервые активировал демо к парсеру ({res.get('email')})."
+                    elif st == "exhausted":
+                        alert = f"⚠️ Клиент {user_display} (ID: <code>{user.get('id')}</code>) повторно запросил демо, но его лимит исчерпан."
+                    else:
+                        alert = f"ℹ️ Клиент {user_display} (ID: <code>{user.get('id')}</code>) запросил данные своего демо-доступа повторно."
+                    await send_reply_message(settings.TELEGRAM_CHAT_ID, alert)
+            except Exception as e:
+                logger.error(f"Error creating demo user: {e}")
+                err_text = (
+                    "⚠️ Сервер парсера сейчас перезагружается или временно недоступен.\n"
+                    "Пожалуйста, повторите попытку через пару минут или напишите дежурному разработчику: @kupidon996"
+                )
+                await send_reply_message(chat_id, err_text)
+
+        elif data == "client_cases":
+            await answer_callback_query(cb_id, "Кейсы CASTLEWEB")
+            domain = getattr(settings, "DOMAIN_NAME", None) or "castleweb.ru"
+            cases_text = (
+                f"💼 <b>Избранные проекты CASTLEWEB:</b>\n\n"
+                f"1. <b>Onyx OS</b> — специализированный шелл для ПК-клуба и сим-рейсинга на Unreal/DirectX.\n"
+                f"2. <b>Skog Chalet & Hytte Control</b> — мобильный кабинет гостя и система бронирования загородных шале.\n"
+                f"3. <b>LeadHunter</b> — автономный сервис парсинга организаций из Яндекс.Карт (телефоны, сайты, адреса, Telegram).\n\n"
+                f"Вы можете протестировать демо-версию парсера прямо сейчас!"
+            )
+            cases_kb = {
+                "inline_keyboard": [
+                    [{"text": "🔑 Получить демо LeadHunter", "callback_data": "get_demo_access"}],
+                    [{"text": "🌐 Все кейсы на сайте", "url": f"https://{domain}/cases.html"}],
+                    [{"text": "🔙 Главное меню", "callback_data": "client_menu"}]
+                ]
+            }
+            if message_id and chat_id:
+                try:
+                    await TelegramBotService.edit_message_text(chat_id, message_id, cases_text, cases_kb)
+                except Exception:
+                    await send_reply_message(chat_id, cases_text, cases_kb)
+            else:
+                await send_reply_message(chat_id, cases_text, cases_kb)
+
+        elif data == "client_menu":
+            await answer_callback_query(cb_id, "Меню")
+            menu_text, menu_kb = get_client_main_menu(user.get("first_name", "Клиент"))
+            if message_id and chat_id:
+                try:
+                    await TelegramBotService.edit_message_text(chat_id, message_id, menu_text, menu_kb)
+                except Exception:
+                    await send_reply_message(chat_id, menu_text, menu_kb)
+            else:
+                await send_reply_message(chat_id, menu_text, menu_kb)
 
         return {"ok": True}
 
@@ -743,8 +954,51 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
 
         # Б. ЛИЧНЫЕ СООБЩЕНИЯ ОТ КЛИЕНТА (chat_type == "private")
         if chat_type == "private":
-            # 1. Приветствие на /start
-            if text.startswith("/start"):
+            # 1. Прямая команда /demo
+            if text.startswith("/demo") or (text.startswith("/start") and "demo" in text.lower()):
+                domain = getattr(settings, "DOMAIN_NAME", None) or "castleweb.ru"
+                parser_public_url = os.environ.get("PARSER_PUBLIC_URL", f"https://leads.{domain}").rstrip("/")
+                try:
+                    res = await request_parser_demo_access(from_id, username)
+                    demo_text, demo_kb = format_demo_access_response(res, parser_public_url)
+
+                    # Фиксируем в БД CRM выдачу, если аккаунт создан впервые
+                    if res.get("status") == "created":
+                        try:
+                            grant_check = await db.execute(select(DemoGrant).where(DemoGrant.tg_user_id == str(from_id)))
+                            if not grant_check.scalar_one_or_none():
+                                db.add(DemoGrant(
+                                    tg_user_id=str(from_id),
+                                    tg_username=username,
+                                    first_name=first_name,
+                                    email=res.get("email", "")
+                                ))
+                                await db.commit()
+                        except Exception as ge:
+                            logger.warning(f"Failed to record DemoGrant: {ge}")
+
+                    await send_reply_message(chat_id, demo_text, reply_markup=demo_kb)
+
+                    if settings.TELEGRAM_CHAT_ID:
+                        st = res.get("status")
+                        if st == "created":
+                            alert = f"🔔 Клиент {user_display} (ID: <code>{from_id}</code>) впервые активировал демо к парсеру ({res.get('email')})."
+                        elif st == "exhausted":
+                            alert = f"⚠️ Клиент {user_display} (ID: <code>{from_id}</code>) повторно запросил демо, но его лимит исчерпан."
+                        else:
+                            alert = f"ℹ️ Клиент {user_display} (ID: <code>{from_id}</code>) запросил данные своего демо-доступа повторно."
+                        await send_reply_message(settings.TELEGRAM_CHAT_ID, alert)
+                except Exception as e:
+                    logger.error(f"Error creating demo user via /demo: {e}")
+                    err_text = (
+                        "⚠️ Сервер парсера сейчас перезагружается или временно недоступен.\n"
+                        "Пожалуйста, повторите попытку через минуту или напишите дежурному разработчику: @kupidon996"
+                    )
+                    await send_reply_message(chat_id, err_text)
+                return {"ok": True}
+
+            # 2. Приветствие и главное меню (/start или /menu)
+            if text.startswith("/start") or text.startswith("/menu"):
                 parts = text.split(maxsplit=1)
                 start_payload = parts[1] if len(parts) > 1 else ""
 
@@ -778,20 +1032,9 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                     except ValueError:
                         pass
 
-                # Общее приветствие нового пользователя
-                general_welcome = (
-                    f"👋 <b>Здравствуйте, {html.escape(first_name)}!</b>\n\n"
-                    f"<b>CASTLEWEB Studio</b> — разработка веб-сервисов, SaaS и сайтов под ключ.\n\n"
-                    f"Опишите задачу прямо в этом диалоге или оставьте заявку — дежурный инженер ответит в течение 15 минут."
-                )
-                welcome_buttons = {
-                    "inline_keyboard": [
-                        [{"text": "💼 Портфолио", "callback_data": "client_cases"}],
-                        [{"text": "📊 Калькулятор сметы", "url": "https://castleweb.ru/#calculator"}],
-                        [{"text": "🌐 Сайт", "url": "https://castleweb.ru"}]
-                    ]
-                }
-                await send_reply_message(chat_id, general_welcome, reply_markup=welcome_buttons)
+                # Общее главное меню для клиента
+                menu_text, menu_kb = get_client_main_menu(first_name)
+                await send_reply_message(chat_id, menu_text, reply_markup=menu_kb)
                 return {"ok": True}
 
             # 2. Любое сообщение / вопрос / фото / документ от клиента в ЛС

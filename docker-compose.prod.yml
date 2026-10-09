@@ -1,3 +1,5 @@
+name: castleweb
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -51,6 +53,9 @@ services:
       - CLOUDFLARE_TURNSTILE_ENABLED=False
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-castleweb_user}:${POSTGRES_PASSWORD:-castleweb_secret_pass}@postgres:5432/${POSTGRES_DB:-castleweb_db}
       - REDIS_URL=redis://:${REDIS_PASSWORD:-castleweb_redis_pass}@redis:6379/0
+      - PARSER_INTERNAL_URL=http://leadhunter:8000
+      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:-castleweb-internal-demo-secret}
+      - PARSER_PUBLIC_URL=https://leads.${DOMAIN_NAME:-castleweb.ru}
     volumes:
       - ./apps/backend/data:/app/data
       - uploads_prod_data:/app/uploads
@@ -61,12 +66,43 @@ services:
     ports:
       - "127.0.0.1:8000:8000"
 
+  leadhunter:
+    build:
+      context: ./apps/parser
+      dockerfile: Dockerfile
+    container_name: castleweb_prod_leadhunter
+    restart: always
+    env_file:
+      - ./apps/parser/.env
+    environment:
+      - APP_ENV=production
+      - PORT=8000
+      - HOST=0.0.0.0
+      - HEADLESS=1
+      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:-castleweb-internal-demo-secret}
+    volumes:
+      - leadhunter_data:/app/data
+      - leadhunter_exports:/app/exports
+      - leadhunter_profiles:/app/browser_profile
+    networks:
+      - castleweb_internal
+    expose:
+      - "8000"
+    ports:
+      - "127.0.0.1:8080:8000"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1500M
+
   nginx:
     image: nginx:alpine
     container_name: castleweb_prod_nginx
     restart: always
     depends_on:
       - backend
+      - leadhunter
     ports:
       - "80:80"
       - "443:443"
@@ -135,6 +171,9 @@ volumes:
   redis_prod_data:
   uploads_prod_data:
   pg_backups:
+  leadhunter_data:
+  leadhunter_exports:
+  leadhunter_profiles:
 
 networks:
   castleweb_internal:
