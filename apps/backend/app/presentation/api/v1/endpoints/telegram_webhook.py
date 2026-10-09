@@ -958,6 +958,49 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 await send_reply_message(chat_id, "⚠️ Не удалось отправить файл. Проверьте права бота.")
             return {"ok": True}
 
+        elif text.startswith("/id") or text.startswith("/whoami"):
+            await send_reply_message(
+                chat_id,
+                f"🆔 <b>Ваш Telegram ID:</b> <code>{from_id}</code>\n"
+                f"👤 <b>Username:</b> @{username or 'не задан'}\n"
+                f"💬 <b>Chat ID:</b> <code>{chat_id}</code>"
+            )
+            return {"ok": True}
+
+        elif text.startswith("/admin"):
+            clean_user = (username or "").lower().lstrip("@")
+            is_adm = (
+                clean_user in ("kupidon996", "castleweb_admin", "admin")
+                or str(from_id) in ("1878543896", str(settings.TELEGRAM_CHAT_ID))
+                or str(chat_id) == str(settings.TELEGRAM_CHAT_ID)
+            )
+            if not is_adm:
+                await send_reply_message(chat_id, "⛔️ Доступ ограничен. Команда доступна только администраторам студии.")
+                return {"ok": True}
+
+            domain = getattr(settings, "DOMAIN_NAME", None) or "castleweb.ru"
+            parser_public_url = os.environ.get("PARSER_PUBLIC_URL", f"https://leads.{domain}").rstrip("/")
+            admin_msg = (
+                f"👑 <b>Панель управления CASTLEWEB STUDIO</b>\n\n"
+                f"Вы авторизованы как администратор ({user_display}).\n\n"
+                f"🛠 <b>Быстрые команды CRM:</b>\n"
+                f"• /stats — сводка и конверсия заявок\n"
+                f"• /leads — список последних 5 заявок\n"
+                f"• /export — скачать базу заявок в CSV\n"
+                f"• /server — диагностика сервера и контейнеров\n\n"
+                f"🗺 <b>Парсер Яндекс.Карт и FL.ru:</b>\n"
+                f"Для входа в веб-панель нажмите кнопку ниже или отправьте команду /demo"
+            )
+            admin_kb = {
+                "inline_keyboard": [
+                    [{"text": "🚀 Войти в панель LeadHunter", "callback_data": "get_demo_access"}],
+                    [{"text": "📊 Статистика заявок", "callback_data": "server_stats"}],
+                    [{"text": "🖥 Состояние сервера", "callback_data": "server_refresh"}]
+                ]
+            }
+            await send_reply_message(chat_id, admin_msg, reply_markup=admin_kb)
+            return {"ok": True}
+
         elif text.startswith("/help"):
             help_msg = (
                 f"🛠 <b>Команды:</b>\n"
@@ -968,7 +1011,9 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 f"/status &lt;id&gt; — статус заявки\n"
                 f"/server — состояние сервера\n"
                 f"/cases — портфолио\n"
-                f"/export — выгрузка в CSV"
+                f"/export — выгрузка в CSV\n"
+                f"/admin — панель управления\n"
+                f"/id — узнать свой Telegram ID"
             )
             await send_reply_message(chat_id, help_msg)
             return {"ok": True}
