@@ -21,6 +21,7 @@ settings = get_settings()
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+KNOWN_ADMIN_CHATS: set[str] = {"1878543896"}
 
 
 async def answer_callback_query(callback_id: str, text: str):
@@ -758,6 +759,14 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
         text = msg.get("text", "") or msg.get("caption", "")
         text = text.strip()
 
+        # Регистрация администраторов студии для персональных уведомлений
+        clean_user = (username or "").lower().lstrip("@")
+        if clean_user in ("kupidon996", "ya_emildjan", "castleweb_admin", "admin") or str(from_id) == "1878543896":
+            if from_id:
+                KNOWN_ADMIN_CHATS.add(str(from_id))
+            if chat_id and chat_type == "private":
+                KNOWN_ADMIN_CHATS.add(str(chat_id))
+
         # А.1. ДВУСТОРОННИЙ МОСТ ОБЩЕНИЯ С КЛИЕНТОМ (Two-Way Bridge)
         # Если инженер в командном чате делает Reply на сообщение или уведомление клиента
         reply_to = msg.get("reply_to_message")
@@ -878,6 +887,33 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
         elif text.startswith("/server") or text.startswith("/sys") or text.startswith("/monitor"):
             server_report, kb = await get_server_status_card(db)
             await send_reply_message(chat_id, server_report, kb)
+            return {"ok": True}
+
+        elif text.startswith("/fl"):
+            parser_internal = os.environ.get("PARSER_INTERNAL_URL", "http://leadhunter:8000").rstrip("/")
+            try:
+                async with httpx.AsyncClient(timeout=6.0) as client:
+                    await client.post(f"{parser_internal}/api/fl/poll")
+                    resp = await client.get(f"{parser_internal}/api/fl/orders?page=1&page_size=3")
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        items = data.get("items", [])
+                        if not items:
+                            await send_reply_message(chat_id, "ℹ️ На бирже FL.ru пока нет сохраненных заказов. Опрос запущен в фоне!")
+                        else:
+                            msg_lines = ["⚡️ <b>Свежие заказы с биржи FL.ru:</b>\n"]
+                            for ord_item in items:
+                                p = ord_item.get("price_raw") or "По договоренности"
+                                t = ord_item.get("title", "")
+                                u = ord_item.get("url", "https://www.fl.ru/projects/")
+                                cat = ord_item.get("category_name", "Разработка")
+                                msg_lines.append(f"📌 <a href=\"{u}\"><b>{html.escape(t)}</b></a>\n💰 <b>{html.escape(str(p))}</b> | 📁 <i>{html.escape(str(cat))}</i>\n")
+                            msg_lines.append("🟢 <i>Авто-мониторинг активен (15-20 сек). Все новые заказы автоматически приходят сюда.</i>")
+                            await send_reply_message(chat_id, "\n".join(msg_lines))
+                    else:
+                        await send_reply_message(chat_id, f"⚠️ Не удалось связаться с парсером (код {resp.status_code}).")
+            except Exception as ex:
+                await send_reply_message(chat_id, f"⚠️ Ошибка запроса к FL.ru: {ex}")
             return {"ok": True}
 
         elif text.startswith("/cases") or text.startswith("/portfolio"):
@@ -1175,3 +1211,65 @@ async def get_bot_info():
     except Exception:
         pass
     return {"ok": False, "username": None}
+
+
+@router.post("/fl-order", summary="Broadcast new FL.ru project to studio chat and admins")
+async def broadcast_fl_order(request: Request):
+    """
+    Принимает свежий заказ от парсера FL.ru и мгновенно оповещает администраторов студии
+    в закрытый командный чат и в личные сообщения.
+    """
+    try:
+        order_data = await request.json()
+    except Exception:
+        return {"ok": False, "error": "Invalid JSON"}
+
+    order_id = order_data.get("id")
+    title = order_data.get("title", "Заказ на FL.ru")
+    desc = order_data.get("description", "")
+    price = order_data.get("price_raw") or "По договоренности"
+    cat_name = order_data.get("category_name", "Все категории")
+    url = order_data.get("url", "https://www.fl.ru/projects/")
+    is_urgent = order_data.get("is_urgent", False)
+    is_pro = order_data.get("is_pro_only", False)
+    is_initial = order_data.get("is_initial", False)
+
+    badge = ""
+    if is_urgent:
+        badge += " 🔥 СРОЧНЫЙ"
+    if is_pro:
+        badge += " ⭐️ ТОЛЬКО PRO"
+
+    short_desc = desc[:450] + ("..." if len(desc) > 450 else "") if desc else "Без описания"
+
+    header = "⚡️ <b>Новый заказ с FL.ru" + badge + "</b>"
+    if is_initial:
+        header = "🚀 <b>Парсер FL.ru активен | Свежий заказ</b>" + badge
+
+    msg = (
+        f"{header}\n\n"
+        f"📌 <b>{html.escape(title)}</b>\n"
+        f"💰 Бюджет: <b>{html.escape(str(price))}</b>\n"
+        f"📁 Рубрика: <i>{html.escape(str(cat_name))}</i>\n\n"
+        f"📝 <b>Описание:</b>\n"
+        f"<blockquote>{html.escape(short_desc)}</blockquote>"
+    )
+
+    kb = {
+        "inline_keyboard": [
+            [{"text": "🔗 Открыть проект на FL.ru", "url": url}]
+        ]
+    }
+
+    # 1. Отправляем в командный чат студии
+    if settings.TELEGRAM_CHAT_ID:
+        await send_reply_message(settings.TELEGRAM_CHAT_ID, msg, reply_markup=kb)
+
+    # 2. Отправляем всем авторизованным администраторам напрямую
+    admin_targets = set(KNOWN_ADMIN_CHATS)
+    admin_targets.add("1878543896")
+    for aid in admin_targets:
+        if str(aid) != str(settings.TELEGRAM_CHAT_ID):
+            await send_reply_message(aid, msg, reply_markup=kb)
+
+    return {"ok": True, "order_id": order_id}

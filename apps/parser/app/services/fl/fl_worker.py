@@ -1,6 +1,8 @@
 import asyncio
+import os
 import random
 import logging
+import httpx
 from datetime import datetime, timezone
 from typing import List, Set, Optional
 from sqlalchemy import select, insert
@@ -207,8 +209,11 @@ class FLWorker:
             # 4. Логика первого запуска vs Новые заказы
             if is_first_sync:
                 logger.info(
-                    f"FLWorker: [Первый запуск] Для «{cat_name}» сохранено {len(new_orders_saved)} исторических заказов без отправки в Telegram."
+                    f"FLWorker: [Первый запуск] Для «{cat_name}» сохранено {len(new_orders_saved)} исторических заказов."
                 )
+                if new_orders_saved:
+                    # Оповещаем администраторов о первом найденном активном заказе
+                    await self._notify_backend_fl_order(new_orders_saved[0], is_initial=True)
             else:
                 for order in new_orders_saved:
                     # А. Мгновенно отправляем в десктоп/веб через WebSocket
@@ -218,14 +223,45 @@ class FLWorker:
                         "data": order_dict
                     })
 
-                    # Б. Отправляем в Telegram подписчикам с фильтрацией
+                    # Б. Отправляем в Telegram подписчикам с фильтрацией (локальный бот)
                     await tg_dispatcher.dispatch_fl_order(order)
+
+                    # В. Отправляем в @castleweb_bot (командный чат студии и админам)
+                    await self._notify_backend_fl_order(order)
 
             # Пауза 1.2 сек между запросами к разным категориям если их 2
             if i < len(targets) - 1:
                 await asyncio.sleep(1.2)
 
         return total_saved
+
+    async def _notify_backend_fl_order(self, order: FLOrder, is_initial: bool = False):
+        """
+        Передает свежий заказ с биржи FL.ru в главный бэкенд студии CastleWeb,
+        откуда @castleweb_bot мгновенно публикует его в командный чат и админам.
+        """
+        backend_url = os.environ.get("BACKEND_INTERNAL_URL", "http://backend:8000").rstrip("/")
+        endpoint = f"{backend_url}/api/v1/telegram/fl-order"
+        payload = {
+            "id": order.id,
+            "title": order.title,
+            "description": order.description,
+            "price_raw": order.price_raw,
+            "category_name": order.category_name,
+            "url": order.url,
+            "is_urgent": bool(order.is_urgent),
+            "is_pro_only": bool(order.is_pro_only),
+            "is_initial": is_initial
+        }
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(endpoint, json=payload)
+                if resp.status_code == 200:
+                    logger.info(f"FLWorker: Заказ #{order.id} успешно передан в @castleweb_bot (200 OK)")
+                else:
+                    logger.warning(f"FLWorker: Backend ответил {resp.status_code} при отправке заказа #{order.id}: {resp.text}")
+        except Exception as e:
+            logger.warning(f"FLWorker: Не удалось передать заказ #{order.id} в бэкенд Telegram: {e}")
 
 fl_worker = FLWorker()
 

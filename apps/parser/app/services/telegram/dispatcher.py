@@ -205,6 +205,8 @@ class TelegramDispatcher:
                         existing_del.is_sent = True
                         existing_del.sent_at = utc_now()
 
+                    await self._queue.put((chat_id, msg_text, kb, disable_notif))
+
                 # Также гарантированно отправляем в закрытый чат команды/инженеров, если он задан
                 if MANAGER_TELEGRAM_CHAT_ID and MANAGER_TELEGRAM_CHAT_ID not in dispatched_chats:
                     delivery_key = (order.id, MANAGER_TELEGRAM_CHAT_ID)

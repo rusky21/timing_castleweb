@@ -79,6 +79,7 @@ services:
       - PORT=8000
       - HOST=0.0.0.0
       - HEADLESS=1
+      - BACKEND_INTERNAL_URL=http://backend:8000
       - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:-castleweb-internal-demo-secret}
     volumes:
       - leadhunter_data:/app/data
