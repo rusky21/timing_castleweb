@@ -1245,6 +1245,8 @@ async def get_bot_info():
     return {"ok": False, "username": None}
 
 
+_RECENT_BROADCAST_FL_ORDERS = set()
+
 @router.post("/fl-order", summary="Broadcast new FL.ru project to studio chat and admins")
 async def broadcast_fl_order(request: Request):
     """
@@ -1257,6 +1259,8 @@ async def broadcast_fl_order(request: Request):
         return {"ok": False, "error": "Invalid JSON"}
 
     order_id = order_data.get("id")
+    if order_id and order_id in _RECENT_BROADCAST_FL_ORDERS:
+        return {"ok": True, "skipped": "already_broadcast"}
     title = order_data.get("title", "Заказ на FL.ru")
     desc = order_data.get("description", "")
     price = order_data.get("price_raw") or "По договоренности"
@@ -1325,5 +1329,10 @@ async def broadcast_fl_order(request: Request):
     for aid in admin_targets:
         if str(aid) != str(settings.TELEGRAM_CHAT_ID):
             await send_reply_message(aid, msg, reply_markup=kb)
+
+    if order_id:
+        _RECENT_BROADCAST_FL_ORDERS.add(order_id)
+        if len(_RECENT_BROADCAST_FL_ORDERS) > 2000:
+            _RECENT_BROADCAST_FL_ORDERS.clear()
 
     return {"ok": True, "order_id": order_id}

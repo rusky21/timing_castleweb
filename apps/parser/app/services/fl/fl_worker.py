@@ -176,13 +176,6 @@ class FLWorker:
                     proj_id = proj["id"]
                     existing = await db.get(FLOrder, proj_id)
                     if existing:
-                        # Если заказ уже сохранен, но ни разу не доставлялся в Telegram (например, из-за сбоя),
-                        # проверяем отсутствие записи в FLOrderDelivery
-                        deliv_check = await db.execute(
-                            select(FLOrderDelivery).where(FLOrderDelivery.order_id == proj_id).limit(1)
-                        )
-                        if not deliv_check.scalar_one_or_none():
-                            new_orders_saved.append(existing)
                         continue
 
                     order = FLOrder(
