@@ -160,6 +160,7 @@ class FLOrder(Base):
     url: Mapped[str] = mapped_column(String(1000), nullable=False)
     is_pro_only: Mapped[bool] = mapped_column(Boolean, default=False)
     is_urgent: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_free: Mapped[bool] = mapped_column(Boolean, default=True, index=True)  # Бесплатный отклик («для всех», вакансии, конкурсы)
     published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
@@ -195,6 +196,7 @@ class FLOrder(Base):
             "url": self.url,
             "is_pro_only": self.is_pro_only,
             "is_urgent": self.is_urgent,
+            "is_free": getattr(self, "is_free", True),
             "published_at": self.published_at.isoformat() if self.published_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "is_favorite": is_fav,

@@ -287,20 +287,29 @@ class FLFetcher:
 
         return "5" # По умолчанию веб-разработка
 
-    async def fetch_projects(self, category_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def fetch_projects(self, category_id: Optional[str] = None, only_free: bool = True) -> List[Dict[str, Any]]:
         """
         Основной метод получения свежих проектов:
-        1. Проверяет активный защитный кулдаун
-        2. Сначала пробует прямой HTML-парсинг с переиспользуемой сессией
-        3. При 429/403/Cloudflare включает краткий кулдаун и временно переключается на RSS
+        1. Официальный RSS-фид FL.ru — единственный надежный источник, где биржа открыто
+           указывает бейдж «для всех» (бесплатный отклик). В HTML для анонимных посетителей
+           этот статус скрыт. RSS также отдает 60 свежих проектов и не блокируется.
+        2. Прямой HTML-скрейпинг используется как резервный fallback при сбоях RSS.
         """
-        # Если недавно был пойман 429/403/CF, не спамим HTML, а сразу идем через RSS
+        # 1. Приоритетный опрос через RSS
+        try:
+            projects = await self._fetch_via_rss(category_id, only_free=only_free)
+            if projects:
+                logger.info(f"FL RSS: собрано {len(projects)} проектов (only_free={only_free}) для категории {category_id or 'all'}")
+                return projects
+        except Exception as e:
+            logger.warning(f"FL RSS fetch error ({e}), переключение на резервный HTML...")
+
+        # 2. Резервный HTML-парсинг (с проверкой защитного кулдауна)
         if time.time() < self._html_cooldown_until:
             rem = int(self._html_cooldown_until - time.time())
-            logger.info(f"FL HTML: защитный кулдаун ({rem}с). Опрос категории {category_id or 'all'} через RSS.")
-            return await self._fetch_via_rss(category_id)
+            logger.info(f"FL HTML: защитный кулдаун ({rem}с). Пропуск HTML опроса.")
+            return []
 
-        # Формируем корректный URL раздела каталога FL.ru
         url = "https://www.fl.ru/projects/"
         if category_id and str(category_id) != "all":
             cat_info = CATEGORY_BY_ID.get(str(category_id))
@@ -309,25 +318,17 @@ class FLFetcher:
             elif cat_info and cat_info.get("slug"):
                 url = f"https://www.fl.ru/projects/category/{cat_info['slug']}/"
 
-        projects = []
         try:
-            projects = await self._fetch_via_html(url, category_id)
+            projects = await self._fetch_via_html(url, category_id, only_free=only_free)
             if projects:
                 logger.info(f"FL HTML: собрано {len(projects)} проектов для URL {url}")
                 return projects
         except Exception as e:
-            logger.warning(f"FL HTML fetch error ({e}), мгновенное переключение на RSS fallback...")
+            logger.warning(f"FL HTML fetch error: {e}")
 
-        # Fallback на RSS
-        try:
-            projects = await self._fetch_via_rss(category_id)
-            logger.info(f"FL RSS Fallback: собрано {len(projects)} проектов для категории {category_id or 'all'}")
-        except Exception as e:
-            logger.error(f"FL RSS fetch error: {e}")
+        return []
 
-        return projects
-
-    async def _fetch_via_html(self, url: str, category_id: Optional[str]) -> List[Dict[str, Any]]:
+    async def _fetch_via_html(self, url: str, category_id: Optional[str], only_free: bool = True) -> List[Dict[str, Any]]:
         """Прямой разбор HTML ленты FL.ru с переиспользуемой сессией и защитой от блокировки"""
         client = await self._get_client()
 
@@ -381,7 +382,7 @@ class FLFetcher:
             price_raw = html.unescape(price_el.text(strip=True)) if price_el else "По договоренности"
             price_rub, is_negotiable = self._parse_price(price_raw)
 
-            # Описание: берем специфический блок текста, избегая счетчиков просмотров
+            # Описание
             desc_el = (
                 card.css_first('.b-post__txt.text-5') or
                 card.css_first('.b-post__body') or
@@ -390,7 +391,7 @@ class FLFetcher:
             )
             description = html.unescape(desc_el.text(strip=True)) if desc_el else ""
 
-            # Бейджи: PRO, Срочно
+            # Бейджи: PRO, Срочно, Бесплатный отклик
             card_text = (card.text() or "").lower()
             card_classes = (card.attributes.get("class") or "").lower()
             is_pro = bool(
@@ -403,6 +404,13 @@ class FLFetcher:
                 card.css_first('.b-post__bold') or
                 "срочно" in card_text
             )
+            is_for_all = "для всех" in card_text
+            is_vacancy = "ваканси" in card_text or "/vakansii/" in href.lower()
+            is_contest = "конкурс" in card_text or "/konkurs/" in href.lower()
+            is_free = bool((is_for_all or is_vacancy or is_contest) and not is_pro)
+
+            if only_free and not is_free:
+                continue
 
             # Рубрика
             matched_cat_id = category_id or self._detect_category_id("", title)
@@ -421,15 +429,16 @@ class FLFetcher:
                 "url": href,
                 "is_pro_only": is_pro,
                 "is_urgent": is_urgent,
+                "is_free": is_free,
                 "published_at": published_at
             })
 
         return items
 
-    async def _fetch_via_rss(self, category_id: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Разбор официального RSS-фида FL.ru (аварийный резерв)"""
+    async def _fetch_via_rss(self, category_id: Optional[str] = None, only_free: bool = True) -> List[Dict[str, Any]]:
+        """Разбор официального RSS-фида FL.ru с точным определением опции «для всех» (бесплатный отклик)"""
         rss_url = "https://www.fl.ru/rss/all.xml"
-        if category_id and category_id.isdigit():
+        if category_id and str(category_id).isdigit():
             rss_url = f"https://www.fl.ru/rss/all.xml?category={category_id}"
 
         client = await self._get_client()
@@ -454,13 +463,49 @@ class FLFetcher:
             if not proj_id:
                 continue
 
-            # Извлечение цены из заголовка: (Бюджет: 35 000 ₽) или [35 000 руб.]
+            raw_title_lower = raw_title.lower()
+            raw_desc_lower = raw_desc.lower()
+            cat_lower = cat_raw.lower()
+            link_lower = link.lower()
+
+            # Проверка бесплатности отклика по официальным правилам FL.ru:
+            # 1. Заказ имеет опцию «для всех» в заголовке или описании
+            # 2. Вакансии (отклики бесплатны для всех)
+            # 3. Конкурсы (отклики бесплатны для всех)
+            # 4. Не требует PRO-аккаунт
+            is_for_all = ("для всех" in raw_title_lower) or ("для всех" in raw_desc_lower)
+            is_vacancy = ("ваканси" in cat_lower) or ("/vakansii/" in link_lower)
+            is_contest = ("конкурс" in cat_lower) or ("/konkurs/" in link_lower)
+
+            is_pro = (
+                "только для pro" in raw_desc_lower or
+                "только pro" in raw_desc_lower or
+                "только для pro" in raw_title_lower or
+                "profi" in raw_title_lower
+            )
+
+            is_free = bool((is_for_all or is_vacancy or is_contest) and not is_pro)
+
+            # Если включен фильтр "только бесплатные заказы" — отсекаем платные
+            if only_free and not is_free:
+                continue
+
+            # Извлечение цены из заголовка: (Бюджет: 35 000 ₽, для всех) или [35 000 руб.]
             price_raw = "По договоренности"
             clean_title = raw_title
             price_match = re.search(r"[\(\[](?:Бюджет|Цена)?[:\s]*(.*?)[\)\]]\s*$", raw_title, re.IGNORECASE)
             if price_match:
-                price_raw = price_match.group(1).strip()
+                inside_bracket = price_match.group(1).strip()
                 clean_title = raw_title[:price_match.start()].strip()
+                if re.match(r"^для всех$", inside_bracket, re.IGNORECASE):
+                    price_raw = "По договоренности"
+                else:
+                    price_raw = re.sub(r",?\s*для всех", "", inside_bracket, flags=re.IGNORECASE).strip()
+                    if not price_raw:
+                        price_raw = "По договоренности"
+
+            # Очищаем возможные хвосты "(для всех)" в названии
+            clean_title = re.sub(r"[\(\[]\s*для всех\s*[\)\]]", "", clean_title, flags=re.IGNORECASE).strip()
 
             price_rub, is_negotiable = self._parse_price(price_raw)
 
@@ -468,7 +513,6 @@ class FLFetcher:
             clean_desc = re.sub(r"<[^>]+>", " ", raw_desc)
             clean_desc = re.sub(r"\s+", " ", clean_desc).strip()
 
-            is_pro = "только для pro" in clean_desc.lower() or "pro" in raw_title.lower()
             is_urgent = "срочно" in clean_title.lower() or "срочно" in clean_desc.lower()
 
             # Точная дата публикации
@@ -497,6 +541,7 @@ class FLFetcher:
                 "url": link,
                 "is_pro_only": is_pro,
                 "is_urgent": is_urgent,
+                "is_free": is_free,
                 "published_at": published_at
             })
 

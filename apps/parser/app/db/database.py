@@ -57,6 +57,7 @@ async def init_db():
             "ALTER TABLE telegram_user_settings ADD COLUMN notify_sound BOOLEAN DEFAULT 1",
             "ALTER TABLE telegram_user_settings ADD COLUMN notify_captcha BOOLEAN DEFAULT 1",
             "ALTER TABLE telegram_user_settings ADD COLUMN fl_live_mode BOOLEAN DEFAULT 1",
+            "ALTER TABLE fl_orders ADD COLUMN is_free BOOLEAN DEFAULT 1",
             "ALTER TABLE users ADD COLUMN demo_searches_left INTEGER DEFAULT 5",
             "ALTER TABLE users ADD COLUMN max_companies_per_search INTEGER DEFAULT 5",
             "ALTER TABLE users ADD COLUMN last_search_at TIMESTAMP",

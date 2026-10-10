@@ -164,8 +164,8 @@ class FLWorker:
                     ))
                     await db.commit()
 
-            # 2. Скачиваем проекты
-            projects = await self.fetcher.fetch_projects(category_id=cat_id)
+            # 2. Скачиваем проекты (строго только бесплатные для отклика)
+            projects = await self.fetcher.fetch_projects(category_id=cat_id, only_free=True)
             if not projects:
                 continue
 
@@ -173,6 +173,10 @@ class FLWorker:
             new_orders_saved = []
             async with async_session_factory() as db:
                 for proj in projects:
+                    # Фильтр: парсим исключительно заказы с бесплатным откликом ("для всех", вакансии, конкурсы)
+                    if not proj.get("is_free", False):
+                        continue
+
                     proj_id = proj["id"]
                     existing = await db.get(FLOrder, proj_id)
                     if existing:
@@ -190,6 +194,7 @@ class FLWorker:
                         url=proj["url"],
                         is_pro_only=proj["is_pro_only"],
                         is_urgent=proj["is_urgent"],
+                        is_free=proj.get("is_free", True),
                         published_at=proj["published_at"],
                         created_at=utc_now()
                     )
@@ -276,6 +281,7 @@ class FLWorker:
             "url": order.url,
             "is_urgent": bool(order.is_urgent),
             "is_pro_only": bool(order.is_pro_only),
+            "is_free": bool(getattr(order, "is_free", True)),
             "is_initial": is_initial,
             "detected_at": utc_now().isoformat(),
             "published_at": order.published_at.isoformat() if order.published_at else None

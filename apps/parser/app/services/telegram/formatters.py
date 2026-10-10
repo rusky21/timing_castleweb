@@ -11,6 +11,8 @@ def format_fl_order_message(order) -> str:
 
     # Бейджи
     badges = []
+    if getattr(order, "is_free", True):
+        badges.append("✨ <b>Бесплатный отклик</b>")
     if order.is_pro_only:
         badges.append("👑 <b>Только для PRO</b>")
     if order.is_urgent:

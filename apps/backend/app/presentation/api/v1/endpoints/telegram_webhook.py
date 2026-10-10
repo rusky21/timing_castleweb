@@ -1291,11 +1291,17 @@ async def broadcast_fl_order(request: Request):
     url = order_data.get("url", "https://www.fl.ru/projects/")
     is_urgent = order_data.get("is_urgent", False)
     is_pro = order_data.get("is_pro_only", False)
+    is_free = order_data.get("is_free", True)
     is_initial = order_data.get("is_initial", False)
     if is_initial:
         return {"ok": True, "skipped": "initial_order"}
 
-    badge = ""
+    # Строгий фильтр: транслируем только заказы с бесплатным откликом
+    if is_free is False or is_pro:
+        logger.info(f"broadcast_fl_order: Заказ #{order_id} требует оплаты отклика или PRO, пропуск рассылки.")
+        return {"ok": True, "skipped": "paid_order"}
+
+    badge = " ✨ БЕСПЛАТНЫЙ ОТКЛИК"
     if is_urgent:
         badge += " 🔥 СРОЧНЫЙ"
     if is_pro:
