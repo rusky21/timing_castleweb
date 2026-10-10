@@ -167,6 +167,32 @@ async def cmd_live(message: Message):
     )
     await message.answer(text, parse_mode="HTML", reply_markup=fl_menu_keyboard(val))
 
+@router.message(Command("fl"))
+async def cmd_fl(message: Message):
+    async with async_session_factory() as db:
+        stmt = (
+            select(FLOrder)
+            .options(selectinload(FLOrder.interaction))
+            .order_by(FLOrder.id.desc())
+            .limit(5)
+        )
+        res = await db.execute(stmt)
+        orders = res.scalars().all()
+
+    if not orders:
+        await message.answer("Заказы еще не загружены воркером. Подождите 15-20 секунд...")
+        return
+
+    await message.answer("⚡️ <b>Свежие заказы с биржи FL.ru:</b>", parse_mode="HTML")
+    for ord_obj in orders:
+        msg = format_fl_order_message(ord_obj)
+        is_fav = ord_obj.interaction.is_favorite if ord_obj.interaction else False
+        kb = order_inline_keyboard(order_id=ord_obj.id, url=ord_obj.url, is_favorite=is_fav)
+        try:
+            await message.answer(msg, parse_mode="HTML", reply_markup=kb, disable_web_page_preview=True)
+        except Exception as e:
+            logger.warning(f"Ошибка отправки заказа {ord_obj.id}: {e}")
+
 @router.message(F.text == "💼 Заказы с FL.ru")
 async def menu_fl(message: Message):
     settings = await get_or_create_user(message.chat.id)

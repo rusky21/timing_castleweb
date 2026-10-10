@@ -766,6 +766,15 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 KNOWN_ADMIN_CHATS.add(str(from_id))
             if chat_id and chat_type == "private":
                 KNOWN_ADMIN_CHATS.add(str(chat_id))
+            try:
+                redis = await get_redis_client()
+                if redis:
+                    if from_id:
+                        await redis.sadd("castleweb:admin_chats", str(from_id))
+                    if chat_id and chat_type == "private":
+                        await redis.sadd("castleweb:admin_chats", str(chat_id))
+            except Exception:
+                pass
 
         # А.1. ДВУСТОРОННИЙ МОСТ ОБЩЕНИЯ С КЛИЕНТОМ (Two-Way Bridge)
         # Если инженер в командном чате делает Reply на сообщение или уведомление клиента
@@ -890,6 +899,20 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
             return {"ok": True}
 
         elif text.startswith("/fl"):
+            if chat_id:
+                KNOWN_ADMIN_CHATS.add(str(chat_id))
+            if from_id:
+                KNOWN_ADMIN_CHATS.add(str(from_id))
+            try:
+                redis = await get_redis_client()
+                if redis:
+                    if chat_id:
+                        await redis.sadd("castleweb:admin_chats", str(chat_id))
+                    if from_id:
+                        await redis.sadd("castleweb:admin_chats", str(from_id))
+            except Exception:
+                pass
+
             internal_urls = [
                 "http://leadhunter:8000",
                 getattr(settings, "PARSER_INTERNAL_URL", "") or os.environ.get("PARSER_INTERNAL_URL", "").strip(),
@@ -1295,8 +1318,8 @@ async def broadcast_fl_order(request: Request):
                 pub_dt = pub_dt.replace(tzinfo=timezone.utc)
             now_utc = datetime.now(timezone.utc)
             age_sec = (now_utc - pub_dt).total_seconds()
-            if age_sec > 3600:
-                logger.info(f"broadcast_fl_order: Заказ #{order_id} старше 60 минут ({age_sec:.0f}s), пропуск рассылки.")
+            if age_sec > 3 * 3600:
+                logger.info(f"broadcast_fl_order: Заказ #{order_id} старше 3 часов ({age_sec:.0f}s), пропуск рассылки.")
                 return {"ok": True, "skipped": "too_old"}
             pub_info = f" <i>(на бирже: {pub_dt.astimezone(msk_tz).strftime('%H:%M')})</i>"
         except Exception:
@@ -1323,9 +1346,20 @@ async def broadcast_fl_order(request: Request):
     if settings.TELEGRAM_CHAT_ID:
         await send_reply_message(settings.TELEGRAM_CHAT_ID, msg, reply_markup=kb)
 
-    # 2. Отправляем всем авторизованным администраторам напрямую
+    # 2. Отправляем всем авторизованным администраторам напрямую (с подгрузкой из Redis)
     admin_targets = set(KNOWN_ADMIN_CHATS)
     admin_targets.add("1878543896")
+    try:
+        redis = await get_redis_client()
+        if redis:
+            cached_chats = await redis.smembers("castleweb:admin_chats")
+            for c in cached_chats:
+                c_str = c.decode("utf-8") if isinstance(c, bytes) else str(c)
+                admin_targets.add(c_str)
+                KNOWN_ADMIN_CHATS.add(c_str)
+    except Exception:
+        pass
+
     for aid in admin_targets:
         if str(aid) != str(settings.TELEGRAM_CHAT_ID):
             await send_reply_message(aid, msg, reply_markup=kb)

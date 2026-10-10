@@ -15,8 +15,8 @@ from app.services.connection_manager import ws_manager
 
 logger = logging.getLogger("fl_worker")
 
-# Порог свежести заказа (45 минут): учитывает задержку премодерации FL.ru, но гарантированно отсекает старые заказы
-MAX_FRESH_ORDER_AGE_SECONDS = 45 * 60
+# Порог свежести заказа (3 часа): с запасом покрывает любую модерацию FL.ru, но гарантированно отсекает вчерашние заказы
+MAX_FRESH_ORDER_AGE_SECONDS = 3 * 3600
 
 class FLWorker:
     """
@@ -212,50 +212,47 @@ class FLWorker:
             total_saved += len(new_orders_saved)
 
             # 4. Логика первого запуска vs Новые заказы
-            if is_first_sync:
-                logger.info(
-                    f"FLWorker: [Первый запуск] Для «{cat_name}» сохранено {len(new_orders_saved)} исторических заказов (базовый снапшот, без рассылки в Telegram)."
-                )
-                # При первой синхронизации категории НЕ спамим в Telegram историческими заказами
-            else:
-                now_utc = utc_now()
-                for order in new_orders_saved:
-                    # Проверка возраста заказа: публикуем ТОЛЬКО свежие заказы (не старше 45 минут)
-                    pub_dt = order.published_at
-                    if pub_dt:
-                        if pub_dt.tzinfo is None:
-                            pub_dt = pub_dt.replace(tzinfo=timezone.utc)
-                        else:
-                            pub_dt = pub_dt.astimezone(timezone.utc)
-                        age_seconds = (now_utc - pub_dt).total_seconds()
+            now_utc = utc_now()
+            # При первом запуске категории отсекаем старые архивные заказы (> 20 минут),
+            # но СВЕЖИЕ заказы (<= 20 минут) обязательно отправляем, чтобы не терять горячие лиды!
+            max_allowed_age = (20 * 60) if is_first_sync else MAX_FRESH_ORDER_AGE_SECONDS
+
+            for order in new_orders_saved:
+                pub_dt = order.published_at
+                if pub_dt:
+                    if pub_dt.tzinfo is None:
+                        pub_dt = pub_dt.replace(tzinfo=timezone.utc)
                     else:
-                        age_seconds = 999999.0
+                        pub_dt = pub_dt.astimezone(timezone.utc)
+                    age_seconds = (now_utc - pub_dt).total_seconds()
+                else:
+                    age_seconds = 0.0
 
-                    is_fresh = (age_seconds <= MAX_FRESH_ORDER_AGE_SECONDS)
-                    if not is_fresh:
-                        age_min = round(age_seconds / 60, 1)
-                        logger.info(
-                            f"FLWorker: Пропуск устаревшего заказа #{order.id} «{order.title[:40]}» (возраст {age_min} мин > 45 мин). Не отправляем в Telegram."
-                        )
-                        continue
-
-                    age_min = round(age_seconds / 60, 1) if age_seconds is not None else 0
+                is_fresh = (age_seconds <= max_allowed_age)
+                if not is_fresh:
+                    age_min = round(age_seconds / 60, 1)
                     logger.info(
-                        f"FLWorker: ⚡️ Обнаружен свежий заказ #{order.id} (возраст {age_min} мин). Отправка в Telegram..."
+                        f"FLWorker: Пропуск устаревшего заказа #{order.id} «{order.title[:40]}» (возраст {age_min} мин > {max_allowed_age // 60} мин)."
                     )
+                    continue
 
-                    # А. Мгновенно отправляем в десктоп/веб через WebSocket
-                    order_dict = order.to_dict()
-                    await ws_manager.broadcast_all({
-                        "type": "NEW_FL_ORDER",
-                        "data": order_dict
-                    })
+                age_min = round(age_seconds / 60, 1) if age_seconds is not None else 0
+                logger.info(
+                    f"FLWorker: ⚡️ Обнаружен свежий заказ #{order.id} (возраст {age_min} мин). Отправка в Telegram..."
+                )
 
-                    # Б. Отправляем в Telegram подписчикам с фильтрацией (локальный бот)
-                    await tg_dispatcher.dispatch_fl_order(order)
+                # А. Мгновенно отправляем в десктоп/веб через WebSocket
+                order_dict = order.to_dict()
+                await ws_manager.broadcast_all({
+                    "type": "NEW_FL_ORDER",
+                    "data": order_dict
+                })
 
-                    # В. Отправляем в @castleweb_bot (командный чат студии и админам)
-                    await self._notify_backend_fl_order(order)
+                # Б. Отправляем в Telegram подписчикам с фильтрацией (локальный бот)
+                await tg_dispatcher.dispatch_fl_order(order)
+
+                # В. Отправляем в @castleweb_bot (командный чат студии и админам)
+                await self._notify_backend_fl_order(order)
 
             # Пауза 1.2 сек между запросами к разным категориям если их 2
             if i < len(targets) - 1:

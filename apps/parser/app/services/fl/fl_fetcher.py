@@ -106,7 +106,7 @@ class FLFetcher:
             self._client = httpx.AsyncClient(
                 headers=headers,
                 proxy=proxy,
-                timeout=httpx.Timeout(10.0, connect=5.0),
+                timeout=httpx.Timeout(15.0, connect=10.0),
                 follow_redirects=True,
                 limits=httpx.Limits(max_keepalive_connections=5, max_connections=10, keepalive_expiry=60.0)
             )
@@ -175,44 +175,66 @@ class FLFetcher:
     def _parse_card_published_at(self, card) -> datetime:
         """
         Извлекает точное время публикации с карточки проекта на FL.ru:
-        - '5 минут назад' / '21 минуту назад'
-        - '2 часа 16 минут назад' / '18 часов назад'
+        - 'только что' / 'менее минуты назад'
+        - 'минуту назад' / '5 минут назад'
+        - 'час назад' / '2 часа 16 минут назад'
         - 'сегодня в 12:30' / 'сегодня, 12:30'
         - 'вчера в 18:20' / 'вчера, 18:20'
         - '9 октября, 11:13' / '8 октября 12:14'
-        Если дата не указана или неизвестна — возвращает архивную дату (30 дней назад),
-        чтобы старые/неизвестные проекты НИКОГДА не рассылались как свежие.
+        Если дата не указана или нестандартная — возвращает текущее время (заказ с 1 страницы ленты).
         """
         now = datetime.now(timezone.utc)
         msk_tz = timezone(timedelta(hours=3))
         now_msk = datetime.now(msk_tz)
-        archival_dt = now - timedelta(days=30)
 
-        dt_el = card.css_first('span.text-gray-opacity-4') or card.css_first('span[class*="opacity"]')
-        if not dt_el:
-            return archival_dt
+        # 1. Поиск элемента с датой: time, классы opacity, foot, mute
+        dt_el = (
+            card.css_first('time') or
+            card.css_first('span.text-gray-opacity-4') or
+            card.css_first('span[class*="opacity"]') or
+            card.css_first('div[class*="opacity"]') or
+            card.css_first('span.text-muted') or
+            card.css_first('.b-post__foot span')
+        )
+        text = dt_el.text(strip=True).lower() if dt_el else ""
 
-        text = dt_el.text(strip=True).lower()
+        # 2. Если селектор не сработал — сканируем компактные текстовые узлы (< 60 символов)
         if not text:
-            return archival_dt
+            for el in card.css('span') + card.css('small') + card.css('div'):
+                t = el.text(strip=True).lower()
+                if 2 < len(t) < 60 and any(w in t for w in ["назад", "сегодня", "вчера", "только что", "минут", "час"]):
+                    text = t
+                    break
+
+        if not text:
+            return now
 
         try:
-            # 1. Относительное время: X часов Y минут назад / X минут назад / X часов назад
+            # 'только что', 'менее минуты назад', 'меньше минуты'
+            if any(w in text for w in ["только что", "менее минуты", "меньше минуты", "прямо сейчас", "сейчас"]):
+                return now
+
+            # Относительное время: часы и минуты
             m_hour = re.search(r'(\d+)\s+час', text)
             m_min = re.search(r'(\d+)\s+мин', text)
-            if m_hour or m_min:
-                hours = int(m_hour.group(1)) if m_hour else 0
-                minutes = int(m_min.group(1)) if m_min else 0
+
+            hours = int(m_hour.group(1)) if m_hour else (1 if "час назад" in text else 0)
+            minutes = int(m_min.group(1)) if m_min else (1 if "минуту назад" in text else 0)
+
+            if m_hour or m_min or "час назад" in text or "минуту назад" in text:
                 return now - timedelta(hours=hours, minutes=minutes)
 
-            # 2. 'сегодня в 14:30' или 'сегодня, 14:30'
+            # 'сегодня в 14:30' или 'сегодня, 14:30'
             m_today = re.search(r'сегодня(?:[\s,]+(?:в\s*)?(\d{1,2}):(\d{2}))?', text)
-            if m_today and m_today.group(1):
-                h, m = int(m_today.group(1)), int(m_today.group(2))
-                dt_msk = now_msk.replace(hour=h, minute=m, second=0, microsecond=0)
-                return dt_msk.astimezone(timezone.utc)
+            if m_today:
+                if m_today.group(1) and m_today.group(2):
+                    h, m = int(m_today.group(1)), int(m_today.group(2))
+                    dt_msk = now_msk.replace(hour=h, minute=m, second=0, microsecond=0)
+                    return dt_msk.astimezone(timezone.utc)
+                else:
+                    return now - timedelta(minutes=15)
 
-            # 3. 'вчера в 18:20' или 'вчера, 18:20'
+            # 'вчера в 18:20' или 'вчера, 18:20'
             m_yesterday = re.search(r'вчера(?:[\s,]+(?:в\s*)?(\d{1,2}):(\d{2}))?', text)
             if m_yesterday:
                 h = int(m_yesterday.group(1)) if m_yesterday.group(1) else 12
@@ -220,7 +242,7 @@ class FLFetcher:
                 dt_msk = (now_msk - timedelta(days=1)).replace(hour=h, minute=m, second=0, microsecond=0)
                 return dt_msk.astimezone(timezone.utc)
 
-            # 4. '9 октября, 11:13' или '8 октября 12:14'
+            # '9 октября, 11:13' или '8 октября 12:14'
             m_date = re.search(r'(\d{1,2})\s+([а-яё]+)(?:[,\s]+(?:в\s*)?(\d{1,2}):(\d{2}))?', text)
             if m_date:
                 day = int(m_date.group(1))
@@ -234,10 +256,10 @@ class FLFetcher:
                         year -= 1
                     dt_msk = datetime(year, month, day, h, m, 0, tzinfo=msk_tz)
                     return dt_msk.astimezone(timezone.utc)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"FLFetcher: ошибка парсинга даты '{text}': {e}")
 
-        return archival_dt
+        return now
 
 
     def _detect_category_id(self, cat_text: str, title: str) -> str:
@@ -450,7 +472,7 @@ class FLFetcher:
             is_urgent = "срочно" in clean_title.lower() or "срочно" in clean_desc.lower()
 
             # Точная дата публикации
-            published_at = datetime.now(timezone.utc) - timedelta(days=30)
+            published_at = datetime.now(timezone.utc)
             if pub_date_str:
                 try:
                     parsed_dt = email.utils.parsedate_to_datetime(pub_date_str)
