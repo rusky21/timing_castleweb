@@ -1292,10 +1292,6 @@ async def broadcast_fl_order(request: Request):
     is_urgent = order_data.get("is_urgent", False)
     is_pro = order_data.get("is_pro_only", False)
     is_free = order_data.get("is_free", True)
-    is_initial = order_data.get("is_initial", False)
-    if is_initial:
-        return {"ok": True, "skipped": "initial_order"}
-
     # Строгий фильтр: транслируем только заказы с бесплатным откликом
     if is_free is False or is_pro:
         logger.info(f"broadcast_fl_order: Заказ #{order_id} требует оплаты отклика или PRO, пропуск рассылки.")
@@ -1324,8 +1320,8 @@ async def broadcast_fl_order(request: Request):
                 pub_dt = pub_dt.replace(tzinfo=timezone.utc)
             now_utc = datetime.now(timezone.utc)
             age_sec = (now_utc - pub_dt).total_seconds()
-            if age_sec > 3 * 3600:
-                logger.info(f"broadcast_fl_order: Заказ #{order_id} старше 3 часов ({age_sec:.0f}s), пропуск рассылки.")
+            if age_sec > 12 * 3600:
+                logger.info(f"broadcast_fl_order: Заказ #{order_id} старше 12 часов ({age_sec:.0f}s), пропуск рассылки.")
                 return {"ok": True, "skipped": "too_old"}
             pub_info = f" <i>(на бирже: {pub_dt.astimezone(msk_tz).strftime('%H:%M')})</i>"
         except Exception:

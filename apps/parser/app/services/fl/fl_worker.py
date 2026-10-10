@@ -270,7 +270,7 @@ class FLWorker:
                 await tg_dispatcher.dispatch_fl_order(order)
 
                 # В. Отправляем в @castleweb_bot (командный чат студии и админам)
-                await self._notify_backend_fl_order(order, is_initial=is_first_sync)
+                await self._notify_backend_fl_order(order, is_initial=False)
 
             # Пауза 1.2 сек между запросами к разным категориям если их 2
             if i < len(targets) - 1:
