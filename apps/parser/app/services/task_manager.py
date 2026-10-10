@@ -29,6 +29,7 @@ class TaskManager:
 
     def __init__(self):
         self._tasks: Dict[int, TaskContext] = {}
+        self._db_lock = asyncio.Lock()
 
     def is_running(self, campaign_id: int) -> bool:
         ctx = self._tasks.get(campaign_id)
@@ -152,102 +153,103 @@ class TaskManager:
             telegram_val = item.telegram or next((s for s in combined_socials if "t.me" in s), None)
             has_tg = bool(telegram_val)
 
-            # Сохраняем организацию и аудит в SQLite
+            # Сохраняем организацию и аудит в SQLite с защитой от одновременной записи
             lead_dto: Optional[LeadItem] = None
             saved_successfully = False
-            async with async_session_factory() as db:
-                try:
-                    org = Organization(
-                        campaign_id=campaign_id,
-                        source=item.source,
-                        external_id=item.external_id,
-                        name=item.name,
-                        category=item.category or niche,
-                        address=item.address,
-                        rating=item.rating,
-                        reviews_count=item.reviews_count,
-                        phones=item.phones,
-                        website=item.website,
-                        telegram=telegram_val,
-                        has_telegram=has_tg,
-                        card_url=item.card_url
-                    )
-                    db.add(org)
-                    await db.flush()
+            async with self._db_lock:
+                async with async_session_factory() as db:
+                    try:
+                        org = Organization(
+                            campaign_id=campaign_id,
+                            source=item.source,
+                            external_id=item.external_id,
+                            name=item.name,
+                            category=item.category or niche,
+                            address=item.address,
+                            rating=item.rating,
+                            reviews_count=item.reviews_count,
+                            phones=item.phones,
+                            website=item.website,
+                            telegram=telegram_val,
+                            has_telegram=has_tg,
+                            card_url=item.card_url
+                        )
+                        db.add(org)
+                        await db.flush()
 
-                    pitch_info = audit_res.get("pitch", {})
-                    audit_record = AuditResult(
-                        org_id=org.id,
-                        status=audit_res["status"],
-                        has_ssl=audit_res["has_ssl"],
-                        is_adaptive=audit_res["is_adaptive"],
-                        has_analytics=audit_res["has_analytics"],
-                        detected_cms=audit_res["detected_cms"],
-                        last_updated_year=audit_res["last_updated_year"],
-                        final_url=audit_res["final_url"],
-                        extra_phones=audit_res["extra_phones"],
-                        extra_emails=audit_res["extra_emails"],
-                        extra_socials=combined_socials,
-                        status_badge=audit_res["status_badge"],
-                        lead_score=audit_res["lead_score"],
-                        pitch_pain=pitch_info.get("pain"),
-                        pitch_solution=pitch_info.get("solution"),
-                        pitch_opening_phrase=pitch_info.get("opening_phrase"),
-                        pitch_full_text=pitch_info.get("full_text")
-                    )
-                    db.add(audit_record)
+                        pitch_info = audit_res.get("pitch", {})
+                        audit_record = AuditResult(
+                            org_id=org.id,
+                            status=audit_res["status"],
+                            has_ssl=audit_res["has_ssl"],
+                            is_adaptive=audit_res["is_adaptive"],
+                            has_analytics=audit_res["has_analytics"],
+                            detected_cms=audit_res["detected_cms"],
+                            last_updated_year=audit_res["last_updated_year"],
+                            final_url=audit_res["final_url"],
+                            extra_phones=audit_res["extra_phones"],
+                            extra_emails=audit_res["extra_emails"],
+                            extra_socials=combined_socials,
+                            status_badge=audit_res["status_badge"],
+                            lead_score=audit_res["lead_score"],
+                            pitch_pain=pitch_info.get("pain"),
+                            pitch_solution=pitch_info.get("solution"),
+                            pitch_opening_phrase=pitch_info.get("opening_phrase"),
+                            pitch_full_text=pitch_info.get("full_text")
+                        )
+                        db.add(audit_record)
 
-                    collected_count += 1
-                    saved_successfully = True
+                        collected_count += 1
+                        saved_successfully = True
 
-                    # Обновляем счетчик в кампании
-                    await db.execute(
-                        update(SearchCampaign)
-                        .where(SearchCampaign.id == campaign_id)
-                        .values(found_count=collected_count)
-                    )
-                    await db.commit()
+                        # Обновляем счетчик в кампании
+                        await db.execute(
+                            update(SearchCampaign)
+                            .where(SearchCampaign.id == campaign_id)
+                            .values(found_count=collected_count)
+                        )
+                        await db.commit()
 
-                    # Собираем DTO для WebSocket
-                    all_phones = list(item.phones)
-                    for ep in audit_res["extra_phones"]:
-                        if ep not in all_phones:
-                            all_phones.append(ep)
+                        # Собираем DTO для WebSocket
+                        all_phones = list(item.phones)
+                        for ep in audit_res["extra_phones"]:
+                            if ep not in all_phones:
+                                all_phones.append(ep)
 
-                    primary_phone = all_phones[0] if all_phones else None
-                    email = audit_res["extra_emails"][0] if audit_res["extra_emails"] else None
+                        primary_phone = all_phones[0] if all_phones else None
+                        email = audit_res["extra_emails"][0] if audit_res["extra_emails"] else None
 
-                    lead_dto = LeadItem(
-                        id=org.id,
-                        campaign_id=campaign_id,
-                        name=org.name,
-                        category=org.category,
-                        address=org.address,
-                        rating=org.rating,
-                        reviews_count=org.reviews_count,
-                        primary_phone=primary_phone,
-                        all_phones=all_phones,
-                        email=email,
-                        all_emails=audit_res["extra_emails"],
-                        telegram=telegram_val,
-                        socials=[{"url": s} for s in combined_socials],
-                        website=org.website,
-                        final_url=audit_res["final_url"],
-                        card_url=org.card_url,
-                        source=org.source,
-                        status_badge=audit_res["status_badge"],
-                        lead_score=audit_res["lead_score"],
-                        has_ssl=audit_res["has_ssl"],
-                        is_adaptive=audit_res["is_adaptive"],
-                        has_analytics=audit_res["has_analytics"],
-                        detected_cms=audit_res["detected_cms"],
-                        last_updated_year=audit_res["last_updated_year"],
-                        pitch=PitchDetail(**pitch_info) if pitch_info else None
-                    )
+                        lead_dto = LeadItem(
+                            id=org.id,
+                            campaign_id=campaign_id,
+                            name=org.name,
+                            category=org.category,
+                            address=org.address,
+                            rating=org.rating,
+                            reviews_count=org.reviews_count,
+                            primary_phone=primary_phone,
+                            all_phones=all_phones,
+                            email=email,
+                            all_emails=audit_res["extra_emails"],
+                            telegram=telegram_val,
+                            socials=[{"url": s} for s in combined_socials],
+                            website=org.website,
+                            final_url=audit_res["final_url"],
+                            card_url=org.card_url,
+                            source=org.source,
+                            status_badge=audit_res["status_badge"],
+                            lead_score=audit_res["lead_score"],
+                            has_ssl=audit_res["has_ssl"],
+                            is_adaptive=audit_res["is_adaptive"],
+                            has_analytics=audit_res["has_analytics"],
+                            detected_cms=audit_res["detected_cms"],
+                            last_updated_year=audit_res["last_updated_year"],
+                            pitch=PitchDetail(**pitch_info) if pitch_info else None
+                        )
 
-                except Exception as db_err:
-                    logger.error(f"Error saving lead to DB: {db_err}")
-                    await db.rollback()
+                    except Exception as db_err:
+                        logger.error(f"Error saving lead to DB: {db_err}")
+                        await db.rollback()
 
             # Отправляем события в WebSocket при успешном сохранении
             if saved_successfully:

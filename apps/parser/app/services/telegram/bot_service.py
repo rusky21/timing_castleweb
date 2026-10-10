@@ -26,6 +26,12 @@ class TelegramBotService:
 
     def load_token(self) -> Optional[str]:
         try:
+            from app.config import TELEGRAM_BOT_TOKEN
+            if TELEGRAM_BOT_TOKEN:
+                return TELEGRAM_BOT_TOKEN.strip()
+        except Exception:
+            pass
+        try:
             from dotenv import load_dotenv
             load_dotenv()
         except Exception:

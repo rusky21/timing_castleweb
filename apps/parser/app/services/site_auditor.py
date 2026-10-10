@@ -1,3 +1,4 @@
+import ipaddress
 import re
 import ssl
 import asyncio
@@ -37,10 +38,77 @@ ALT_COPYRIGHT_REGEX = re.compile(r"(20\d\d)\s*(?:©|&copy;|copyright)", re.IGNOR
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 
 class SiteAuditor:
-    """Высокоскоростной асинхронный аудитор сайтов"""
+    """Высокоскоростной асинхронный аудитор сайтов с переиспользованием пула соединений"""
 
     def __init__(self, client: Optional[httpx.AsyncClient] = None):
         self._client = client
+        self._insecure_client: Optional[httpx.AsyncClient] = None
+
+    def _is_safe_host(self, host: str) -> bool:
+        """Защита от SSRF: блокирует локальные, приватные и петлевые IP-адреса"""
+        if not host:
+            return False
+        host_clean = host.split(":")[0].strip().lower()
+        if host_clean in ("localhost", "0.0.0.0", "127.0.0.1", "::1", "metadata.google.internal"):
+            return False
+        try:
+            ip = ipaddress.ip_address(host_clean)
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                return False
+        except ValueError:
+            pass
+        return True
+
+    async def _get_client(self) -> httpx.AsyncClient:
+        if self._client is None or self._client.is_closed:
+            headers = {
+                "User-Agent": USER_AGENT,
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
+            }
+            timeout = httpx.Timeout(connect=DEFAULT_TIMEOUT_CONNECT, read=DEFAULT_TIMEOUT_READ, write=5.0, pool=5.0)
+            self._client = httpx.AsyncClient(
+                headers=headers,
+                timeout=timeout,
+                follow_redirects=True,
+                verify=True,
+                limits=httpx.Limits(max_keepalive_connections=20, max_connections=40, keepalive_expiry=30.0)
+            )
+        return self._client
+
+    async def _get_insecure_client(self) -> httpx.AsyncClient:
+        if self._insecure_client is None or self._insecure_client.is_closed:
+            headers = {
+                "User-Agent": USER_AGENT,
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
+            }
+            timeout = httpx.Timeout(connect=DEFAULT_TIMEOUT_CONNECT, read=DEFAULT_TIMEOUT_READ, write=5.0, pool=5.0)
+            self._insecure_client = httpx.AsyncClient(
+                headers=headers,
+                timeout=timeout,
+                follow_redirects=True,
+                verify=False,
+                limits=httpx.Limits(max_keepalive_connections=10, max_connections=20, keepalive_expiry=30.0)
+            )
+        return self._insecure_client
+
+    def _safe_extract_text(self, resp: httpx.Response, max_bytes: int = 2 * 1024 * 1024) -> str:
+        """Безопасное извлечение текста ответа с ограничением в 2 МБ для защиты от OOM"""
+        try:
+            content = resp.content[:max_bytes]
+            encoding = resp.encoding or "utf-8"
+            return content.decode(encoding, errors="ignore")
+        except Exception:
+            return ""
+
+    async def close(self):
+        if self._client and not self._client.is_closed:
+            try: await self._client.aclose()
+            except Exception: pass
+        if self._insecure_client and not self._insecure_client.is_closed:
+            try: await self._insecure_client.aclose()
+            except Exception: pass
 
     def _is_social(self, url: str) -> bool:
         if not url:
@@ -150,13 +218,23 @@ class SiteAuditor:
                 "pitch": pitch
             }
 
-        # Выполняем HTTP запрос с двухфазной проверкой SSL
-        headers = {
-            "User-Agent": USER_AGENT,
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
-        }
-        timeout = httpx.Timeout(connect=DEFAULT_TIMEOUT_CONNECT, read=DEFAULT_TIMEOUT_READ, write=5.0, pool=5.0)
+        # Проверка безопасности хоста (SSRF защита)
+        parsed_target = urlparse(url)
+        if not self._is_safe_host(parsed_target.netloc):
+            score, badge, pitch = PitchMaker.calculate_score_and_pitch(
+                name=org_name, category=category, city=city, website=url,
+                status="SITE_DOWN", has_ssl=False, is_adaptive=False,
+                has_analytics=False, detected_cms=None, last_updated_year=None
+            )
+            return {
+                "status": "SITE_DOWN", "has_ssl": False, "is_adaptive": False,
+                "has_analytics": False, "detected_cms": None, "last_updated_year": None,
+                "final_url": url, "extra_phones": [], "extra_emails": [], "extra_socials": [],
+                "status_badge": badge, "lead_score": score, "pitch": pitch
+            }
+
+        client_secure = await self._get_client()
+        client_insecure = await self._get_insecure_client()
 
         html_content = ""
         final_url = url
@@ -168,37 +246,33 @@ class SiteAuditor:
         if target_url.startswith("http://"):
             https_candidate = "https://" + target_url[7:]
             try:
-                async with httpx.AsyncClient(headers=headers, timeout=timeout, follow_redirects=True, verify=True) as client:
-                    res = await client.get(https_candidate)
-                    if res.status_code < 400:
-                        has_ssl = True
-                        target_url = str(res.url)
-                        html_content = res.text
-                        final_url = str(res.url)
-                        is_up = True
+                res = await client_secure.get(https_candidate)
+                if res.status_code < 400:
+                    has_ssl = True
+                    target_url = str(res.url)
+                    html_content = self._safe_extract_text(res)
+                    final_url = str(res.url)
+                    is_up = True
             except Exception:
                 has_ssl = False
 
         if not is_up:
             try:
-                async with httpx.AsyncClient(headers=headers, timeout=timeout, follow_redirects=True, verify=True) as client:
-                    res = await client.get(target_url)
-                    if res.status_code < 400:
-                        has_ssl = str(res.url).startswith("https://")
-                        html_content = res.text
-                        final_url = str(res.url)
-                        is_up = True
+                res = await client_secure.get(target_url)
+                if res.status_code < 400:
+                    has_ssl = str(res.url).startswith("https://")
+                    html_content = self._safe_extract_text(res)
+                    final_url = str(res.url)
+                    is_up = True
             except (ssl.SSLError, httpx.ConnectError, httpx.SecurityError):
-                # Ошибка SSL или самоподписанный/просроченный сертификат
                 has_ssl = False
                 try:
                     # Фаза 2: повторный запрос без верификации SSL для чтения контента
-                    async with httpx.AsyncClient(headers=headers, timeout=timeout, follow_redirects=True, verify=False) as client_insecure:
-                        res = await client_insecure.get(target_url)
-                        if res.status_code < 400:
-                            html_content = res.text
-                            final_url = str(res.url)
-                            is_up = True
+                    res = await client_insecure.get(target_url)
+                    if res.status_code < 400:
+                        html_content = self._safe_extract_text(res)
+                        final_url = str(res.url)
+                        is_up = True
                 except Exception:
                     pass
             except Exception:
@@ -208,13 +282,12 @@ class SiteAuditor:
         if not is_up and target_url.startswith("https://"):
             try:
                 http_candidate = "http://" + target_url[8:]
-                async with httpx.AsyncClient(headers=headers, timeout=timeout, follow_redirects=True, verify=False) as client:
-                    res = await client.get(http_candidate)
-                    if res.status_code < 400:
-                        has_ssl = False
-                        html_content = res.text
-                        final_url = str(res.url)
-                        is_up = True
+                res = await client_insecure.get(http_candidate)
+                if res.status_code < 400:
+                    has_ssl = False
+                    html_content = self._safe_extract_text(res)
+                    final_url = str(res.url)
+                    is_up = True
             except Exception:
                 pass
 

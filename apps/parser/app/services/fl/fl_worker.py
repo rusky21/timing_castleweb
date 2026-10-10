@@ -220,10 +220,10 @@ class FLWorker:
 
             # 4. Логика первого запуска vs Новые заказы
             now_utc = utc_now()
-            # При первом запуске категории отсекаем старые архивные заказы (> 20 минут),
-            # но СВЕЖИЕ заказы (<= 20 минут) обязательно отправляем, чтобы не терять горячие лиды!
-            max_allowed_age = (20 * 60) if is_first_sync else MAX_FRESH_ORDER_AGE_SECONDS
+            # Допустимый возраст заказа: до 12 часов при старте/рестарте (чтобы не терять заказы за ночь)
+            max_allowed_age = 12 * 3600
 
+            orders_to_dispatch = []
             for order in new_orders_saved:
                 pub_dt = order.published_at
                 if pub_dt:
@@ -235,17 +235,28 @@ class FLWorker:
                 else:
                     age_seconds = 0.0
 
-                is_fresh = (age_seconds <= max_allowed_age)
-                if not is_fresh:
+                if age_seconds <= max_allowed_age:
+                    orders_to_dispatch.append((order, age_seconds))
+                else:
                     age_min = round(age_seconds / 60, 1)
-                    logger.info(
-                        f"FLWorker: Пропуск устаревшего заказа #{order.id} «{order.title[:40]}» (возраст {age_min} мин > {max_allowed_age // 60} мин)."
+                    logger.debug(
+                        f"FLWorker: Пропуск архивного заказа #{order.id} «{order.title[:40]}» (возраст {age_min} мин > {max_allowed_age // 60} мин)."
                     )
-                    continue
 
+            # Если это первый синк или накопилась пачка заказов — отправляем до 5 самых свежих, чтобы не спамить в чат
+            if is_first_sync and len(orders_to_dispatch) > 5:
+                orders_to_dispatch.sort(key=lambda x: x[1])
+                orders_to_dispatch = orders_to_dispatch[:5]
+                orders_to_dispatch.reverse()
+            elif len(orders_to_dispatch) > 10:
+                orders_to_dispatch.sort(key=lambda x: x[1])
+                orders_to_dispatch = orders_to_dispatch[:10]
+                orders_to_dispatch.reverse()
+
+            for order, age_seconds in orders_to_dispatch:
                 age_min = round(age_seconds / 60, 1) if age_seconds is not None else 0
                 logger.info(
-                    f"FLWorker: ⚡️ Обнаружен свежий заказ #{order.id} (возраст {age_min} мин). Отправка в Telegram..."
+                    f"FLWorker: ⚡️ Обнаружен свежий бесплатный заказ #{order.id} (возраст {age_min} мин). Отправка в Telegram..."
                 )
 
                 # А. Мгновенно отправляем в десктоп/веб через WebSocket
@@ -255,11 +266,11 @@ class FLWorker:
                     "data": order_dict
                 })
 
-                # Б. Отправляем в Telegram подписчикам с фильтрацией (локальный бот)
+                # Б. Отправляем в Telegram подписчикам и админам (локальный бот)
                 await tg_dispatcher.dispatch_fl_order(order)
 
                 # В. Отправляем в @castleweb_bot (командный чат студии и админам)
-                await self._notify_backend_fl_order(order)
+                await self._notify_backend_fl_order(order, is_initial=is_first_sync)
 
             # Пауза 1.2 сек между запросами к разным категориям если их 2
             if i < len(targets) - 1:
@@ -289,14 +300,16 @@ class FLWorker:
             "published_at": order.published_at.isoformat() if order.published_at else None
         }
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=2.0) as client:
                 resp = await client.post(endpoint, json=payload)
                 if resp.status_code == 200:
                     logger.info(f"FLWorker: Заказ #{order.id} успешно передан в @castleweb_bot (200 OK)")
                 else:
-                    logger.warning(f"FLWorker: Backend ответил {resp.status_code} при отправке заказа #{order.id}: {resp.text}")
+                    logger.debug(f"FLWorker: Backend ответил {resp.status_code} при отправке заказа #{order.id}")
+        except (httpx.ConnectError, httpx.ConnectTimeout):
+            logger.debug(f"FLWorker: Главный бэкенд студии ({backend_url}) недоступен (локальный режим)")
         except Exception as e:
-            logger.warning(f"FLWorker: Не удалось передать заказ #{order.id} в бэкенд Telegram: {e}")
+            logger.debug(f"FLWorker: Передача заказа #{order.id} в бэкенд: {e}")
 
 fl_worker = FLWorker()
 

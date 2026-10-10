@@ -108,6 +108,7 @@ class TelegramDispatcher:
     async def dispatch_fl_order(self, order):
         """Отправка заказа с FL.ru всем подходящим подписчикам"""
         if not self.bot:
+            logger.warning("dispatch_fl_order: Telegram-бот не инициализирован (проверьте TELEGRAM_BOT_TOKEN в .env)")
             return
 
         try:
@@ -207,24 +208,31 @@ class TelegramDispatcher:
 
                     await self._queue.put((chat_id, msg_text, kb, disable_notif))
 
-                # Также гарантированно отправляем в закрытый чат команды/инженеров, если он задан
-                if MANAGER_TELEGRAM_CHAT_ID and MANAGER_TELEGRAM_CHAT_ID not in dispatched_chats:
-                    delivery_key = (order.id, MANAGER_TELEGRAM_CHAT_ID)
-                    existing_del = await db.get(FLOrderDelivery, delivery_key)
-                    if not existing_del or not existing_del.is_sent:
-                        msg_text = format_fl_order_message(order)
-                        kb = order_inline_keyboard(order_id=order.id, url=order.url, is_favorite=False)
-                        if not existing_del:
-                            db.add(FLOrderDelivery(
-                                order_id=order.id,
-                                chat_id=MANAGER_TELEGRAM_CHAT_ID,
-                                is_sent=True,
-                                sent_at=utc_now()
-                            ))
-                        else:
-                            existing_del.is_sent = True
-                            existing_del.sent_at = utc_now()
-                        await self._queue.put((MANAGER_TELEGRAM_CHAT_ID, msg_text, kb, False))
+                # Также гарантированно отправляем администраторам студии (ADMIN_TELEGRAM_IDS и менеджеру)
+                admin_recipients = set(ADMIN_TELEGRAM_IDS or set())
+                if MANAGER_TELEGRAM_CHAT_ID:
+                    admin_recipients.add(MANAGER_TELEGRAM_CHAT_ID)
+
+                for admin_chat_id in admin_recipients:
+                    if admin_chat_id not in dispatched_chats:
+                        delivery_key = (order.id, admin_chat_id)
+                        existing_del = await db.get(FLOrderDelivery, delivery_key)
+                        if not existing_del or not existing_del.is_sent:
+                            msg_text = format_fl_order_message(order)
+                            kb = order_inline_keyboard(order_id=order.id, url=order.url, is_favorite=False)
+                            if not existing_del:
+                                db.add(FLOrderDelivery(
+                                    order_id=order.id,
+                                    chat_id=admin_chat_id,
+                                    is_sent=True,
+                                    sent_at=utc_now()
+                                ))
+                            else:
+                                existing_del.is_sent = True
+                                existing_del.sent_at = utc_now()
+                            await self._queue.put((admin_chat_id, msg_text, kb, False))
+                            dispatched_chats.add(admin_chat_id)
+                            logger.info(f"⚡️ FL заказ #{order.id} поставлен в очередь отправки для админа {admin_chat_id}")
 
                 await db.commit()
 

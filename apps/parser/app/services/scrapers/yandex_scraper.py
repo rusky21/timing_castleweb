@@ -217,6 +217,7 @@ class YandexScraper(BaseScraper):
     ) -> List[ScrapedOrgItem]:
         results: List[ScrapedOrgItem] = []
         seen_ids: Set[str] = set()
+        pending_tasks: Set[asyncio.Task] = set()
 
         search_query = f"{niche} {city}".strip()
         encoded_query = urllib.parse.quote(search_query)
@@ -270,7 +271,9 @@ class YandexScraper(BaseScraper):
                                         if item and item.external_id not in seen_ids:
                                             seen_ids.add(item.external_id)
                                             results.append(item)
-                                            asyncio.create_task(on_item_scraped(item))
+                                            t = asyncio.create_task(on_item_scraped(item))
+                                            pending_tasks.add(t)
+                                            t.add_done_callback(pending_tasks.discard)
                                 for v in obj.values():
                                     walk_and_extract(v)
                         walk_and_extract(data)
@@ -353,6 +356,14 @@ class YandexScraper(BaseScraper):
             logger.exception(f"Error during Yandex Maps scrape: {e}")
             await on_status(f"Ошибка во время парсинга Яндекс.Карт: {e}")
         finally:
+            # Ожидаем завершения фоновых задач аудита и сохранения
+            if pending_tasks:
+                try:
+                    await on_status(f"Завершение обработки оставшихся организаций ({len(pending_tasks)})...")
+                    await asyncio.gather(*pending_tasks, return_exceptions=True)
+                except Exception:
+                    pass
+
             # Гарантированное закрытие контекста и браузера
             if context:
                 try:
