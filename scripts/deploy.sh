@@ -222,7 +222,7 @@ EOF
 # Generated on: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
 # ====================================================================
 
-TELEGRAM_BOT_TOKEN=${PARSER_BOT_TOKEN:-8867814063:AAHzkxMrybGKQpOECSu-ZPLo4wJNX_0N1Vg}
+TELEGRAM_BOT_TOKEN=${PARSER_BOT_TOKEN:-}
 TELEGRAM_API_SERVER=${TELEGRAM_PROXY_URL:-https://jolly-haze-c6cf.eprof6682-3e3.workers.dev}
 # TELEGRAM_PROXY=
 

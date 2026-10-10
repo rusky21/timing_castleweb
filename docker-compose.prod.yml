@@ -81,6 +81,7 @@ services:
       - HEADLESS=1
       - BACKEND_INTERNAL_URL=http://backend:8000
       - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:-castleweb-internal-demo-secret}
+      - TELEGRAM_BOT_TOKEN=
     volumes:
       - leadhunter_data:/app/data
       - leadhunter_exports:/app/exports
