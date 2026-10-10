@@ -6,7 +6,7 @@ import random
 import email.utils
 import logging
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
 import httpx
 try:
@@ -50,13 +50,16 @@ USER_AGENTS = [
 class FLFetcher:
     """
     Модуль извлечения заказов с биржи FL.ru:
-    1. Прямой HTML-скрейпинг ленты проектов с ротацией заголовков и защитой от блокировок
-    2. Надежный fallback на RSS-фид при Cloudflare/403/429
-    3. Поддержка прокси и адаптивный кулдаун
+    1. Прямой высокоскоростной HTML-скрейпинг ленты с сохранением сессионных кук DDoS-Guard
+    2. Правильная адресация разделов каталога по URL-слагам FL.ru
+    3. Точный парсинг реального времени публикации с карточки
+    4. Надежный fallback на RSS-фид только в случае жесткой блокировки
     """
 
     def __init__(self):
         self._html_cooldown_until: float = 0.0
+        self._client: Optional[httpx.AsyncClient] = None
+        self._client_created_at: float = 0.0
 
     def _get_proxy(self) -> Optional[str]:
         """Получить URL прокси из окружения если задан"""
@@ -70,7 +73,7 @@ class FLFetcher:
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
             "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
             "Referer": referer,
-            "Cache-Control": "max-age=0",
+            "Cache-Control": "no-cache",
             "Sec-Fetch-Dest": "document",
             "Sec-Fetch-Mode": "navigate",
             "Sec-Fetch-Site": "same-origin",
@@ -83,15 +86,40 @@ class FLFetcher:
             headers["Sec-Ch-Ua-Platform"] = profile["platform"]
         return headers
 
+    async def _get_client(self) -> httpx.AsyncClient:
+        """Возвращает или пересоздает долгоживущий AsyncClient с пулом соединений и сессионными куками"""
+        now = time.time()
+        if self._client is None or self._client.is_closed or (now - self._client_created_at > 3600):
+            if self._client and not self._client.is_closed:
+                try:
+                    await self._client.aclose()
+                except Exception:
+                    pass
+
+            headers = self._get_headers()
+            proxy = self._get_proxy()
+            self._client = httpx.AsyncClient(
+                headers=headers,
+                proxy=proxy,
+                timeout=httpx.Timeout(10.0, connect=5.0),
+                follow_redirects=True,
+                limits=httpx.Limits(max_keepalive_connections=5, max_connections=10, keepalive_expiry=60.0)
+            )
+            self._client_created_at = now
+        return self._client
+
+    async def close(self):
+        """Закрывает сессионный HTTP клиент"""
+        if self._client and not self._client.is_closed:
+            try:
+                await self._client.aclose()
+            except Exception:
+                pass
+            self._client = None
+
     def _parse_price(self, price_str: str) -> tuple[Optional[int], bool]:
         """
         Преобразует строку цены в (price_rub, is_negotiable)
-        Корректно обрабатывает:
-          '15 000 ₽' -> (15000, False)
-          '10 000 - 20 000 руб.' -> (10000, False)
-          'По договоренности' -> (None, True)
-          '500 $' -> (46000, False)
-          '300 €' -> (30000, False)
         """
         if not price_str:
             return None, True
@@ -121,7 +149,6 @@ class FLFetcher:
 
         try:
             val = int(digits_only)
-            # Если валюта в долларах или евро — конвертируем
             if "$" in raw_clean or "usd" in raw_lower:
                 val = val * 92
             elif "€" in raw_clean or "eur" in raw_lower:
@@ -139,6 +166,41 @@ class FLFetcher:
             except ValueError:
                 pass
         return None
+
+    def _parse_card_published_at(self, card) -> datetime:
+        """
+        Извлекает точное время публикации с карточки проекта на FL.ru:
+        - '25 минут назад'
+        - '1 час 15 минут назад'
+        - 'сегодня в 12:30'
+        """
+        now = datetime.now(timezone.utc)
+        dt_el = card.css_first('span.text-gray-opacity-4') or card.css_first('span[class*="opacity"]')
+        if not dt_el:
+            return now
+
+        text = dt_el.text(strip=True).lower()
+        if not text:
+            return now
+
+        try:
+            m_min = re.search(r'(\d+)\s+мин', text)
+            m_hour = re.search(r'(\d+)\s+час', text)
+            if m_min or m_hour:
+                hours = int(m_hour.group(1)) if m_hour else 0
+                minutes = int(m_min.group(1)) if m_min else 0
+                return now - timedelta(hours=hours, minutes=minutes)
+
+            m_today = re.search(r'сегодня\s*(?:в\s*)?(\d{1,2}):(\d{2})', text)
+            if m_today:
+                h, m = int(m_today.group(1)), int(m_today.group(2))
+                msk_tz = timezone(timedelta(hours=3))
+                msk_dt = datetime.now(msk_tz).replace(hour=h, minute=m, second=0, microsecond=0)
+                return msk_dt.astimezone(timezone.utc)
+        except Exception:
+            pass
+
+        return now
 
     def _detect_category_id(self, cat_text: str, title: str) -> str:
         """
@@ -169,8 +231,8 @@ class FLFetcher:
         """
         Основной метод получения свежих проектов:
         1. Проверяет активный защитный кулдаун
-        2. Сначала пробует прямой HTML-парсинг с ротацией User-Agent
-        3. При 429/403/Cloudflare включает кулдаун и переключается на RSS
+        2. Сначала пробует прямой HTML-парсинг с переиспользуемой сессией
+        3. При 429/403/Cloudflare включает краткий кулдаун и временно переключается на RSS
         """
         # Если недавно был пойман 429/403/CF, не спамим HTML, а сразу идем через RSS
         if time.time() < self._html_cooldown_until:
@@ -178,15 +240,20 @@ class FLFetcher:
             logger.info(f"FL HTML: защитный кулдаун ({rem}с). Опрос категории {category_id or 'all'} через RSS.")
             return await self._fetch_via_rss(category_id)
 
+        # Формируем корректный URL раздела каталога FL.ru
         url = "https://www.fl.ru/projects/"
-        if category_id and category_id.isdigit():
-            url = f"https://www.fl.ru/projects/?category={category_id}"
+        if category_id and str(category_id) != "all":
+            cat_info = CATEGORY_BY_ID.get(str(category_id))
+            if cat_info and cat_info.get("url_path"):
+                url = f"https://www.fl.ru/projects/category/{cat_info['url_path']}/"
+            elif cat_info and cat_info.get("slug"):
+                url = f"https://www.fl.ru/projects/category/{cat_info['slug']}/"
 
         projects = []
         try:
             projects = await self._fetch_via_html(url, category_id)
             if projects:
-                logger.info(f"FL HTML: собрано {len(projects)} проектов для категории {category_id or 'all'}")
+                logger.info(f"FL HTML: собрано {len(projects)} проектов для URL {url}")
                 return projects
         except Exception as e:
             logger.warning(f"FL HTML fetch error ({e}), мгновенное переключение на RSS fallback...")
@@ -201,179 +268,177 @@ class FLFetcher:
         return projects
 
     async def _fetch_via_html(self, url: str, category_id: Optional[str]) -> List[Dict[str, Any]]:
-        """Прямой разбор HTML ленты FL.ru с ротацией заголовков и защитой от блокировки"""
-        headers = self._get_headers(url)
-        proxy = self._get_proxy()
+        """Прямой разбор HTML ленты FL.ru с переиспользуемой сессией и защитой от блокировки"""
+        client = await self._get_client()
 
-        async with httpx.AsyncClient(headers=headers, proxy=proxy, timeout=10.0, follow_redirects=True) as client:
-            resp = await client.get(url)
-            if resp.status_code in (429, 403, 503):
-                self._html_cooldown_until = time.time() + 45.0
-                raise Exception(f"HTTP Status {resp.status_code} (включен кулдаун 45с)")
+        resp = await client.get(url, headers={"Referer": "https://www.fl.ru/"})
+        if resp.status_code in (429, 403, 503):
+            self._html_cooldown_until = time.time() + 15.0
+            raise Exception(f"HTTP Status {resp.status_code} (включен защитный кулдаун 15с)")
 
-            if resp.status_code != 200:
-                raise Exception(f"HTTP Status {resp.status_code}")
+        if resp.status_code != 200:
+            raise Exception(f"HTTP Status {resp.status_code}")
 
-            html_text = resp.text
-            if "Just a moment..." in html_text or "cf-browser-verification" in html_text or "challenge-running" in html_text:
-                self._html_cooldown_until = time.time() + 45.0
-                raise Exception("Cloudflare challenge detected (включен кулдаун 45с)")
+        html_text = resp.text
+        if "Just a moment..." in html_text or "cf-browser-verification" in html_text or "challenge-running" in html_text:
+            self._html_cooldown_until = time.time() + 15.0
+            raise Exception("Cloudflare challenge detected (включен защитный кулдаун 15с)")
 
-            tree = HTMLParser(html_text)
-            items = []
+        tree = HTMLParser(html_text)
+        items = []
 
-            # Контейнеры проектов на FL.ru
-            cards = tree.css('div.b-post') or tree.css('div[id^="project-item-"]') or tree.css('article')
+        # Контейнеры проектов на FL.ru
+        cards = tree.css('div.b-post') or tree.css('div[id^="project-item-"]') or tree.css('article')
 
-            for card in cards:
-                # Ссылка и заголовок
-                title_el = (
-                    card.css_first('h2 a') or
-                    card.css_first('.b-post__title a') or
-                    card.css_first('a[href*="/projects/"]')
-                )
-                if not title_el:
-                    continue
+        for card in cards:
+            # Ссылка и заголовок
+            title_el = (
+                card.css_first('h2 a') or
+                card.css_first('.b-post__title a') or
+                card.css_first('a[href*="/projects/"]')
+            )
+            if not title_el:
+                continue
 
-                href = title_el.attributes.get("href") or ""
-                if not href.startswith("http"):
-                    href = f"https://www.fl.ru{href}"
+            href = title_el.attributes.get("href") or ""
+            if not href.startswith("http"):
+                href = f"https://www.fl.ru{href}"
 
-                proj_id = self._extract_project_id(href)
-                if not proj_id:
-                    continue
+            proj_id = self._extract_project_id(href)
+            if not proj_id:
+                continue
 
-                raw_title = title_el.text(strip=True)
-                title = html.unescape(raw_title)
+            raw_title = title_el.text(strip=True)
+            title = html.unescape(raw_title)
 
-                # Цена
-                price_el = (
-                    card.css_first('.b-post__price') or
-                    card.css_first('div[class*="price"]') or
-                    card.css_first('span[class*="price"]') or
-                    card.css_first('.b-post__cost')
-                )
-                price_raw = html.unescape(price_el.text(strip=True)) if price_el else "По договоренности"
-                price_rub, is_negotiable = self._parse_price(price_raw)
+            # Цена
+            price_el = (
+                card.css_first('.b-post__price') or
+                card.css_first('div[class*="price"]') or
+                card.css_first('span[class*="price"]') or
+                card.css_first('.b-post__cost')
+            )
+            price_raw = html.unescape(price_el.text(strip=True)) if price_el else "По договоренности"
+            price_rub, is_negotiable = self._parse_price(price_raw)
 
-                # Описание: берем специфический блок текста, избегая счетчиков просмотров
-                desc_el = (
-                    card.css_first('.b-post__txt.text-5') or
-                    card.css_first('.b-post__body') or
-                    card.css_first('.b-post__txt') or
-                    card.css_first('p')
-                )
-                description = html.unescape(desc_el.text(strip=True)) if desc_el else ""
+            # Описание: берем специфический блок текста, избегая счетчиков просмотров
+            desc_el = (
+                card.css_first('.b-post__txt.text-5') or
+                card.css_first('.b-post__body') or
+                card.css_first('.b-post__txt') or
+                card.css_first('p')
+            )
+            description = html.unescape(desc_el.text(strip=True)) if desc_el else ""
 
-                # Бейджи: PRO, Срочно
-                card_text = (card.text() or "").lower()
-                card_classes = (card.attributes.get("class") or "").lower()
-                is_pro = bool(
-                    card.css_first('.b-post__pro') or
-                    card.css_first('span[class*="pro"]') or
-                    "pro" in card_classes or
-                    "только для pro" in card_text
-                )
-                is_urgent = bool(
-                    card.css_first('.b-post__bold') or
-                    "срочно" in card_text
-                )
+            # Бейджи: PRO, Срочно
+            card_text = (card.text() or "").lower()
+            card_classes = (card.attributes.get("class") or "").lower()
+            is_pro = bool(
+                card.css_first('.b-post__pro') or
+                card.css_first('span[class*="pro"]') or
+                "pro" in card_classes or
+                "только для pro" in card_text
+            )
+            is_urgent = bool(
+                card.css_first('.b-post__bold') or
+                "срочно" in card_text
+            )
 
-                # Рубрика
-                matched_cat_id = category_id or self._detect_category_id("", title)
-                cat_name = CATEGORY_BY_ID.get(matched_cat_id, {}).get("name", "Разработка")
+            # Рубрика
+            matched_cat_id = category_id or self._detect_category_id("", title)
+            cat_name = CATEGORY_BY_ID.get(matched_cat_id, {}).get("name", "Разработка")
+            published_at = self._parse_card_published_at(card)
 
-                items.append({
-                    "id": proj_id,
-                    "title": title,
-                    "description": description[:1000],
-                    "price_raw": price_raw,
-                    "price_rub": price_rub,
-                    "is_negotiable": is_negotiable,
-                    "category_id": matched_cat_id,
-                    "category_name": cat_name,
-                    "url": href,
-                    "is_pro_only": is_pro,
-                    "is_urgent": is_urgent,
-                    "published_at": datetime.now(timezone.utc)
-                })
+            items.append({
+                "id": proj_id,
+                "title": title,
+                "description": description[:1000],
+                "price_raw": price_raw,
+                "price_rub": price_rub,
+                "is_negotiable": is_negotiable,
+                "category_id": matched_cat_id,
+                "category_name": cat_name,
+                "url": href,
+                "is_pro_only": is_pro,
+                "is_urgent": is_urgent,
+                "published_at": published_at
+            })
 
-            return items
+        return items
 
     async def _fetch_via_rss(self, category_id: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Разбор официального RSS-фида FL.ru"""
+        """Разбор официального RSS-фида FL.ru (аварийный резерв)"""
         rss_url = "https://www.fl.ru/rss/all.xml"
         if category_id and category_id.isdigit():
             rss_url = f"https://www.fl.ru/rss/all.xml?category={category_id}"
 
-        headers = self._get_headers(rss_url)
-        proxy = self._get_proxy()
-        async with httpx.AsyncClient(headers=headers, proxy=proxy, timeout=12.0) as client:
-            resp = await client.get(rss_url)
-            if resp.status_code != 200:
-                raise Exception(f"RSS Status {resp.status_code}")
+        client = await self._get_client()
+        resp = await client.get(rss_url, headers=self._get_headers(rss_url))
+        if resp.status_code != 200:
+            raise Exception(f"RSS Status {resp.status_code}")
 
-            root = ET.fromstring(resp.content)
-            channel = root.find("channel")
-            if channel is None:
-                return []
+        root = ET.fromstring(resp.content)
+        channel = root.find("channel")
+        if channel is None:
+            return []
 
-            items = []
-            for it in channel.findall("item"):
-                raw_title = html.unescape(it.findtext("title") or "").strip()
-                link = (it.findtext("link") or "").strip()
-                raw_desc = html.unescape(it.findtext("description") or "").strip()
-                pub_date_str = it.findtext("pubDate")
-                cat_raw = html.unescape(it.findtext("category") or "").strip()
+        items = []
+        for it in channel.findall("item"):
+            raw_title = html.unescape(it.findtext("title") or "").strip()
+            link = (it.findtext("link") or "").strip()
+            raw_desc = html.unescape(it.findtext("description") or "").strip()
+            pub_date_str = it.findtext("pubDate")
+            cat_raw = html.unescape(it.findtext("category") or "").strip()
 
-                proj_id = self._extract_project_id(link)
-                if not proj_id:
-                    continue
+            proj_id = self._extract_project_id(link)
+            if not proj_id:
+                continue
 
-                # Извлечение цены из заголовка: (Бюджет: 35 000 ₽) или [35 000 руб.]
-                price_raw = "По договоренности"
-                clean_title = raw_title
-                price_match = re.search(r"[\(\[](?:Бюджет|Цена)?[:\s]*(.*?)[\)\]]\s*$", raw_title, re.IGNORECASE)
-                if price_match:
-                    price_raw = price_match.group(1).strip()
-                    clean_title = raw_title[:price_match.start()].strip()
+            # Извлечение цены из заголовка: (Бюджет: 35 000 ₽) или [35 000 руб.]
+            price_raw = "По договоренности"
+            clean_title = raw_title
+            price_match = re.search(r"[\(\[](?:Бюджет|Цена)?[:\s]*(.*?)[\)\]]\s*$", raw_title, re.IGNORECASE)
+            if price_match:
+                price_raw = price_match.group(1).strip()
+                clean_title = raw_title[:price_match.start()].strip()
 
-                price_rub, is_negotiable = self._parse_price(price_raw)
+            price_rub, is_negotiable = self._parse_price(price_raw)
 
-                # Очистка описания от HTML-тегов
-                clean_desc = re.sub(r"<[^>]+>", " ", raw_desc)
-                clean_desc = re.sub(r"\s+", " ", clean_desc).strip()
+            # Очистка описания от HTML-тегов
+            clean_desc = re.sub(r"<[^>]+>", " ", raw_desc)
+            clean_desc = re.sub(r"\s+", " ", clean_desc).strip()
 
-                is_pro = "только для pro" in clean_desc.lower() or "pro" in raw_title.lower()
-                is_urgent = "срочно" in clean_title.lower() or "срочно" in clean_desc.lower()
+            is_pro = "только для pro" in clean_desc.lower() or "pro" in raw_title.lower()
+            is_urgent = "срочно" in clean_title.lower() or "срочно" in clean_desc.lower()
 
-                # Точная дата публикации
-                published_at = datetime.now(timezone.utc)
-                if pub_date_str:
-                    try:
-                        parsed_dt = email.utils.parsedate_to_datetime(pub_date_str)
-                        if parsed_dt:
-                            published_at = parsed_dt.astimezone(timezone.utc)
-                    except Exception:
-                        pass
+            # Точная дата публикации
+            published_at = datetime.now(timezone.utc)
+            if pub_date_str:
+                try:
+                    parsed_dt = email.utils.parsedate_to_datetime(pub_date_str)
+                    if parsed_dt:
+                        published_at = parsed_dt.astimezone(timezone.utc)
+                except Exception:
+                    pass
 
-                # Определение категории
-                matched_cat_id = category_id or self._detect_category_id(cat_raw, clean_title)
-                matched_cat_name = cat_raw or CATEGORY_BY_ID.get(matched_cat_id, {}).get("name", "Разработка")
+            # Определение категории
+            matched_cat_id = category_id or self._detect_category_id(cat_raw, clean_title)
+            matched_cat_name = cat_raw or CATEGORY_BY_ID.get(matched_cat_id, {}).get("name", "Разработка")
 
-                items.append({
-                    "id": proj_id,
-                    "title": clean_title or raw_title,
-                    "description": clean_desc[:1000],
-                    "price_raw": price_raw,
-                    "price_rub": price_rub,
-                    "is_negotiable": is_negotiable,
-                    "category_id": matched_cat_id,
-                    "category_name": matched_cat_name,
-                    "url": link,
-                    "is_pro_only": is_pro,
-                    "is_urgent": is_urgent,
-                    "published_at": published_at
-                })
+            items.append({
+                "id": proj_id,
+                "title": clean_title or raw_title,
+                "description": clean_desc[:1000],
+                "price_raw": price_raw,
+                "price_rub": price_rub,
+                "is_negotiable": is_negotiable,
+                "category_id": matched_cat_id,
+                "category_name": matched_cat_name,
+                "url": link,
+                "is_pro_only": is_pro,
+                "is_urgent": is_urgent,
+                "published_at": published_at
+            })
 
-            return items
+        return items
+

@@ -26,14 +26,14 @@ class FLWorker:
     - Передача новых релевантных заказов в Telegram-диспетчер
     """
 
-    def __init__(self, poll_interval_min: float = 15.0, poll_interval_max: float = 20.0):
+    def __init__(self, poll_interval_min: float = 12.0, poll_interval_max: float = 16.0):
         self.poll_interval_min = poll_interval_min
         self.poll_interval_max = poll_interval_max
         self._task: Optional[asyncio.Task] = None
         self._is_running: bool = False
         self.fetcher = FLFetcher()
         self.last_poll_at: Optional[datetime] = None
-        self.next_poll_in: float = 18.0
+        self.next_poll_in: float = 14.0
         self._category_index: int = 0
 
     @property
@@ -45,13 +45,15 @@ class FLWorker:
             return
         self._is_running = True
         self._task = asyncio.create_task(self._run_loop())
-        logger.info("FLWorker запущен в live-режиме (15-20 сек).")
+        logger.info("FLWorker запущен в live-режиме (12-16 сек).")
 
     def stop(self):
         self._is_running = False
         if self._task and not self._task.done():
             self._task.cancel()
+        asyncio.create_task(self.fetcher.close())
         logger.info("FLWorker остановлен.")
+
 
     async def _get_active_categories(self) -> List[str]:
         """Получает список всех категорий, на которые подписаны пользователи или десктоп"""
@@ -251,7 +253,8 @@ class FLWorker:
             "url": order.url,
             "is_urgent": bool(order.is_urgent),
             "is_pro_only": bool(order.is_pro_only),
-            "is_initial": is_initial
+            "is_initial": is_initial,
+            "detected_at": utc_now().isoformat()
         }
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:

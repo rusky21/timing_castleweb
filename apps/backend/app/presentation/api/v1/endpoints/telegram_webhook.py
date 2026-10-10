@@ -1278,14 +1278,19 @@ async def broadcast_fl_order(request: Request):
     if is_initial:
         header = "🚀 <b>Парсер FL.ru активен | Свежий заказ</b>" + badge
 
+    from datetime import datetime, timezone, timedelta
+    msk_time = datetime.now(timezone(timedelta(hours=3))).strftime("%H:%M:%S")
+
     msg = (
         f"{header}\n\n"
         f"📌 <b>{html.escape(title)}</b>\n"
         f"💰 Бюджет: <b>{html.escape(str(price))}</b>\n"
-        f"📁 Рубрика: <i>{html.escape(str(cat_name))}</i>\n\n"
+        f"📁 Рубрика: <i>{html.escape(str(cat_name))}</i>\n"
+        f"⏱ Перехвачен ботом: <i>{msk_time} МСК</i>\n\n"
         f"📝 <b>Описание:</b>\n"
         f"<blockquote>{html.escape(short_desc)}</blockquote>"
     )
+
 
     kb = {
         "inline_keyboard": [

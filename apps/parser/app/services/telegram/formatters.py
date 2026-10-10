@@ -23,13 +23,24 @@ def format_fl_order_message(order) -> str:
     else:
         price_text = f"💰 <b>{order.price_rub:,} ₽</b>".replace(",", " ")
 
+    from datetime import datetime, timezone, timedelta
+    msk_tz = timezone(timedelta(hours=3))
+    now_msk = datetime.now(msk_tz).strftime("%H:%M:%S")
+    time_info = f"⚡️ <i>В эфире с: {now_msk} МСК</i>"
+    if getattr(order, "published_at", None) and hasattr(order.published_at, "astimezone"):
+        pub_msk = order.published_at.astimezone(msk_tz).strftime("%H:%M")
+        time_info += f" <i>(на бирже: {pub_msk})</i>"
+
+
     msg = (
         f"💼 <b>{title}</b>{badge_str}\n"
-        f"🏷 <i>{cat_name}</i>\n\n"
+        f"🏷 <i>{cat_name}</i>\n"
+        f"{time_info}\n\n"
         f"{price_text}\n\n"
         f"📝 <b>Описание:</b>\n{desc}\n"
     )
     return msg
+
 
 def format_lead_message(lead: Dict[str, Any]) -> str:
     """Форматирование карточки организации (Яндекс / 2ГИС) для Telegram"""
