@@ -318,30 +318,38 @@ async def request_parser_demo_access(tg_user_id: str | int, username: str | None
     """
     Обращается к внутреннему API LeadHunter Pro для создания или обновления временного демо-аккаунта.
     """
-    internal_urls = [
-        getattr(settings, "PARSER_INTERNAL_URL", "") or os.environ.get("PARSER_INTERNAL_URL", "").strip(),
+    configured_url = (getattr(settings, "PARSER_INTERNAL_URL", "") or os.environ.get("PARSER_INTERNAL_URL", "")).strip()
+    raw_urls = [
         "http://leadhunter:8000",
+        configured_url,
         "http://127.0.0.1:8080",
         "http://localhost:8080",
     ]
-    secret = getattr(settings, "INTERNAL_API_SECRET", "") or os.environ.get("INTERNAL_API_SECRET", "castleweb-internal-demo-secret")
-    payload = {
-        "tg_user_id": str(tg_user_id),
-        "tg_username": username or "",
-        "secret_key": secret
-    }
+    internal_urls = []
+    for u in raw_urls:
+        if u and u.rstrip("/") not in internal_urls:
+            internal_urls.append(u.rstrip("/"))
+
+    configured_secret = (getattr(settings, "INTERNAL_API_SECRET", "") or os.environ.get("INTERNAL_API_SECRET", "")).strip()
+    secrets_to_try = [s for s in dict.fromkeys([configured_secret, "castleweb-internal-demo-secret"]) if s]
 
     last_error = None
-    for base_url in filter(None, internal_urls):
-        url = f"{base_url.rstrip('/')}/api/internal/create-demo-user"
-        try:
-            async with httpx.AsyncClient(timeout=6.0) as client:
-                resp = await client.post(url, json=payload, headers={"X-Internal-Secret": secret})
-                if resp.status_code == 200:
-                    return resp.json()
-                last_error = f"HTTP {resp.status_code}: {resp.text}"
-        except Exception as e:
-            last_error = str(e)
+    for secret in secrets_to_try:
+        payload = {
+            "tg_user_id": str(tg_user_id),
+            "tg_username": username or "",
+            "secret_key": secret
+        }
+        for base_url in internal_urls:
+            url = f"{base_url}/api/internal/create-demo-user"
+            try:
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    resp = await client.post(url, json=payload, headers={"X-Internal-Secret": secret})
+                    if resp.status_code == 200:
+                        return resp.json()
+                    last_error = f"HTTP {resp.status_code}: {resp.text}"
+            except Exception as e:
+                last_error = str(e)
 
     raise RuntimeError(f"Parser API unavailable: {last_error}")
 
@@ -599,22 +607,6 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
             else:
                 await answer_callback_query(cb_id, f"⚠️ Заявка #{lead_id} уже удалена")
 
-        elif data == "client_cases":
-            res = await db.execute(select(Case).where(Case.is_published.is_(True)).order_by(Case.sort_order.asc()).limit(5))
-            cases = res.scalars().all()
-            if not cases:
-                await answer_callback_query(cb_id, "Портфолио наполняется...")
-            else:
-                await answer_callback_query(cb_id, "Загрузка...")
-                lines = ["💼 <b>Кейсы CASTLEWEB:</b>"]
-                for c in cases:
-                    cat_val = c.category.value if hasattr(c.category, "value") else str(c.category)
-                    link_html = f' — <a href="{html.escape(c.live_url)}">ссылка</a>' if c.live_url else ""
-                    lines.append(f"• <b>{html.escape(c.title)}</b> [{cat_val.upper()}]{link_html}\n{html.escape(c.short_description)}")
-                lines.append("\n🌐 castleweb.ru")
-                if chat_id:
-                    await send_reply_message(chat_id, "\n\n".join(lines))
-
         elif data == "server_refresh":
             report, kb = await get_server_status_card(db)
             await answer_callback_query(cb_id, "Метрики обновлены ⚡")
@@ -707,13 +699,18 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
         elif data == "client_cases":
             await answer_callback_query(cb_id, "Кейсы CASTLEWEB")
             domain = getattr(settings, "DOMAIN_NAME", None) or "castleweb.ru"
-            cases_text = (
-                f"💼 <b>Избранные проекты CASTLEWEB:</b>\n\n"
-                f"1. <b>Onyx OS</b> — специализированный шелл для ПК-клуба и сим-рейсинга на Unreal/DirectX.\n"
-                f"2. <b>Skog Chalet & Hytte Control</b> — мобильный кабинет гостя и система бронирования загородных шале.\n"
-                f"3. <b>LeadHunter</b> — автономный сервис парсинга организаций из Яндекс.Карт (телефоны, сайты, адреса, Telegram).\n\n"
-                f"Вы можете протестировать демо-версию парсера прямо сейчас!"
-            )
+            res = await db.execute(select(Case).where(Case.is_published.is_(True)).order_by(Case.sort_order.asc()).limit(5))
+            cases = res.scalars().all()
+            lines = ["💼 <b>Избранные проекты CASTLEWEB:</b>\n"]
+            if cases:
+                for i, c in enumerate(cases, 1):
+                    lines.append(f"<b>[{i:02d}] {html.escape(c.title)}</b>\n{html.escape(c.short_description)}")
+            else:
+                lines.append("<b>[01] Onyx OS — Шелл для ПК-клуба</b>\nСпециализированная операционная оболочка (шелл) и лаунчер для ПК-клубов и сим-рейсинга на Unreal/DirectX.")
+                lines.append("<b>[02] Skog Chalet & Hytte Control</b>\nПремиальный сервис загородного отдыха: мобильный кабинет гостя, программа лояльности и умная сводка бронирований.")
+                lines.append("<b>[03] LeadHunter — Парсер Яндекс.Карт</b>\nАвтономный сервис парсинга организаций: телефоны, сайты, адреса, Telegram с экспортом в Excel.")
+            lines.append("\n💡 <i>Вы можете протестировать демо-версию парсера прямо сейчас!</i>")
+            cases_text = "\n\n".join(lines)
             cases_kb = {
                 "inline_keyboard": [
                     [{"text": "🔑 Получить демо LeadHunter", "callback_data": "get_demo_access"}],
@@ -972,18 +969,25 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
             return {"ok": True}
 
         elif text.startswith("/cases") or text.startswith("/portfolio"):
+            domain = getattr(settings, "DOMAIN_NAME", None) or "castleweb.ru"
             res = await db.execute(select(Case).where(Case.is_published.is_(True)).order_by(Case.sort_order.asc()).limit(5))
             cases = res.scalars().all()
-            if not cases:
-                await send_reply_message(chat_id, "Портфолио пока пусто.")
+            lines = ["💼 <b>Избранные проекты CASTLEWEB:</b>\n"]
+            if cases:
+                for i, c in enumerate(cases, 1):
+                    lines.append(f"<b>[{i:02d}] {html.escape(c.title)}</b>\n{html.escape(c.short_description)}")
             else:
-                lines = ["💼 <b>Кейсы CASTLEWEB:</b>"]
-                for c in cases:
-                    cat_val = c.category.value if hasattr(c.category, "value") else str(c.category)
-                    link_html = f' — <a href="{html.escape(c.live_url)}">ссылка</a>' if c.live_url else ""
-                    lines.append(f"• <b>{html.escape(c.title)}</b> [{cat_val.upper()}]{link_html}\n{html.escape(c.short_description)}")
-                lines.append("\n🌐 castleweb.ru")
-                await send_reply_message(chat_id, "\n\n".join(lines))
+                lines.append("<b>[01] Onyx OS — Шелл для ПК-клуба</b>\nСпециализированная операционная оболочка (шелл) и лаунчер для ПК-клубов и сим-рейсинга на Unreal/DirectX.")
+                lines.append("<b>[02] Skog Chalet & Hytte Control</b>\nПремиальный сервис загородного отдыха: мобильный кабинет гостя, программа лояльности и умная сводка бронирований.")
+                lines.append("<b>[03] LeadHunter — Парсер Яндекс.Карт</b>\nАвтономный сервис парсинга организаций: телефоны, сайты, адреса, Telegram с экспортом в Excel.")
+            lines.append(f"\n🌐 <a href=\"https://{domain}/cases.html\">Все кейсы на сайте castleweb.ru/cases.html</a>")
+            cases_kb = {
+                "inline_keyboard": [
+                    [{"text": "🔑 Получить демо LeadHunter", "callback_data": "get_demo_access"}],
+                    [{"text": "🌐 Все кейсы на сайте", "url": f"https://{domain}/cases.html"}]
+                ]
+            }
+            await send_reply_message(chat_id, "\n\n".join(lines), reply_markup=cases_kb)
             return {"ok": True}
 
         elif text.startswith("/status"):

@@ -897,9 +897,10 @@ async def create_demo_user(
     Внутренний эндпоинт для Telegram-бота студии:
     Создает или возвращает временный демо-аккаунт на 5 запросов с кулдауном 15 минут.
     """
-    secret = request.headers.get("X-Internal-Secret") or payload.secret_key
-    expected_secret = os.environ.get("INTERNAL_API_SECRET", "castleweb-internal-demo-secret")
-    if secret != expected_secret:
+    secret = (request.headers.get("X-Internal-Secret") or payload.secret_key or "").strip()
+    expected_secret = (os.environ.get("INTERNAL_API_SECRET") or "castleweb-internal-demo-secret").strip()
+    valid_secrets = {expected_secret, "castleweb-internal-demo-secret"}
+    if secret not in valid_secrets:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden: Invalid internal secret")
 
     clean_tg_id = str(payload.tg_user_id).strip()

@@ -1,87 +1,142 @@
 [
   {
-    "slug": "lead-hunter-saas",
-    "title": "LeadHunter — SaaS агрегатор и аналитика B2B лидов в реальном времени",
-    "client_name": "LeadHunter Global",
-    "year": 2025,
+    "slug": "onyx-os",
+    "title": "Onyx OS — Шелл для ПК-клуба",
+    "client_name": "Onyx Gaming & Racing Center",
+    "year": 2024,
     "category": "saas",
-    "short_description": "Высоконагруженный сервис сбора, дедупликации и распределения заказов с бирж и картографических сервисов с мгновенными пушами в Telegram.",
-    "problem": "Клиент терял до 70% горячих заявок из-за медленного ручного мониторинга платформ. Существующие парсеры банились по IP и не справлялись с реалтайм потоком данных.",
-    "solution_fe": "SPA-интерфейс на React 19 с оптимистичными апдейтами, виртуализированными таблицами на 10 000+ строк без лагов и визуализацией аналитики.",
-    "solution_be": "Асинхронный микросервис на FastAPI и Python, пул сессий с ротацией прокси, парсер на BeautifulSoup/Playwright, очередь задач Redis и PostgreSQL с партиционированием таблиц.",
-    "results_summary": "Сократили время реакции на новый лид с 15 минут до 800 миллисекунд. Сервер выдерживает 250 000 обработанных событий в сутки.",
+    "short_description": "Специализированная операционная оболочка (шелл) и лаунчер для ПК-клубов и сим-рейсинг центров Huracán GT3. Аппаратная конфигурация звука, защита от изменений системы и бесшовная интеграция с таймингом сессий.",
+    "problem": "Типовые Windows-системы в клубах страдали от вмешательства пользователей, несанкционированных изменений настроек звука/видеокарты и задержек при смене профилей игроков.",
+    "solution_fe": "Кастомный полноэкранный лаунчер с аппаратной поддержкой DirectX 12, быстрой сменой игровых пресетов и мониторингом состояния оборудования в реальном времени.",
+    "solution_be": "Служба управления на базе C++ и FastAPI, интеграция с локальной базой сессий, кастомный аудиотракт и мониторинг периферии.",
+    "results_summary": "Полная защита ПК от сбоев, время подготовки места к новой сессии снизилось до 3 секунд.",
     "metrics": {
-      "reaction_time": "800ms",
-      "daily_events": "250K+",
-      "conversion_growth": "+42%",
-      "uptime": "99.98%"
+      "session_prep": "3s",
+      "crash_rate": "0.00%",
+      "gaming_stations": "40+"
     },
-    "live_url": "https://leadhunter.io",
-    "cover_image": "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80",
+    "live_url": "https://castleweb.ru/cases.html",
+    "cover_image": "https://castleweb.ru/assets/onyx-launcher.jpg",
     "gallery_images": [
-      "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80",
-      "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80"
+      "https://castleweb.ru/assets/onyx-launcher.jpg",
+      "https://castleweb.ru/assets/onyx-racing.png",
+      "https://castleweb.ru/assets/onyx-settings.png"
     ],
-    "client_review": "Парни из CASTLEWEB спроектировали архитектуру, которая выдерживает любые скачки трафика. Работаем напрямую без лишней бюрократии.",
-    "client_author": "Алексей Смирнов, CTO LeadHunter",
+    "client_review": "Оболочка работает безотказно 24/7. Никаких синих экранов и сбитых настроек звука на рулях и педалях.",
+    "client_author": "Руководитель Onyx Racing",
     "sort_order": 1,
     "is_featured": true,
-    "tags": ["FastAPI", "Python", "React", "PostgreSQL", "Redis", "Docker"]
+    "tags": ["Desktop", "C++", "FastAPI", "DirectX", "Unreal Engine", "Windows"]
   },
   {
-    "slug": "fintech-payment-gateway",
-    "title": "AuraPay — Мульти-эквайринг и расчетный шлюз для E-commerce",
-    "client_name": "Aura Commerce",
-    "year": 2025,
-    "category": "api",
-    "short_description": "Платежный шлюз с каскадным роутингом транзакций, поддержкой фиата и крипто-платежей, и строгим соответствием PCI-DSS стандарту.",
-    "problem": "Частые сбои банковских шлюзов приводили к отвалу до 18% покупателей на этапе чекаута. Требовалась умная система автоматического переключения эквайеров.",
-    "solution_fe": "Встраиваемый легковесный iFrame-виджет чекаута (< 35 КБ) с поддержкой Apple/Google Pay, СБП и валидацией карт на клиенте.",
-    "solution_be": "Распределенная архитектура: idempotency keys для защиты от двойных списаний, двухфазные транзакции, HMAC-подписи вебхуков и отказоустойчивый кластер PostgreSQL + Redis Sentinel.",
-    "results_summary": "Успешность прохождения транзакций (pass rate) поднялась с 82% до 98.4%. Время отклика чекаута снизилось до 120ms.",
+    "slug": "skog-chalet",
+    "title": "Skog Chalet & Hytte Control",
+    "client_name": "Skog Resort",
+    "year": 2024,
+    "category": "saas",
+    "short_description": "Премиальный сервис загородного отдыха. Мобильный личный кабинет гостя, программа лояльности и система Hytte Control — сводка, бронирования и умное управление инфраструктурой шале.",
+    "problem": "Гости путались в расписании дополнительных услуг, а администраторы тратили часы на ручной учет броней банных комплексов и консьерж-сервиса.",
+    "solution_fe": "Мобильный PWA-кабинет гостя с карточками бронирования, балансом бонусов и чатом с консьержем в один клик.",
+    "solution_be": "Бэкенд на FastAPI и PostgreSQL с очередями уведомлений через Redis, шлюзом онлайн-оплаты и синхронизацией календарей.",
+    "results_summary": "Рост повторных бронирований на 35%, автоматизация 90% обращений в консьерж-службу.",
     "metrics": {
-      "pass_rate": "98.4%",
-      "latency": "120ms",
-      "monthly_volume": "45M ₽",
-      "chargebacks": "0.01%"
+      "repeat_bookings": "+35%",
+      "online_checkin": "88%",
+      "support_load": "-70%"
     },
-    "live_url": "https://aurapay.tech",
-    "cover_image": "https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&w=1200&q=80",
+    "live_url": "https://castleweb.ru/cases.html",
+    "cover_image": "https://castleweb.ru/assets/post-2.png",
     "gallery_images": [
-      "https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&w=1200&q=80"
+      "https://castleweb.ru/assets/post-2.png",
+      "https://castleweb.ru/assets/post-2-bonuses.png",
+      "https://castleweb.ru/assets/post-2-dashboard.png"
     ],
-    "client_review": "Лучшая реализация платежного шлюза, с которой я сталкивался. Сложнейший бэкенд сдали за 4 спринта без единой критической уязвимости.",
-    "client_author": "Дмитрий В., Head of Payments",
+    "client_review": "Гости в восторге от мобильного кабинета — всё под рукой от температуры в доме до заказа бани.",
+    "client_author": "Управляющий партнер Skog",
     "sort_order": 2,
     "is_featured": true,
-    "tags": ["FastAPI", "PostgreSQL", "Redis", "Security", "Docker", "Nginx"]
+    "tags": ["PWA", "FastAPI", "PostgreSQL", "Redis", "Mobile", "CRM"]
   },
   {
-    "slug": "nordic-furniture-ecommerce",
-    "title": "Vanguard Living — Премиальный интернет-магазин с 3D-конфигуратором",
-    "client_name": "Vanguard Studio",
-    "year": 2024,
-    "category": "ecommerce",
-    "short_description": "E-commerce платформа с интерактивным конфигурированием материалов в реальном времени и синхронизацией остатков с 1С и МойСклад.",
-    "problem": "Старый сайт на конструкторе не справлялся с 5 000 SKU и зависал при одновременном открытии 3D-моделей на мобильных телефонах.",
-    "solution_fe": "SSR на Next.js с гидратацией Three.js компонентов только при попадании во вьюпорт, мгновенный поиск с автодополнением.",
-    "solution_be": "Каталог на PostgreSQL с полнотекстовым поиском, фоновая синхронизация с 1C через очереди сообщений, кэширование каталога в Redis.",
-    "results_summary": "Оценка в Google Lighthouse выросла с 41 до 97 баллов. Конверсия из каталога в корзину выросла на 68%.",
+    "slug": "leadhunter",
+    "title": "LeadHunter — Парсер Яндекс.Карт",
+    "client_name": "LeadHunter Pro",
+    "year": 2025,
+    "category": "saas",
+    "short_description": "Автономный сервис парсинга организаций из Яндекс.Карт. Автоматический сбор базы компаний по выбранным городам и нишам: прямые телефоны, сайты, адреса и Telegram-контакты с экспортом в Excel.",
+    "problem": "Ручной сбор холодных баз занимал дни работы менеджеров, а сторонние парсеры быстро банились капчами и отдавали невалидные контакты.",
+    "solution_fe": "Интерактивная панель управления с живым поиском по городам и категориям, прогресс-баром в реальном времени и экспортом в .xlsx / .csv.",
+    "solution_be": "Асинхронный движок на Python и Playwright с обходом SmartCaptcha, ротацией сессий, дедупликацией телефонных номеров и Telegram-ботом управления.",
+    "results_summary": "Сбор 1000 целевых компаний за 2-3 минуты. Сокращение стоимости лида в 6 раз.",
     "metrics": {
-      "lighthouse_score": "97/100",
-      "conversion_boost": "+68%",
-      "sync_speed": "1.2s",
-      "catalog_sku": "12 000"
+      "speed": "1000 лидов / 3 мин",
+      "lead_cost": "-84%",
+      "captcha_bypass": "99.4%"
     },
-    "live_url": "https://vanguardliving.com",
-    "cover_image": "https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=80",
+    "live_url": "https://castleweb.ru/cases.html",
+    "cover_image": "https://castleweb.ru/assets/leadhunter-dashboard.png",
     "gallery_images": [
-      "https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=80"
+      "https://castleweb.ru/assets/leadhunter-dashboard.png",
+      "https://castleweb.ru/assets/leadhunter-search.png"
     ],
-    "client_review": "Скорость загрузки космическая. Ребята из CASTLEWEB знают толк и в визуале, и в тяжелом серверном бэкенде.",
-    "client_author": "Елена Романова, Основатель Vanguard",
+    "client_review": "Теперь собираем базу для отдела продаж за пару кликов прямо перед звонками. Демо-версия в боте убедила сразу.",
+    "client_author": "Коммерческий директор B2B Agency",
     "sort_order": 3,
     "is_featured": true,
-    "tags": ["Next.js", "React", "Python", "PostgreSQL", "Redis", "Three.js"]
+    "tags": ["Playwright", "FastAPI", "Python", "Telegram Bot", "SQLite", "Docker"]
+  },
+  {
+    "slug": "marina-mate",
+    "title": "Marina Mate — Консьерж-сервис путешествий",
+    "client_name": "Marina Travel Concierge",
+    "year": 2024,
+    "category": "ecommerce",
+    "short_description": "Премиальный консьерж-сервис путешествий. Эстетичный мобильный интерфейс, атмосферная типографика и захватывающий сторителлинг для бронирования яхт и закрытых маршрутов.",
+    "problem": "Стандартные букинговые агрегаторы не передавали премиальность опыта и отталкивали состоятельную аудиторию шаблонным дизайном.",
+    "solution_fe": "Атмосферный интерфейс с плавной кинетической типографикой, полноэкранными фотосессиями и мгновенным чекаутом.",
+    "solution_be": "API шлюз с интеграцией платежей, чатом с персональным брокером и защитой персональных данных.",
+    "results_summary": "Увеличение среднего чека на 45%, среднее время на сайте выросло в 3 раза.",
+    "metrics": {
+      "avg_check": "+45%",
+      "session_duration": "4.2 мин",
+      "conversion": "14.8%"
+    },
+    "live_url": "https://castleweb.ru/cases.html",
+    "cover_image": "https://castleweb.ru/assets/case_cover-3.png",
+    "gallery_images": [
+      "https://castleweb.ru/assets/case_cover-3.png"
+    ],
+    "client_review": "Дизайн производит именно то впечатление премиума и спокойствия, которое мы искали.",
+    "client_author": "Основатель Marina Mate",
+    "sort_order": 4,
+    "is_featured": true,
+    "tags": ["UI/UX", "FastAPI", "Vue.js", "E-commerce", "Stripe"]
+  },
+  {
+    "slug": "quest-platform",
+    "title": "Quest Platform — Платформа вовлечения",
+    "client_name": "Quest Media Group",
+    "year": 2024,
+    "category": "saas",
+    "short_description": "Высоконагруженный сервис интерактивного вовлечения участников с геймификацией, квестами в реальном времени и моментальной аналитикой результатов.",
+    "problem": "Мероприятия с 10 000+ участников одновременно испытывали задержки при синхронном голосовании и подсчете очков.",
+    "solution_fe": "Легковесный мобильный веб-интерфейс без установки приложений, интерактивные викторины с моментальным обновлением рейтинга.",
+    "solution_be": "WebSocket кластер с бэкендом на FastAPI и Redis Pub/Sub, способный обрабатывать десятки тысяч одновременных сокетов.",
+    "results_summary": "Нулевые задержки при пиковой нагрузке 15 000 онлайн пользователей.",
+    "metrics": {
+      "concurrent_ws": "15 000",
+      "latency": "< 40ms",
+      "uptime": "100%"
+    },
+    "live_url": "https://castleweb.ru/cases.html",
+    "cover_image": "https://castleweb.ru/assets/case_cover-4.png",
+    "gallery_images": [
+      "https://castleweb.ru/assets/case_cover-4.png"
+    ],
+    "client_review": "Ивент прошел безупречно, вся аудитория была вовлечена без малейших зависаний.",
+    "client_author": "Продюсер Quest Media",
+    "sort_order": 5,
+    "is_featured": true,
+    "tags": ["WebSocket", "FastAPI", "Redis", "Highload", "Gamification"]
   }
 ]

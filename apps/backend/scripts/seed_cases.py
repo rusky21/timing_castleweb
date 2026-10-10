@@ -37,6 +37,15 @@ async def seed_data():
     async with AsyncSessionLocal() as session:
         print(f"🌱 Starting seeding {len(cases_data)} cases...")
 
+        # Remove outdated cases not present in cases.json
+        valid_slugs = {item["slug"] for item in cases_data}
+        existing_all = await session.execute(select(Case))
+        for old_case in existing_all.scalars().all():
+            if old_case.slug not in valid_slugs:
+                print(f"🗑 Removing obsolete case: {old_case.slug} ({old_case.title})")
+                await session.delete(old_case)
+        await session.flush()
+
         for item in cases_data:
             # 1. Process tags
             tag_objects = []
