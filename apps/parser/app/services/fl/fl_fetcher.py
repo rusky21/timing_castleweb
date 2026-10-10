@@ -18,6 +18,11 @@ from app.services.fl.constants import FL_CATEGORIES, CATEGORY_BY_ID
 
 logger = logging.getLogger("fl_fetcher")
 
+MONTHS_RU = {
+    "янв": 1, "фев": 2, "мар": 3, "апр": 4, "мая": 5, "май": 5,
+    "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12
+}
+
 # Реалистичный пул браузерных профилей для ротации
 USER_AGENTS = [
     {
@@ -170,37 +175,70 @@ class FLFetcher:
     def _parse_card_published_at(self, card) -> datetime:
         """
         Извлекает точное время публикации с карточки проекта на FL.ru:
-        - '25 минут назад'
-        - '1 час 15 минут назад'
-        - 'сегодня в 12:30'
+        - '5 минут назад' / '21 минуту назад'
+        - '2 часа 16 минут назад' / '18 часов назад'
+        - 'сегодня в 12:30' / 'сегодня, 12:30'
+        - 'вчера в 18:20' / 'вчера, 18:20'
+        - '9 октября, 11:13' / '8 октября 12:14'
+        Если дата не указана или неизвестна — возвращает архивную дату (30 дней назад),
+        чтобы старые/неизвестные проекты НИКОГДА не рассылались как свежие.
         """
         now = datetime.now(timezone.utc)
+        msk_tz = timezone(timedelta(hours=3))
+        now_msk = datetime.now(msk_tz)
+        archival_dt = now - timedelta(days=30)
+
         dt_el = card.css_first('span.text-gray-opacity-4') or card.css_first('span[class*="opacity"]')
         if not dt_el:
-            return now
+            return archival_dt
 
         text = dt_el.text(strip=True).lower()
         if not text:
-            return now
+            return archival_dt
 
         try:
-            m_min = re.search(r'(\d+)\s+мин', text)
+            # 1. Относительное время: X часов Y минут назад / X минут назад / X часов назад
             m_hour = re.search(r'(\d+)\s+час', text)
-            if m_min or m_hour:
+            m_min = re.search(r'(\d+)\s+мин', text)
+            if m_hour or m_min:
                 hours = int(m_hour.group(1)) if m_hour else 0
                 minutes = int(m_min.group(1)) if m_min else 0
                 return now - timedelta(hours=hours, minutes=minutes)
 
-            m_today = re.search(r'сегодня\s*(?:в\s*)?(\d{1,2}):(\d{2})', text)
-            if m_today:
+            # 2. 'сегодня в 14:30' или 'сегодня, 14:30'
+            m_today = re.search(r'сегодня(?:[\s,]+(?:в\s*)?(\d{1,2}):(\d{2}))?', text)
+            if m_today and m_today.group(1):
                 h, m = int(m_today.group(1)), int(m_today.group(2))
-                msk_tz = timezone(timedelta(hours=3))
-                msk_dt = datetime.now(msk_tz).replace(hour=h, minute=m, second=0, microsecond=0)
-                return msk_dt.astimezone(timezone.utc)
+                dt_msk = now_msk.replace(hour=h, minute=m, second=0, microsecond=0)
+                return dt_msk.astimezone(timezone.utc)
+
+            # 3. 'вчера в 18:20' или 'вчера, 18:20'
+            m_yesterday = re.search(r'вчера(?:[\s,]+(?:в\s*)?(\d{1,2}):(\d{2}))?', text)
+            if m_yesterday:
+                h = int(m_yesterday.group(1)) if m_yesterday.group(1) else 12
+                m = int(m_yesterday.group(2)) if m_yesterday.group(2) else 0
+                dt_msk = (now_msk - timedelta(days=1)).replace(hour=h, minute=m, second=0, microsecond=0)
+                return dt_msk.astimezone(timezone.utc)
+
+            # 4. '9 октября, 11:13' или '8 октября 12:14'
+            m_date = re.search(r'(\d{1,2})\s+([а-яё]+)(?:[,\s]+(?:в\s*)?(\d{1,2}):(\d{2}))?', text)
+            if m_date:
+                day = int(m_date.group(1))
+                mon_str = m_date.group(2)[:3]
+                month = MONTHS_RU.get(mon_str)
+                if month:
+                    h = int(m_date.group(3)) if m_date.group(3) else 12
+                    m = int(m_date.group(4)) if m_date.group(4) else 0
+                    year = now_msk.year
+                    if month > now_msk.month:
+                        year -= 1
+                    dt_msk = datetime(year, month, day, h, m, 0, tzinfo=msk_tz)
+                    return dt_msk.astimezone(timezone.utc)
         except Exception:
             pass
 
-        return now
+        return archival_dt
+
 
     def _detect_category_id(self, cat_text: str, title: str) -> str:
         """
@@ -412,7 +450,7 @@ class FLFetcher:
             is_urgent = "срочно" in clean_title.lower() or "срочно" in clean_desc.lower()
 
             # Точная дата публикации
-            published_at = datetime.now(timezone.utc)
+            published_at = datetime.now(timezone.utc) - timedelta(days=30)
             if pub_date_str:
                 try:
                     parsed_dt = email.utils.parsedate_to_datetime(pub_date_str)

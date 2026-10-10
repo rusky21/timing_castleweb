@@ -15,6 +15,9 @@ from app.services.connection_manager import ws_manager
 
 logger = logging.getLogger("fl_worker")
 
+# Порог свежести заказа (45 минут): учитывает задержку премодерации FL.ru, но гарантированно отсекает старые заказы
+MAX_FRESH_ORDER_AGE_SECONDS = 45 * 60
+
 class FLWorker:
     """
     Фоновый воркер опроса биржи FL.ru:
@@ -211,13 +214,30 @@ class FLWorker:
             # 4. Логика первого запуска vs Новые заказы
             if is_first_sync:
                 logger.info(
-                    f"FLWorker: [Первый запуск] Для «{cat_name}» сохранено {len(new_orders_saved)} исторических заказов."
+                    f"FLWorker: [Первый запуск] Для «{cat_name}» сохранено {len(new_orders_saved)} исторических заказов (базовый снапшот, без рассылки в Telegram)."
                 )
-                if new_orders_saved:
-                    # Оповещаем администраторов о первом найденном активном заказе
-                    await self._notify_backend_fl_order(new_orders_saved[0], is_initial=True)
+                # При первой синхронизации категории НЕ спамим в Telegram историческими заказами
             else:
+                now_utc = utc_now()
                 for order in new_orders_saved:
+                    # Проверка возраста заказа: публикуем ТОЛЬКО свежие заказы (не старше 45 минут)
+                    age_seconds = None
+                    if order.published_at:
+                        age_seconds = (now_utc - order.published_at).total_seconds()
+
+                    is_fresh = (age_seconds is not None and -120 <= age_seconds <= MAX_FRESH_ORDER_AGE_SECONDS)
+                    if not is_fresh:
+                        age_min = round(age_seconds / 60, 1) if age_seconds is not None else 9999
+                        logger.info(
+                            f"FLWorker: Пропуск устаревшего заказа #{order.id} «{order.title[:40]}» (возраст {age_min} мин > 45 мин). Не отправляем в Telegram."
+                        )
+                        continue
+
+                    age_min = round(age_seconds / 60, 1) if age_seconds is not None else 0
+                    logger.info(
+                        f"FLWorker: ⚡️ Обнаружен свежий заказ #{order.id} (возраст {age_min} мин). Отправка в Telegram..."
+                    )
+
                     # А. Мгновенно отправляем в десктоп/веб через WebSocket
                     order_dict = order.to_dict()
                     await ws_manager.broadcast_all({
@@ -254,7 +274,8 @@ class FLWorker:
             "is_urgent": bool(order.is_urgent),
             "is_pro_only": bool(order.is_pro_only),
             "is_initial": is_initial,
-            "detected_at": utc_now().isoformat()
+            "detected_at": utc_now().isoformat(),
+            "published_at": order.published_at.isoformat() if order.published_at else None
         }
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:

@@ -1265,6 +1265,8 @@ async def broadcast_fl_order(request: Request):
     is_urgent = order_data.get("is_urgent", False)
     is_pro = order_data.get("is_pro_only", False)
     is_initial = order_data.get("is_initial", False)
+    if is_initial:
+        return {"ok": True, "skipped": "initial_order"}
 
     badge = ""
     if is_urgent:
@@ -1275,18 +1277,31 @@ async def broadcast_fl_order(request: Request):
     short_desc = desc[:450] + ("..." if len(desc) > 450 else "") if desc else "Без описания"
 
     header = "⚡️ <b>Новый заказ с FL.ru" + badge + "</b>"
-    if is_initial:
-        header = "🚀 <b>Парсер FL.ru активен | Свежий заказ</b>" + badge
 
     from datetime import datetime, timezone, timedelta
-    msk_time = datetime.now(timezone(timedelta(hours=3))).strftime("%H:%M:%S")
+    msk_tz = timezone(timedelta(hours=3))
+    msk_time = datetime.now(msk_tz).strftime("%H:%M:%S")
+
+    pub_str = order_data.get("published_at")
+    pub_info = ""
+    if pub_str:
+        try:
+            pub_dt = datetime.fromisoformat(pub_str)
+            now_utc = datetime.now(timezone.utc)
+            age_sec = (now_utc - pub_dt).total_seconds()
+            if age_sec > 3600:
+                logger.info(f"broadcast_fl_order: Заказ #{order_id} старше 60 минут ({age_sec:.0f}s), пропуск рассылки.")
+                return {"ok": True, "skipped": "too_old"}
+            pub_info = f" <i>(на бирже: {pub_dt.astimezone(msk_tz).strftime('%H:%M')})</i>"
+        except Exception:
+            pass
 
     msg = (
         f"{header}\n\n"
         f"📌 <b>{html.escape(title)}</b>\n"
         f"💰 Бюджет: <b>{html.escape(str(price))}</b>\n"
         f"📁 Рубрика: <i>{html.escape(str(cat_name))}</i>\n"
-        f"⏱ Перехвачен ботом: <i>{msk_time} МСК</i>\n\n"
+        f"⏱ Перехвачен ботом: <i>{msk_time} МСК</i>{pub_info}\n\n"
         f"📝 <b>Описание:</b>\n"
         f"<blockquote>{html.escape(short_desc)}</blockquote>"
     )
