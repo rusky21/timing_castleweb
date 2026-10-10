@@ -211,6 +211,9 @@ EOF
     )
     chmod 600 "$ENV_FILE"
     log_success "Файл конфигурации бэкенда создан: $ENV_FILE"
+    cp -f "$ENV_FILE" "${ROOT_DIR}/.env"
+    chmod 600 "${ROOT_DIR}/.env"
+    log_success "Корневой .env синхронизирован: ${ROOT_DIR}/.env"
 
     # Создаем/синхронизируем конфигурацию парсера
     mkdir -p "${ROOT_DIR}/apps/parser"

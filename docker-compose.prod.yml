@@ -51,8 +51,8 @@ services:
       - APP_ENV=production
       - DEBUG=False
       - CLOUDFLARE_TURNSTILE_ENABLED=False
-      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-castleweb_user}:${POSTGRES_PASSWORD:-castleweb_secret_pass}@postgres:5432/${POSTGRES_DB:-castleweb_db}
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-castleweb_redis_pass}@redis:6379/0
+      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://${POSTGRES_USER:-castleweb_user}:${POSTGRES_PASSWORD:-castleweb_secret_pass}@postgres:5432/${POSTGRES_DB:-castleweb_db}}
+      - REDIS_URL=${REDIS_URL:-redis://:${REDIS_PASSWORD:-castleweb_redis_pass}@redis:6379/0}
       - PARSER_INTERNAL_URL=http://leadhunter:8000
       - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:-castleweb-internal-demo-secret}
       - PARSER_PUBLIC_URL=https://leads.${DOMAIN_NAME:-castleweb.ru}
