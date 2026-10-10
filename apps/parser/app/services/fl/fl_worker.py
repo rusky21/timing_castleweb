@@ -8,7 +8,7 @@ from typing import List, Set, Optional
 from sqlalchemy import select, insert
 
 from app.db.database import async_session_factory
-from app.db.models import FLOrder, FLCategorySync, FLOrderInteraction, TelegramUserSettings, utc_now
+from app.db.models import FLOrder, FLCategorySync, FLOrderInteraction, FLOrderDelivery, TelegramUserSettings, utc_now
 from app.services.fl.fl_fetcher import FLFetcher
 from app.services.fl.constants import CATEGORY_BY_ID, FL_CATEGORIES
 from app.services.connection_manager import ws_manager
@@ -176,6 +176,13 @@ class FLWorker:
                     proj_id = proj["id"]
                     existing = await db.get(FLOrder, proj_id)
                     if existing:
+                        # Если заказ уже сохранен, но ни разу не доставлялся в Telegram (например, из-за сбоя),
+                        # проверяем отсутствие записи в FLOrderDelivery
+                        deliv_check = await db.execute(
+                            select(FLOrderDelivery).where(FLOrderDelivery.order_id == proj_id).limit(1)
+                        )
+                        if not deliv_check.scalar_one_or_none():
+                            new_orders_saved.append(existing)
                         continue
 
                     order = FLOrder(
@@ -221,13 +228,19 @@ class FLWorker:
                 now_utc = utc_now()
                 for order in new_orders_saved:
                     # Проверка возраста заказа: публикуем ТОЛЬКО свежие заказы (не старше 45 минут)
-                    age_seconds = None
-                    if order.published_at:
-                        age_seconds = (now_utc - order.published_at).total_seconds()
+                    pub_dt = order.published_at
+                    if pub_dt:
+                        if pub_dt.tzinfo is None:
+                            pub_dt = pub_dt.replace(tzinfo=timezone.utc)
+                        else:
+                            pub_dt = pub_dt.astimezone(timezone.utc)
+                        age_seconds = (now_utc - pub_dt).total_seconds()
+                    else:
+                        age_seconds = 999999.0
 
-                    is_fresh = (age_seconds is not None and -120 <= age_seconds <= MAX_FRESH_ORDER_AGE_SECONDS)
+                    is_fresh = (age_seconds <= MAX_FRESH_ORDER_AGE_SECONDS)
                     if not is_fresh:
-                        age_min = round(age_seconds / 60, 1) if age_seconds is not None else 9999
+                        age_min = round(age_seconds / 60, 1)
                         logger.info(
                             f"FLWorker: Пропуск устаревшего заказа #{order.id} «{order.title[:40]}» (возраст {age_min} мин > 45 мин). Не отправляем в Telegram."
                         )

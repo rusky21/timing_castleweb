@@ -27,8 +27,11 @@ def format_fl_order_message(order) -> str:
     msk_tz = timezone(timedelta(hours=3))
     now_msk = datetime.now(msk_tz).strftime("%H:%M:%S")
     time_info = f"⚡️ <i>В эфире с: {now_msk} МСК</i>"
-    if getattr(order, "published_at", None) and hasattr(order.published_at, "astimezone"):
-        pub_msk = order.published_at.astimezone(msk_tz).strftime("%H:%M")
+    pub_dt = getattr(order, "published_at", None)
+    if pub_dt:
+        if pub_dt.tzinfo is None:
+            pub_dt = pub_dt.replace(tzinfo=timezone.utc)
+        pub_msk = pub_dt.astimezone(msk_tz).strftime("%H:%M")
         time_info += f" <i>(на бирже: {pub_msk})</i>"
 
 

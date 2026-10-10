@@ -1287,6 +1287,8 @@ async def broadcast_fl_order(request: Request):
     if pub_str:
         try:
             pub_dt = datetime.fromisoformat(pub_str)
+            if pub_dt.tzinfo is None:
+                pub_dt = pub_dt.replace(tzinfo=timezone.utc)
             now_utc = datetime.now(timezone.utc)
             age_sec = (now_utc - pub_dt).total_seconds()
             if age_sec > 3600:
