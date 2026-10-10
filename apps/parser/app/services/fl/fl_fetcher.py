@@ -163,8 +163,8 @@ class FLFetcher:
             return None, True
 
     def _extract_project_id(self, url: str) -> Optional[int]:
-        """Извлекает числовой ID проекта из URL: /projects/12345/ или /projects/12345.html"""
-        match = re.search(r"/projects/(\d+)", url)
+        """Извлекает числовой ID проекта из URL: /projects/12345/ или /vakansii/12345/"""
+        match = re.search(r"/(?:projects|vakansii|konkurs)/(\d+)", url)
         if match:
             try:
                 return int(match.group(1))
@@ -293,40 +293,45 @@ class FLFetcher:
         1. Официальный RSS-фид FL.ru — единственный надежный источник, где биржа открыто
            указывает бейдж «для всех» (бесплатный отклик). В HTML для анонимных посетителей
            этот статус скрыт. RSS также отдает 60 свежих проектов и не блокируется.
-        2. Прямой HTML-скрейпинг используется как резервный fallback при сбоях RSS.
+        2. Прямой HTML-скрейпинг ленты (включая вакансии и конкурсы, отклики на которые также бесплатны).
+        3. Объединение и дедупликация по ID проекта со свежей сортировкой по published_at.
         """
-        # 1. Приоритетный опрос через RSS
+        merged: Dict[int, Dict[str, Any]] = {}
+
+        # 1. Приоритетный опрос через RSS (проекты с меткой «для всех»)
         try:
-            projects = await self._fetch_via_rss(category_id, only_free=only_free)
-            if projects:
-                logger.info(f"FL RSS: собрано {len(projects)} проектов (only_free={only_free}) для категории {category_id or 'all'}")
-                return projects
+            rss_projects = await self._fetch_via_rss(category_id, only_free=only_free)
+            for p in rss_projects:
+                merged[p["id"]] = p
+            if rss_projects:
+                logger.info(f"FL RSS: собрано {len(rss_projects)} проектов (only_free={only_free})")
         except Exception as e:
-            logger.warning(f"FL RSS fetch error ({e}), переключение на резервный HTML...")
+            logger.warning(f"FL RSS fetch error ({e}), опрос продолжается...")
 
-        # 2. Резервный HTML-парсинг (с проверкой защитного кулдауна)
-        if time.time() < self._html_cooldown_until:
-            rem = int(self._html_cooldown_until - time.time())
-            logger.info(f"FL HTML: защитный кулдаун ({rem}с). Пропуск HTML опроса.")
-            return []
+        # 2. Опрос HTML ленты (получение вакансий и конкурсов, а также свежих карточек)
+        if time.time() >= self._html_cooldown_until:
+            url = "https://www.fl.ru/projects/"
+            if category_id and str(category_id) != "all":
+                cat_info = CATEGORY_BY_ID.get(str(category_id))
+                if cat_info and cat_info.get("url_path"):
+                    url = f"https://www.fl.ru/projects/category/{cat_info['url_path']}/"
+                elif cat_info and cat_info.get("slug"):
+                    url = f"https://www.fl.ru/projects/category/{cat_info['slug']}/"
 
-        url = "https://www.fl.ru/projects/"
-        if category_id and str(category_id) != "all":
-            cat_info = CATEGORY_BY_ID.get(str(category_id))
-            if cat_info and cat_info.get("url_path"):
-                url = f"https://www.fl.ru/projects/category/{cat_info['url_path']}/"
-            elif cat_info and cat_info.get("slug"):
-                url = f"https://www.fl.ru/projects/category/{cat_info['slug']}/"
+            try:
+                html_projects = await self._fetch_via_html(url, category_id, only_free=only_free)
+                for p in html_projects:
+                    if p["id"] not in merged:
+                        merged[p["id"]] = p
+                if html_projects:
+                    logger.info(f"FL HTML: собрано {len(html_projects)} проектов для {url}")
+            except Exception as e:
+                logger.warning(f"FL HTML fetch error: {e}")
 
-        try:
-            projects = await self._fetch_via_html(url, category_id, only_free=only_free)
-            if projects:
-                logger.info(f"FL HTML: собрано {len(projects)} проектов для URL {url}")
-                return projects
-        except Exception as e:
-            logger.warning(f"FL HTML fetch error: {e}")
-
-        return []
+        projects = list(merged.values())
+        # Сортировка по published_at убыванию (самые свежие первыми)
+        projects.sort(key=lambda x: x.get("published_at") or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+        return projects
 
     async def _fetch_via_html(self, url: str, category_id: Optional[str], only_free: bool = True) -> List[Dict[str, Any]]:
         """Прямой разбор HTML ленты FL.ru с переиспользуемой сессией и защитой от блокировки"""
@@ -356,7 +361,9 @@ class FLFetcher:
             title_el = (
                 card.css_first('h2 a') or
                 card.css_first('.b-post__title a') or
-                card.css_first('a[href*="/projects/"]')
+                card.css_first('a[href*="/projects/"]') or
+                card.css_first('a[href*="/vakansii/"]') or
+                card.css_first('a[href*="/konkurs/"]')
             )
             if not title_el:
                 continue

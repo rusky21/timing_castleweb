@@ -180,6 +180,8 @@ class FLWorker:
                     proj_id = proj["id"]
                     existing = await db.get(FLOrder, proj_id)
                     if existing:
+                        if existing.is_free != proj.get("is_free", False):
+                            existing.is_free = proj.get("is_free", False)
                         continue
 
                     order = FLOrder(

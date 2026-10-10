@@ -933,8 +933,8 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                         except Exception:
                             pass
 
-                        # 1. Запрос заказов с заголовком X-Internal-Secret
-                        resp = await client.get(f"{b_url}/api/fl/orders?page=1&page_size=3", headers=headers)
+                        # 1. Запрос заказов с заголовком X-Internal-Secret (только бесплатные)
+                        resp = await client.get(f"{b_url}/api/fl/orders?page=1&page_size=5&is_free=true", headers=headers)
 
                         # 2. Если парсер вернул 401 (старый контейнер без X-Internal-Secret) — мгновенная авторизация через /login
                         if resp.status_code == 401:
@@ -943,7 +943,7 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                                 data={"email": "admin@lead.pro", "password": "AdminPass123!_ChangeMe"}
                             )
                             if login_resp.status_code in (200, 303):
-                                resp = await client.get(f"{b_url}/api/fl/orders?page=1&page_size=3")
+                                resp = await client.get(f"{b_url}/api/fl/orders?page=1&page_size=5&is_free=true")
 
                         if resp.status_code == 200:
                             found_resp = resp.json()
@@ -956,9 +956,9 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
             if found_resp is not None:
                 items = found_resp.get("items", [])
                 if not items:
-                    await send_reply_message(chat_id, "ℹ️ На бирже FL.ru пока нет сохраненных заказов. Опрос запущен в фоне, новые заказы скоро появятся!")
+                    await send_reply_message(chat_id, "ℹ️ На бирже FL.ru пока нет сохраненных бесплатных заказов («для всех»). Опрос запущен в фоне, новые заказы скоро появятся!")
                 else:
-                    msg_lines = ["⚡️ <b>Свежие заказы с биржи FL.ru:</b>\n"]
+                    msg_lines = ["⚡️ <b>Свежие заказы с биржи FL.ru (бесплатный отклик):</b>\n"]
                     for ord_item in items:
                         p = ord_item.get("price_raw") or "По договоренности"
                         t = ord_item.get("title", "")

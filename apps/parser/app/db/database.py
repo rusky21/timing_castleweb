@@ -70,6 +70,19 @@ async def init_db():
             except Exception:
                 pass
 
+        # Корректировка существующих записей в fl_orders: помечаем старые платные заказы как is_free = 0
+        try:
+            await conn.execute(text("""
+                UPDATE fl_orders 
+                SET is_free = 0 
+                WHERE is_free = 1 
+                  AND lower(title) NOT LIKE '%для всех%' 
+                  AND (description IS NULL OR lower(description) NOT LIKE '%для всех%')
+                  AND (category_name IS NULL OR (lower(category_name) NOT LIKE '%ваканси%' AND lower(category_name) NOT LIKE '%конкурс%'))
+            """))
+        except Exception:
+            pass
+
     # Автоматическое создание начального администратора при первом запуске
     try:
         import os

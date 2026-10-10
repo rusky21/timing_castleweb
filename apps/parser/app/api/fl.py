@@ -62,7 +62,7 @@ async def get_orders(
     search: Optional[str] = Query(None, description="Поиск по ключевым словам"),
     is_pro_only: Optional[bool] = Query(None, description="Фильтр только для PRO"),
     is_urgent: Optional[bool] = Query(None, description="Фильтр только срочных"),
-    is_free: Optional[bool] = Query(None, description="Фильтр по бесплатным заказам"),
+    is_free: Optional[bool] = Query(True, description="Фильтр по бесплатным заказам (по умолчанию только бесплатные)"),
     allow_negotiable: Optional[bool] = Query(True, description="Включать проекты по договоренности"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
