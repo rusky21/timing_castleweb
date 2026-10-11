@@ -1,4 +1,5 @@
 import os
+import secrets
 import logging
 from typing import Optional, List
 from pydantic import BaseModel
@@ -22,9 +23,9 @@ def require_fl_access(request: Request):
     1) Запросам с валидным секретом X-Internal-Secret (Telegram-бот студии)
     2) Авторизованным пользователям с ролью 'admin'
     """
-    internal_secret = request.headers.get("X-Internal-Secret") or request.query_params.get("internal_secret")
-    expected_secret = os.environ.get("INTERNAL_API_SECRET", "castleweb-internal-demo-secret")
-    if internal_secret and internal_secret == expected_secret:
+    internal_secret = (request.headers.get("X-Internal-Secret") or "").strip()
+    expected_secret = (os.environ.get("INTERNAL_API_SECRET") or "").strip()
+    if internal_secret and expected_secret and secrets.compare_digest(internal_secret, expected_secret):
         return {"role": "admin", "sub": "internal_service"}
 
     user_data = getattr(request.state, "user", None)

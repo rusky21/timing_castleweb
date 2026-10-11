@@ -118,9 +118,13 @@ if FRONTEND_DIST.exists() and (FRONTEND_DIST / "index.html").exists():
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_spa(full_path: str):
-        target = FRONTEND_DIST / full_path
-        if full_path and target.is_file():
+        target = (FRONTEND_DIST / full_path).resolve()
+        if full_path and target.is_relative_to(FRONTEND_DIST) and target.is_file():
             return FileResponse(target)
+        # Multi-page fallback: /cases -> cases.html, /brief -> brief.html
+        html_target = (FRONTEND_DIST / f"{full_path}.html").resolve()
+        if html_target.is_relative_to(FRONTEND_DIST) and html_target.is_file():
+            return FileResponse(html_target)
         return FileResponse(FRONTEND_DIST / "index.html")
 else:
     @app.get("/", summary="Root Index")

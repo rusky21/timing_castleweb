@@ -2,6 +2,7 @@ import sys
 import os
 import json
 import asyncio
+import secrets
 
 if sys.platform == "win32" and sys.version_info < (3, 14):
     try:
@@ -128,10 +129,9 @@ async def auth_guard_middleware(request: Request, call_next):
         return await call_next(request)
 
     # Межсервисная авторизация (Backend студии <-> LeadHunter)
-    internal_secret = (request.headers.get("X-Internal-Secret") or request.query_params.get("internal_secret") or "").strip()
-    expected_secret = (os.environ.get("INTERNAL_API_SECRET") or "castleweb-internal-demo-secret").strip()
-    valid_secrets = {expected_secret, "castleweb-internal-demo-secret"}
-    if internal_secret and internal_secret in valid_secrets:
+    internal_secret = (request.headers.get("X-Internal-Secret") or "").strip()
+    expected_secret = (os.environ.get("INTERNAL_API_SECRET") or "").strip()
+    if internal_secret and expected_secret and secrets.compare_digest(internal_secret, expected_secret):
         return await call_next(request)
 
     # Проверка сессии из Cookie

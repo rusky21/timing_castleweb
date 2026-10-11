@@ -1,12 +1,13 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, Query, HTTPException, status
+from fastapi import APIRouter, Depends, Query, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 
 from app.db.database import get_db
-from app.db.models import Organization, AuditResult
+from app.db.models import Organization, AuditResult, SearchCampaign
 from app.schemas.lead import LeadListResponse, LeadItem, PitchDetail
+from app.core.security import decode_session_token
 
 router = APIRouter(prefix="/api/leads", tags=["Лиды и аудит"])
 
@@ -21,9 +22,32 @@ async def get_leads(
     has_website: Optional[bool] = Query(None, description="Фильтр наличия сайта: True (только с сайтом), False (только без сайта)"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
+    request: Request = None,
     db: AsyncSession = Depends(get_db)
 ):
+    user_payload = getattr(request.state, "user", None) if request else None
+    if not user_payload and request:
+        token = request.cookies.get("access_token")
+        if token:
+            user_payload = decode_session_token(token)
+
+    role = (user_payload.get("role") or "").lower() if user_payload else ""
+    is_admin = role in ("admin", "superuser", "root")
+    uid = None
+    if user_payload and user_payload.get("sub"):
+        try:
+            uid = int(user_payload.get("sub"))
+        except (ValueError, TypeError):
+            pass
+
     query = select(Organization).options(selectinload(Organization.audit))
+
+    if not is_admin:
+        query = query.join(Organization.campaign)
+        if uid:
+            query = query.where(SearchCampaign.user_id == uid)
+        else:
+            query = query.where(SearchCampaign.user_id == -1)
 
     if campaign_id:
         query = query.where(Organization.campaign_id == campaign_id)

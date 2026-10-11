@@ -22,32 +22,10 @@ def check_playwright():
     except ImportError:
         print("[!] Библиотека playwright не установлена. Установите зависимости: pip install -r requirements.txt")
 
-def free_port(port: int):
-    """Автоматическое освобождение порта от зависших процессов перед запуском uvicorn"""
-    if sys.platform == "win32":
-        try:
-            import os
-            current_pid = os.getpid()
-            subprocess.run(
-                [
-                    "powershell", "-NoProfile", "-Command",
-                    f"Get-NetTCPConnection -LocalPort {port} -ErrorAction SilentlyContinue | "
-                    f"Select-Object -ExpandProperty OwningProcess -Unique | "
-                    f"ForEach-Object {{ if ($_ -ne {current_pid}) {{ Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }} }}"
-                ],
-                capture_output=True,
-                timeout=5
-            )
-        except Exception:
-            pass
-
 def main():
     import os
     host = os.environ.get("HOST", "0.0.0.0")
-    port = int(os.environ.get("PORT", 8000))
-
-    # Гарантированное освобождение порта перед стартом
-    free_port(port)
+    port = int(os.environ.get("PORT", 8080))
 
     print("=" * 60)
     print(" 🚀 LeadHunter & Audit Backend API")

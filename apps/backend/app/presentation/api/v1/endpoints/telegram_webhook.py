@@ -5,6 +5,7 @@ import re
 import logging
 import html
 import httpx
+import secrets
 from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, text as sql_text
@@ -479,12 +480,13 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
     - Команды инженеров: /stats, /leads
     - Сообщения и документы от пользователей (автоответчик + пересылка инженерам)
     """
-    # Verify secret token to prevent forged webhook updates (tolerant if unset in webhook or headers stripped)
+    # Verify secret token to prevent forged webhook updates
     expected_secret = (settings.TELEGRAM_WEBHOOK_SECRET or "").strip().strip("'\"")
-    incoming_token = (request.headers.get("x-telegram-bot-api-secret-token", "") or "").strip().strip("'\"")
-    if expected_secret and incoming_token and incoming_token != expected_secret:
-        logger.warning(f"Webhook rejected: invalid secret token from {request.client.host if request.client else 'unknown'}")
-        return {"ok": False}
+    if expected_secret:
+        incoming_token = (request.headers.get("x-telegram-bot-api-secret-token", "") or "").strip().strip("'\"")
+        if not incoming_token or not secrets.compare_digest(incoming_token, expected_secret):
+            logger.warning(f"Webhook rejected: invalid or missing secret token from {request.client.host if request.client else 'unknown'}")
+            return {"ok": False}
 
     update = await request.json()
     logger.info(f"📩 Telegram webhook update received: keys={list(update.keys())}")

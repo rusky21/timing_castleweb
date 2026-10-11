@@ -16,11 +16,14 @@ logger = logging.getLogger(__name__)
 ALLOWED_EXTENSIONS = {
     # Documents
     ".pdf", ".docx", ".doc", ".txt", ".csv", ".xlsx", ".xls", ".odt", ".rtf", ".pptx", ".ppt",
-    # Images & Graphics
-    ".png", ".jpg", ".jpeg", ".webp", ".svg", ".gif", ".heic", ".heif",
+    # Images & Graphics (excluding .svg to prevent Stored XSS)
+    ".png", ".jpg", ".jpeg", ".webp", ".gif", ".heic", ".heif",
     # Archives & Project Files
     ".zip", ".rar", ".7z", ".tar", ".gz", ".fig"
 }
+
+MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB limit
+CHUNK_SIZE = 64 * 1024  # 64 KB chunks
 
 
 @router.post("/presigned-url", response_model=PresignedUrlResponse, summary="Get Presigned URL for File Upload (Cloudflare R2)")
@@ -78,16 +81,35 @@ async def upload_local_file(file: UploadFile = File(...)):
     target_dir = _resolve_uploads_dir()
     save_path = target_dir / safe_filename
 
+    bytes_written = 0
     try:
         with open(save_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            while chunk := file.file.read(CHUNK_SIZE):
+                bytes_written += len(chunk)
+                if bytes_written > MAX_UPLOAD_SIZE:
+                    buffer.close()
+                    try:
+                        save_path.unlink(missing_ok=True)
+                    except Exception:
+                        pass
+                    raise HTTPException(
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        detail="Превышен максимальный размер файла (50 МБ)."
+                    )
+                buffer.write(chunk)
 
         # Set read permissions for web server
         try:
             os.chmod(save_path, 0o664)
         except Exception:
             pass
+    except HTTPException:
+        raise
     except Exception as e:
+        try:
+            save_path.unlink(missing_ok=True)
+        except Exception:
+            pass
         logger.error(f"Error saving uploaded file {safe_filename} to {save_path}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

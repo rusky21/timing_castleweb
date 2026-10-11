@@ -13,6 +13,7 @@ logger = logging.getLogger("settings_api")
 router = APIRouter(prefix="/api/settings", tags=["Настройки и фильтрация"])
 
 class SettingsUpdateSchema(BaseModel):
+    chat_id: Optional[int] = None
     fl_enabled: Optional[bool] = None
     fl_categories: Optional[List[str]] = None
     fl_min_price: Optional[int] = None
@@ -31,9 +32,11 @@ class SettingsUpdateSchema(BaseModel):
     default_limit: Optional[int] = None
 
 @router.get("", summary="Получить текущие настройки системы и фильтров")
-async def get_settings(db: AsyncSession = Depends(get_db)):
-    # Получаем первую активную запись настроек (или создаем дефолтную)
-    stmt = select(TelegramUserSettings).limit(1)
+async def get_settings(chat_id: Optional[int] = None, db: AsyncSession = Depends(get_db)):
+    if chat_id:
+        stmt = select(TelegramUserSettings).where(TelegramUserSettings.chat_id == chat_id)
+    else:
+        stmt = select(TelegramUserSettings).order_by(TelegramUserSettings.chat_id).limit(1)
     res = await db.execute(stmt)
     settings = res.scalar_one_or_none()
 
@@ -80,27 +83,39 @@ async def get_settings(db: AsyncSession = Depends(get_db)):
 
 @router.post("", summary="Обновить настройки фильтров")
 async def update_settings(payload: SettingsUpdateSchema, db: AsyncSession = Depends(get_db)):
-    stmt = select(TelegramUserSettings)
-    res = await db.execute(stmt)
-    all_settings = res.scalars().all()
+    data = payload.model_dump(exclude_unset=True)
+    target_chat_id = data.pop("chat_id", None)
 
-    if not all_settings:
+    if target_chat_id:
+        stmt = select(TelegramUserSettings).where(TelegramUserSettings.chat_id == target_chat_id)
+    else:
+        stmt = select(TelegramUserSettings).order_by(TelegramUserSettings.chat_id).limit(1)
+
+    res = await db.execute(stmt)
+    target_settings = res.scalar_one_or_none()
+
+    if not target_settings:
         raise HTTPException(status_code=404, detail="Настройки пользователя еще не созданы (запустите бота /start)")
 
-    data = payload.model_dump(exclude_unset=True)
-    for s in all_settings:
-        for k, v in data.items():
-            if hasattr(s, k):
-                setattr(s, k, v)
+    for k, v in data.items():
+        if hasattr(target_settings, k):
+            setattr(target_settings, k, v)
 
     await db.commit()
     return {"status": "ok", "updated_fields": list(data.keys())}
 
 @router.post("/reset", summary="Сбросить все настройки к стандартным значениям")
-async def reset_settings(db: AsyncSession = Depends(get_db)):
-    stmt = select(TelegramUserSettings)
+async def reset_settings(chat_id: Optional[int] = None, db: AsyncSession = Depends(get_db)):
+    if chat_id:
+        stmt = select(TelegramUserSettings).where(TelegramUserSettings.chat_id == chat_id)
+    else:
+        stmt = select(TelegramUserSettings).order_by(TelegramUserSettings.chat_id).limit(1)
+
     res = await db.execute(stmt)
-    all_settings = res.scalars().all()
+    target_settings = res.scalar_one_or_none()
+
+    if not target_settings:
+        raise HTTPException(status_code=404, detail="Настройки пользователя еще не созданы (запустите бота /start)")
 
     defaults = {
         "fl_enabled": True,
@@ -121,10 +136,9 @@ async def reset_settings(db: AsyncSession = Depends(get_db)):
         "default_limit": 50,
     }
 
-    for s in all_settings:
-        for k, v in defaults.items():
-            if hasattr(s, k):
-                setattr(s, k, v)
+    for k, v in defaults.items():
+        if hasattr(target_settings, k):
+            setattr(target_settings, k, v)
 
     await db.commit()
     return {"status": "ok", "message": "Настройки сброшены к стандартным"}

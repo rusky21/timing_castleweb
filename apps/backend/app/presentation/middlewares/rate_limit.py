@@ -18,8 +18,12 @@ async def check_rate_limit(
     По умолчанию: не более 3 запросов за 10 минут.
     Работает через Redis, а при его отсутствии — через in-memory словарь.
     """
-    forwarded = request.headers.get("x-forwarded-for")
-    ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "unknown")
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip:
+        ip = real_ip.strip()
+    else:
+        forwarded = request.headers.get("x-forwarded-for")
+        ip = forwarded.split(",")[-1].strip() if forwarded else (request.client.host if request.client else "unknown")
 
     redis = await get_redis_client()
     key = f"{key_prefix}:{ip}"

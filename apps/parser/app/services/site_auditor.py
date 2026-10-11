@@ -1,4 +1,5 @@
 import ipaddress
+import socket
 import re
 import ssl
 import asyncio
@@ -45,7 +46,7 @@ class SiteAuditor:
         self._insecure_client: Optional[httpx.AsyncClient] = None
 
     def _is_safe_host(self, host: str) -> bool:
-        """Защита от SSRF: блокирует локальные, приватные и петлевые IP-адреса"""
+        """Защита от SSRF: блокирует локальные, приватные, петлевые и неглобальные IP-адреса, включая DNS-резолвинг"""
         if not host:
             return False
         host_clean = host.split(":")[0].strip().lower()
@@ -53,10 +54,21 @@ class SiteAuditor:
             return False
         try:
             ip = ipaddress.ip_address(host_clean)
-            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or not ip.is_global:
                 return False
+            return True
         except ValueError:
             pass
+
+        try:
+            addr_info = socket.getaddrinfo(host_clean, None)
+            for item in addr_info:
+                ip_str = item[4][0]
+                ip = ipaddress.ip_address(ip_str)
+                if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or not ip.is_global:
+                    return False
+        except (socket.gaierror, ValueError):
+            return False
         return True
 
     async def _get_client(self) -> httpx.AsyncClient:

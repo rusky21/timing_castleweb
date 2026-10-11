@@ -15,8 +15,32 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.append(str(BASE_DIR))
 
 from httpx import AsyncClient, ASGITransport
+from unittest.mock import patch, AsyncMock
 from app.main import app
 from app.presentation.middlewares.rate_limit import _in_memory_store
+
+
+@pytest.fixture(autouse=True)
+def mock_external_network_calls():
+    """
+    Блокирует реальные внешние сетевые вызовы в Telegram Bot API и GeoIP во время прогона тестов,
+    чтобы тестовые заявки не отправлялись в боевой чат Telegram.
+    """
+    with patch("app.infrastructure.telegram.bot_service.TelegramBotService.send_lead_notification", new_callable=AsyncMock) as mock_send, \
+         patch("app.infrastructure.telegram.bot_service.TelegramBotService.update_message", new_callable=AsyncMock) as mock_upd, \
+         patch("app.infrastructure.telegram.bot_service.TelegramBotService.edit_message_text", new_callable=AsyncMock) as mock_edit_text, \
+         patch("app.infrastructure.telegram.bot_service.TelegramBotService.edit_message_reply_markup", new_callable=AsyncMock) as mock_markup, \
+         patch("app.infrastructure.telegram.bot_service.TelegramBotService.delete_message", new_callable=AsyncMock) as mock_del, \
+         patch("app.infrastructure.telegram.bot_service.TelegramBotService.send_raw_message", new_callable=AsyncMock) as mock_raw, \
+         patch("app.infrastructure.queue.worker.enrich_geoip", new_callable=AsyncMock) as mock_geo:
+        mock_send.return_value = 12345
+        mock_upd.return_value = True
+        mock_edit_text.return_value = True
+        mock_markup.return_value = True
+        mock_del.return_value = True
+        mock_raw.return_value = True
+        mock_geo.return_value = {"country": "Localhost", "city": "Test City", "isp": "Test ISP"}
+        yield
 
 
 @pytest.mark.asyncio
@@ -85,7 +109,7 @@ async def test_uploads_service():
         assert "public_url" in data
         assert data["storage_type"] in ("cloudflare_r2", "local")
 
-        # 2. Reject disallowed dangerous file extensions
+        # 2. Reject disallowed dangerous file extensions (including SVG for Stored XSS protection)
         bad_payload = {
             "filename": "malware.exe",
             "content_type": "application/x-msdownload"
@@ -93,6 +117,14 @@ async def test_uploads_service():
         res_bad = await client.post("/api/v1/uploads/presigned-url", json=bad_payload)
         assert res_bad.status_code == 400
         assert "Недопустимый формат" in res_bad.json()["detail"]
+
+        svg_payload = {
+            "filename": "exploit.svg",
+            "content_type": "image/svg+xml"
+        }
+        res_svg = await client.post("/api/v1/uploads/presigned-url", json=svg_payload)
+        assert res_svg.status_code == 400
+        assert "Недопустимый формат" in res_svg.json()["detail"]
 
         # 3. Local direct upload fallback
         dummy_file = io.BytesIO(b"Hello Castleweb Project Spec")
@@ -273,8 +305,16 @@ async def test_telegram_crm_webhook():
         })
         assert confirm_res.status_code == 200
 
-        # Record is verified deleted via REST API
-        del_check = await client.delete(f"/api/v1/leads/{del_lead_id}")
+        # Unauthorized delete attempt is blocked (BOLA / IDOR protection)
+        unauth_del = await client.delete(f"/api/v1/leads/{del_lead_id}")
+        assert unauth_del.status_code == 403
+
+        # Record is verified deleted via REST API with authorization
+        from app.core.config import get_settings as _get_settings
+        del_check = await client.delete(
+            f"/api/v1/leads/{del_lead_id}",
+            headers={"x-internal-secret": _get_settings().INTERNAL_API_SECRET}
+        )
         assert del_check.status_code == 404
 
         # 6. Test /del command

@@ -1,0 +1,14 @@
+﻿{
+  "terminal": {
+    "executionPolicy": "allowlist",
+    "allowlist": [
+      "^git status.*$",
+      "^git diff.*$",
+      "^git log.*$",
+      "^npm (run )?test.*$",
+      "^pytest.*$",
+      "^go test.*$",
+      "^curl(\\.exe)? -sf.*$"
+    ]
+  }
+}

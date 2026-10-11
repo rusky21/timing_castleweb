@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import List, Optional, Any
 from sqlalchemy import (
-    Integer, String, Float, Boolean, DateTime, ForeignKey, 
+    Integer, BigInteger, String, Float, Boolean, DateTime, ForeignKey, 
     Text, UniqueConstraint, JSON
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -232,7 +232,7 @@ class TelegramUser(Base):
     """Пользователь Telegram-бота"""
     __tablename__ = "telegram_users"
 
-    chat_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    chat_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     username: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     full_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -250,7 +250,7 @@ class TelegramUserSettings(Base):
     """Персональные настройки уведомлений и фильтров пользователя Telegram"""
     __tablename__ = "telegram_user_settings"
 
-    chat_id: Mapped[int] = mapped_column(Integer, ForeignKey("telegram_users.chat_id", ondelete="CASCADE"), primary_key=True)
+    chat_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("telegram_users.chat_id", ondelete="CASCADE"), primary_key=True)
     fl_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     fl_categories: Mapped[Any] = mapped_column(JSON, default=list)  # Список выбранных ID категорий
     fl_min_price: Mapped[int] = mapped_column(Integer, default=0)
@@ -277,7 +277,7 @@ class FLOrderDelivery(Base):
     __tablename__ = "fl_order_deliveries"
 
     order_id: Mapped[int] = mapped_column(Integer, ForeignKey("fl_orders.id", ondelete="CASCADE"), primary_key=True)
-    chat_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    chat_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     is_sent: Mapped[bool] = mapped_column(Boolean, default=False)
     sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -393,7 +393,7 @@ class OutreachDialog(Base):
     account_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("outreach_accounts.id", ondelete="SET NULL"), nullable=True, index=True)
     
     client_tg_username: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
-    client_tg_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
+    client_tg_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
     client_phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     company_name: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     website_url: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)

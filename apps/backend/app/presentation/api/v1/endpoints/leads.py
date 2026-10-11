@@ -25,9 +25,13 @@ async def create_lead(
     # 1. Rate Limiting Check (Max 3 submissions per 10 minutes from same IP)
     await check_rate_limit(request, key_prefix="ratelimit:leads", max_requests=3, window_seconds=600)
 
-    # 2. Extract Client IP and User-Agent
-    forwarded_for = request.headers.get("x-forwarded-for")
-    client_ip = forwarded_for.split(",")[0].strip() if forwarded_for else (request.client.host if request.client else None)
+    # 2. Extract Client IP and User-Agent (prefer X-Real-IP set by reverse proxy)
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip:
+        client_ip = real_ip.strip()
+    else:
+        forwarded_for = request.headers.get("x-forwarded-for")
+        client_ip = forwarded_for.split(",")[-1].strip() if forwarded_for else (request.client.host if request.client else None)
     user_agent = request.headers.get("user-agent")
 
     # 3. Honeypot Anti-Spam Check: If hidden field is filled, silently ignore
@@ -126,11 +130,24 @@ async def create_lead(
 @router.delete("/{lead_id}", summary="Delete Lead Record by ID")
 async def delete_lead(
     lead_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db)
 ):
     """
     Удаляет запись заявки (лида) из базы данных по её ID.
+    Требует авторизации через X-Internal-Secret или X-Admin-Secret.
     """
+    from app.core.config import get_settings as _get_settings
+    import secrets
+    _settings = _get_settings()
+    auth_secret = (request.headers.get("x-internal-secret") or request.headers.get("x-admin-secret") or "").strip()
+    expected_secret = (_settings.INTERNAL_API_SECRET or "").strip()
+    if not expected_secret or not auth_secret or not secrets.compare_digest(auth_secret, expected_secret):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Недостаточно прав для удаления заявки"
+        )
+
     res = await db.execute(select(Lead).where(Lead.id == lead_id))
     lead = res.scalar_one_or_none()
     if not lead:
