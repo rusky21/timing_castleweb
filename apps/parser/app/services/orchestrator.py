@@ -1,7 +1,8 @@
+import os
 import asyncio
 import random
 import logging
-from typing import List, Dict, Set
+from typing import List, Dict, Set, Any
 from datetime import datetime
 from sqlalchemy import select
 
@@ -27,7 +28,7 @@ logger = logging.getLogger("orchestrator")
 class MultiPlatformOrchestrator:
     """
     Главный диспетчер комбайна сбора заказов со всех бирж.
-    Опрашивает источники параллельно, сохраняет новые заказы в SQLite
+    Опрашивает активные источники параллельно, сохраняет новые заказы в SQLite
     и отправляет уведомления в Telegram строго администраторам студии.
     """
 
@@ -37,8 +38,8 @@ class MultiPlatformOrchestrator:
         self._task: asyncio.Task | None = None
         self._initialized_platforms: Set[str] = set()
 
-        # Реестр всех активных сборщиков
-        self.fetchers: List[BaseFetcher] = [
+        # Полный реестр всех сборщиков (не удаляем, сохраняем для быстрого включения)
+        self.all_fetchers: List[BaseFetcher] = [
             FLScraperFetcher(),
             KworkFetcher(),
             FreelancerFetcher(),
@@ -51,13 +52,70 @@ class MultiPlatformOrchestrator:
             ContraFetcher()
         ]
 
+        # Список активных платформ:
+        # По умолчанию активны только: workspace, freelanceru, fl, kwork.
+        # Все остальные переведены в стоп-парсинг (is_enabled = False).
+        # Можно также переопределить через переменную окружения ENABLED_PLATFORMS
+        env_platforms = os.getenv("ENABLED_PLATFORMS")
+        if env_platforms:
+            self.enabled_platform_names: Set[str] = {
+                p.strip().lower() for p in env_platforms.split(",") if p.strip()
+            }
+        else:
+            self.enabled_platform_names: Set[str] = {"workspace", "freelanceru", "fl", "kwork"}
+
+        self._apply_platform_states()
+
+    def _apply_platform_states(self):
+        """Актуализирует флаг is_enabled у сборщиков и обновляет рабочий список fetchers"""
+        for f in self.all_fetchers:
+            f.is_enabled = (f.platform_name.lower() in self.enabled_platform_names)
+
+        # Активные для сбора заказов
+        self.fetchers: List[BaseFetcher] = [f for f in self.all_fetchers if f.is_enabled]
+
+    def enable_platform(self, platform_name: str) -> bool:
+        """Включить площадку в опрос (снять с паузы)"""
+        target = platform_name.lower().strip()
+        found = any(f.platform_name.lower() == target for f in self.all_fetchers)
+        if found:
+            self.enabled_platform_names.add(target)
+            self._apply_platform_states()
+            logger.info(f"▶️ Биржа [{target}] успешно включена в опрос")
+            return True
+        return False
+
+    def disable_platform(self, platform_name: str) -> bool:
+        """Отключить площадку (поставить на стоп-парсинг)"""
+        target = platform_name.lower().strip()
+        self.enabled_platform_names.discard(target)
+        self._apply_platform_states()
+        logger.info(f"⏸ Биржа [{target}] поставлена на паузу (стоп-парсинг)")
+        return True
+
+    def get_platforms_status(self) -> List[Dict[str, Any]]:
+        """Возвращает информацию по всем подключенным площадкам и их статусам"""
+        return [
+            {
+                "id": f.platform_name,
+                "name": f.display_name,
+                "is_enabled": getattr(f, "is_enabled", True)
+            }
+            for f in self.all_fetchers
+        ]
+
     async def start(self):
         """Запуск бесконечного цикла комбайна в фоне"""
         if self.is_running:
             return
         self.is_running = True
+        self._apply_platform_states()
         self._task = asyncio.create_task(self._run_loop())
-        logger.info(f"🚀 MultiPlatformOrchestrator запущен! Подключено площадок: {len(self.fetchers)}")
+        active_names = [f.display_name for f in self.fetchers]
+        paused_names = [f.display_name for f in self.all_fetchers if not f.is_enabled]
+        logger.info(f"🚀 MultiPlatformOrchestrator запущен! Активно площадок: {len(self.fetchers)} из {len(self.all_fetchers)}")
+        logger.info(f"  • Активные площадки: {', '.join(active_names)}")
+        logger.info(f"  • На паузе (стоп-парсинг): {', '.join(paused_names)}")
 
     async def stop(self):
         """Остановка комбайна"""
@@ -83,11 +141,16 @@ class MultiPlatformOrchestrator:
             await asyncio.sleep(sleep_duration)
 
     async def poll_all_platforms(self):
-        """Параллельный опрос всех подключенных сборщиков с изоляцией ошибок"""
-        tasks = [self._poll_fetcher(f) for f in self.fetchers]
+        """Параллельный опрос всех подключенных активных сборщиков с изоляцией ошибок"""
+        active_fetchers = [f for f in self.fetchers if getattr(f, "is_enabled", True)]
+        if not active_fetchers:
+            logger.debug("Нет активных площадок для опроса (все на паузе)")
+            return
+
+        tasks = [self._poll_fetcher(f) for f in active_fetchers]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        for fetcher, res in zip(self.fetchers, results):
+        for fetcher, res in zip(active_fetchers, results):
             if isinstance(res, Exception):
                 logger.warning(f"Ошибка при сборе с {fetcher.display_name}: {res}")
 

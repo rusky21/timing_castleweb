@@ -107,6 +107,7 @@ class BaseFetcher(ABC):
     """Абстрактный класс сборщика для любой биржи фриланса"""
     platform_name: str
     display_name: str
+    is_enabled: bool = True
 
     @abstractmethod
     async def fetch_orders(self) -> List[NormalizedOrder]:

@@ -225,13 +225,22 @@ async def trigger_poll():
     asyncio.create_task(orchestrator.poll_all_platforms())
     return {"status": "ok", "message": "Опрос всех бирж запущен в фоне"}
 
-@router.get("/platforms", summary="Список подключенных бирж фриланса")
+@router.get("/platforms", summary="Список подключенных бирж фриланса и их статусы")
 async def get_platforms():
     from app.services.orchestrator import orchestrator
-    return [
-        {"id": f.platform_name, "name": f.display_name}
-        for f in orchestrator.fetchers
-    ]
+    return orchestrator.get_platforms_status()
+
+@router.post("/platforms/{platform_id}/pause", summary="Поставить биржу на паузу (стоп-парсинг)")
+async def pause_platform(platform_id: str):
+    from app.services.orchestrator import orchestrator
+    orchestrator.disable_platform(platform_id)
+    return {"status": "ok", "platform": platform_id, "is_enabled": False}
+
+@router.post("/platforms/{platform_id}/resume", summary="Снять биржу с паузы (возобновить сбор)")
+async def resume_platform(platform_id: str):
+    from app.services.orchestrator import orchestrator
+    success = orchestrator.enable_platform(platform_id)
+    return {"status": "ok" if success else "not_found", "platform": platform_id, "is_enabled": success}
 
 @router.get("/stats", summary="Сводка по заказам бирж")
 async def get_stats(db: AsyncSession = Depends(get_db)):
