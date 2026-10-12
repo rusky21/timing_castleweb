@@ -64,6 +64,7 @@ setup_admin_env() {
         read -r -p "Хотите перезаписать конфигурацию заново? [y/N]: " RECONFIGURE
         if [[ ! "$RECONFIGURE" =~ ^([yY][eE][sS]|[yY])$ ]]; then
             log_success "Используем существующий файл конфигурации."
+            sync_parser_token_from_env
             return 0
         fi
     fi
@@ -77,12 +78,22 @@ setup_admin_env() {
     read -r -p "2. Email администратора (для Let's Encrypt SSL) [admin@${DOMAIN_NAME}]: " ADMIN_EMAIL
     ADMIN_EMAIL="${ADMIN_EMAIL:-admin@${DOMAIN_NAME}}"
 
-    echo -e "\n${CYAN}--- Telegram Headless CRM ---${NC}"
+    echo -e "\n${CYAN}--- Telegram Headless CRM & Биржи фриланса ---${NC}"
     while true; do
         read -r -p "3. Telegram Bot Token (от @BotFather): " TELEGRAM_BOT_TOKEN
         [ -n "$TELEGRAM_BOT_TOKEN" ] && break
         log_warn "Токен бота обязателен для работы CRM! Попробуйте снова."
     done
+
+    DEFAULT_PARSER_TOKEN="${TELEGRAM_BOT_TOKEN}"
+    if [ -f "$PARSER_ENV_FILE" ]; then
+        EXISTING_P_TOKEN=$(grep -E '^TELEGRAM_BOT_TOKEN=' "$PARSER_ENV_FILE" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || true)
+        if [ -n "$EXISTING_P_TOKEN" ]; then
+            DEFAULT_PARSER_TOKEN="$EXISTING_P_TOKEN"
+        fi
+    fi
+    read -r -p "3.1. Telegram Bot Token для бирж и LeadHunter [${DEFAULT_PARSER_TOKEN}]: " PARSER_BOT_TOKEN
+    PARSER_BOT_TOKEN="${PARSER_BOT_TOKEN:-$DEFAULT_PARSER_TOKEN}"
 
     while true; do
         read -r -p "4. Telegram Chat ID (ID закрытого чата инженеров): " TELEGRAM_CHAT_ID
@@ -225,7 +236,7 @@ EOF
 # Generated on: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
 # ====================================================================
 
-TELEGRAM_BOT_TOKEN=${PARSER_BOT_TOKEN:-}
+TELEGRAM_BOT_TOKEN=${PARSER_BOT_TOKEN:-$TELEGRAM_BOT_TOKEN}
 TELEGRAM_API_SERVER=${TELEGRAM_PROXY_URL:-https://jolly-haze-c6cf.eprof6682-3e3.workers.dev}
 # TELEGRAM_PROXY=
 
@@ -248,6 +259,82 @@ EOF
     )
     chmod 600 "$PARSER_ENV_FILE"
     log_success "Файл конфигурации парсера синхронизирован: $PARSER_ENV_FILE"
+}
+
+sync_parser_token_from_env() {
+    log_info "Синхронизация токенов и параметров для LeadHunter ($PARSER_ENV_FILE)..."
+    mkdir -p "${ROOT_DIR}/apps/parser"
+
+    local main_token=""
+    local main_chat_id=""
+    local main_proxy=""
+
+    if [ -f "$ENV_FILE" ]; then
+        main_token=$(grep -E '^TELEGRAM_BOT_TOKEN=' "$ENV_FILE" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || true)
+        main_chat_id=$(grep -E '^TELEGRAM_CHAT_ID=' "$ENV_FILE" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || true)
+        main_proxy=$(grep -E '^TELEGRAM_PROXY_URL=' "$ENV_FILE" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || true)
+    fi
+
+    if [ ! -f "$PARSER_ENV_FILE" ]; then
+        log_info "Создаем $PARSER_ENV_FILE на основе основного .env..."
+        (
+            umask 077
+            cat > "$PARSER_ENV_FILE" <<EOF
+# ====================================================================
+# LeadHunter Pro & Multi-Platform Scraper (.env)
+# ====================================================================
+TELEGRAM_BOT_TOKEN=${main_token}
+TELEGRAM_API_SERVER=${main_proxy:-https://jolly-haze-c6cf.eprof6682-3e3.workers.dev}
+ADMIN_TELEGRAM_IDS="1878543896,${main_chat_id}"
+MANAGER_TELEGRAM_CHAT_ID=${main_chat_id}
+HOST=0.0.0.0
+PORT=8000
+SECRET_KEY=$(openssl rand -hex 32 2>/dev/null || echo "castleweb_secret_key_1234567890")
+INTERNAL_API_SECRET=$(openssl rand -hex 24 2>/dev/null || echo "castleweb_internal_secret_123")
+PARSER_PUBLIC_URL=https://leads.castleweb.ru
+COOKIE_SECURE=false
+INITIAL_ADMIN_EMAIL=admin@lead.pro
+INITIAL_ADMIN_PASSWORD=AdminPass123!_ChangeMe
+EOF
+        )
+        chmod 600 "$PARSER_ENV_FILE"
+        log_success "Файл $PARSER_ENV_FILE успешно создан!"
+    else
+        # Файл уже существует. Проверим, заполнен ли токен
+        local current_parser_token
+        current_parser_token=$(grep -E '^TELEGRAM_BOT_TOKEN=' "$PARSER_ENV_FILE" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || true)
+        if [ -z "$current_parser_token" ] && [ -n "$main_token" ]; then
+            log_warn "TELEGRAM_BOT_TOKEN в $PARSER_ENV_FILE был пуст. Вставляем токен из основного .env..."
+            if grep -q '^TELEGRAM_BOT_TOKEN=' "$PARSER_ENV_FILE"; then
+                sed -i "s|^TELEGRAM_BOT_TOKEN=.*|TELEGRAM_BOT_TOKEN=${main_token}|" "$PARSER_ENV_FILE"
+            else
+                echo "TELEGRAM_BOT_TOKEN=${main_token}" >> "$PARSER_ENV_FILE"
+            fi
+        fi
+
+        # Проверим MANAGER_TELEGRAM_CHAT_ID
+        local current_mgr_chat
+        current_mgr_chat=$(grep -E '^MANAGER_TELEGRAM_CHAT_ID=' "$PARSER_ENV_FILE" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || true)
+        if [ -z "$current_mgr_chat" ] && [ -n "$main_chat_id" ]; then
+            if grep -q '^MANAGER_TELEGRAM_CHAT_ID=' "$PARSER_ENV_FILE"; then
+                sed -i "s|^MANAGER_TELEGRAM_CHAT_ID=.*|MANAGER_TELEGRAM_CHAT_ID=${main_chat_id}|" "$PARSER_ENV_FILE"
+            else
+                echo "MANAGER_TELEGRAM_CHAT_ID=${main_chat_id}" >> "$PARSER_ENV_FILE"
+            fi
+        fi
+
+        # Проверим ADMIN_TELEGRAM_IDS
+        local current_admin_ids
+        current_admin_ids=$(grep -E '^ADMIN_TELEGRAM_IDS=' "$PARSER_ENV_FILE" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || true)
+        if [ -z "$current_admin_ids" ] && [ -n "$main_chat_id" ]; then
+            if grep -q '^ADMIN_TELEGRAM_IDS=' "$PARSER_ENV_FILE"; then
+                sed -i "s|^ADMIN_TELEGRAM_IDS=.*|ADMIN_TELEGRAM_IDS=\"1878543896,${main_chat_id}\"|" "$PARSER_ENV_FILE"
+            else
+                echo "ADMIN_TELEGRAM_IDS=\"1878543896,${main_chat_id}\"" >> "$PARSER_ENV_FILE"
+            fi
+        fi
+        log_success "Файл $PARSER_ENV_FILE актуален и проверен."
+    fi
 }
 
 
@@ -584,6 +671,7 @@ main() {
             log_banner
             setup_admin_env
             load_env
+            sync_parser_token_from_env
             setup_os_ubuntu
             setup_docker
             build_frontend
@@ -613,6 +701,7 @@ main() {
         --parser-only)
             log_banner
             load_env
+            sync_parser_token_from_env
             docker compose -f "$DOCKER_COMPOSE_FILE" build leadhunter
             docker compose -f "$DOCKER_COMPOSE_FILE" up -d --no-deps leadhunter
             docker compose -f "$DOCKER_COMPOSE_FILE" restart nginx
