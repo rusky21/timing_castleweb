@@ -231,7 +231,7 @@ get_banned_ips_count() {
 check_all() {
     # 1. Check Containers
     if command -v docker >/dev/null 2>&1; then
-        local expected_containers=("castleweb_prod_backend" "castleweb_prod_postgres" "castleweb_prod_redis" "castleweb_prod_nginx")
+        local expected_containers=("castleweb_prod_backend" "castleweb_prod_postgres" "castleweb_prod_redis" "castleweb_prod_nginx" "castleweb_prod_leadhunter")
         for c in "${expected_containers[@]}"; do
             local c_status
             c_status=$(docker inspect --format '{{.State.Status}}' "$c" 2>/dev/null || echo "missing")
@@ -252,6 +252,15 @@ check_all() {
         handle_incident "api_health" 1 "Сбой FastAPI бэкенда" "Эндпоинт <code>/api/v1/health</code> вернул HTTP <code>${api_http_code}</code>"
     else
         handle_incident "api_health" 0 "FastAPI" ""
+    fi
+
+    # 2.1 Check LeadHunter Parser Endpoint
+    local parser_http_code
+    parser_http_code=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 6 "http://127.0.0.1:8080/health" 2>/dev/null || echo "000")
+    if [ "$parser_http_code" != "200" ]; then
+        handle_incident "parser_health" 1 "Сбой LeadHunter парсера" "Эндпоинт <code>http://127.0.0.1:8080/health</code> вернул HTTP <code>${parser_http_code}</code>"
+    else
+        handle_incident "parser_health" 0 "LeadHunter" ""
     fi
 
     # 3. Check Nginx Port 80/443

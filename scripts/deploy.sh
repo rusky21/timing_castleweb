@@ -553,8 +553,13 @@ setup_ssl_and_cron() {
 FAIL_FILE="/tmp/castleweb_health_fails"
 MAX_FAILS=3
 HEALTH_URL="http://127.0.0.1:8000/api/v1/health"
+PARSER_HEALTH_URL="http://127.0.0.1:8080/health"
 
-if curl -sf --max-time 5 "$HEALTH_URL" > /dev/null 2>&1; then
+STATUS=0
+curl -sf --max-time 5 "$HEALTH_URL" > /dev/null 2>&1 || STATUS=$((STATUS + 1))
+curl -sf --max-time 5 "$PARSER_HEALTH_URL" > /dev/null 2>&1 || STATUS=$((STATUS + 2))
+
+if [ "$STATUS" -eq 0 ]; then
     rm -f "$FAIL_FILE"
     exit 0
 fi
@@ -566,7 +571,10 @@ echo "$CURRENT" > "$FAIL_FILE"
 if [ "$CURRENT" -ge "$MAX_FAILS" ]; then
     source __ENV_FILE__
     TG_URL="${TELEGRAM_PROXY_URL:-https://api.telegram.org}/bot${TELEGRAM_BOT_TOKEN}/sendMessage"
-    MSG="🔴 <b>CASTLEWEB DOWN</b>%0A━━━━━━━━━━━━━━━━━━━━%0AHealth check failed ${CURRENT}x подряд%0AВремя: $(date '+%Y-%m-%d %H:%M:%S')%0A%0AПроверьте: docker compose logs backend"
+    DETAILS="Сбой FastAPI бэкенда"
+    [ "$STATUS" -eq 2 ] && DETAILS="Сбой парсера LeadHunter"
+    [ "$STATUS" -eq 3 ] && DETAILS="Сбой бэкенда и парсера LeadHunter"
+    MSG="🔴 <b>CASTLEWEB ALERT</b>%0A━━━━━━━━━━━━━━━━━━━━%0A${DETAILS} (${CURRENT}x подряд)%0AВремя: $(date '+%Y-%m-%d %H:%M:%S')%0A%0AПроверьте: docker compose logs"
     curl -s "$TG_URL" -d chat_id="${TELEGRAM_CHAT_ID}" -d text="$MSG" -d parse_mode=HTML > /dev/null 2>&1
     echo 0 > "$FAIL_FILE"
 fi
