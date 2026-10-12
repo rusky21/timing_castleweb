@@ -161,6 +161,9 @@ class FLOrder(Base):
     is_pro_only: Mapped[bool] = mapped_column(Boolean, default=False)
     is_urgent: Mapped[bool] = mapped_column(Boolean, default=False)
     is_free: Mapped[bool] = mapped_column(Boolean, default=True, index=True)  # Бесплатный отклик («для всех», вакансии, конкурсы)
+    platform: Mapped[str] = mapped_column(String(50), default="fl", index=True)  # 'fl', 'kwork', 'upwork', etc.
+    composite_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
+    response_type_label: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
@@ -184,8 +187,14 @@ class FLOrder(Base):
             is_hid = getattr(inter, "is_hidden", False)
             is_rd = getattr(inter, "is_read", False)
 
+        is_free_val = getattr(self, "is_free", True)
+        default_label = "✨ Бесплатный отклик" if is_free_val else "💼 Платный отклик (пакет)"
+
         return {
             "id": self.id,
+            "platform": getattr(self, "platform", "fl") or "fl",
+            "composite_id": getattr(self, "composite_id", None) or f"{getattr(self, 'platform', 'fl')}_{self.id}",
+            "response_type_label": getattr(self, "response_type_label", None) or default_label,
             "title": self.title,
             "description": self.description,
             "price_raw": self.price_raw,
@@ -196,7 +205,7 @@ class FLOrder(Base):
             "url": self.url,
             "is_pro_only": self.is_pro_only,
             "is_urgent": self.is_urgent,
-            "is_free": getattr(self, "is_free", True),
+            "is_free": is_free_val,
             "published_at": self.published_at.isoformat() if self.published_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "is_favorite": is_fav,

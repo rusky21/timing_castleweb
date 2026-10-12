@@ -1,6 +1,13 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional, Callable, Awaitable
+from typing import List, Optional, Callable, Awaitable, Dict, Any
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pydantic import BaseModel, Field
+
+
+# ==========================================
+# 1. СУЩЕСТВУЮЩИЕ МОДЕЛИ ДЛЯ ЯНДЕКС КАРТ / 2ГИС
+# ==========================================
 
 class ScrapedOrgItem(BaseModel):
     """Сырая спарсенная карточка организации из геосервиса"""
@@ -17,6 +24,7 @@ class ScrapedOrgItem(BaseModel):
     socials: List[str] = Field(default_factory=list)
     card_url: Optional[str] = None
 
+
 class BaseScraper(ABC):
     """Базовый абстрактный класс скрейпера геосервиса"""
 
@@ -32,10 +40,75 @@ class BaseScraper(ABC):
         is_cancelled: Callable[[], bool],
     ) -> List[ScrapedOrgItem]:
         """
-        Запуск скрейпинга:
-        - on_item_scraped: коллбек при нахождении новой организации
-        - on_status: коллбек обновления статуса для UI
-        - on_captcha: коллбек при появлении капчи
-        - is_cancelled: функция проверки отмены задачи
+        Запуск скрейпинга геосервиса (Яндекс Карты / 2ГИС)
         """
+        pass
+
+
+# ==========================================
+# 2. НОВЫЕ МОДЕЛИ ДЛЯ БИРЖ ФРИЛАНСА
+# ==========================================
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+@dataclass
+class NormalizedOrder:
+    composite_id: str            # Уникальный ключ: f"{platform}_{external_id}"
+    platform: str                # 'fl', 'kwork', 'freelancer', 'freelancehunt', 'freelanceru', 'workspace', 'upwork', etc.
+    external_id: str             # Исходный ID на бирже
+    title: str                   # Название задачи
+    url: str                     # Ссылка на заказ
+    price_info: str = "Договорная"  # Форматированная строка цены
+    price_rub: Optional[int] = None # Нормализованная цена в рублях (для фильтров)
+    currency: str = "RUB"        # "RUB", "USD", "EUR", "UAH", etc.
+    is_free: bool = True         # True = бесплатный отклик / базовый доступ
+    response_type_label: str = "✨ Бесплатный отклик" # Бейдж для Telegram и Web
+    description: Optional[str] = None
+    category_id: Optional[str] = None
+    category_name: Optional[str] = None
+    tags: List[str] = field(default_factory=list)
+    published_at: Optional[datetime] = None
+    created_at: datetime = field(default_factory=utc_now)
+    raw_payload: Dict[str, Any] = field(default_factory=dict)
+
+    def to_fl_order_dict(self) -> Dict[str, Any]:
+        """Приводит к совместимой со старой схемой FLOrder структуре для API и БД"""
+        safe_int_id = None
+        try:
+            safe_int_id = int(self.external_id)
+        except (ValueError, TypeError):
+            safe_int_id = abs(hash(f"{self.platform}_{self.external_id}")) % 2147483647
+
+        return {
+            "id": safe_int_id,
+            "platform": self.platform,
+            "composite_id": self.composite_id,
+            "external_id": str(self.external_id),
+            "title": self.title,
+            "description": self.description,
+            "price_raw": self.price_info,
+            "price_rub": self.price_rub,
+            "is_negotiable": self.price_rub is None or self.price_rub == 0,
+            "category_id": self.category_id or self.platform,
+            "category_name": self.category_name or self.platform.upper(),
+            "url": self.url,
+            "is_pro_only": not self.is_free,
+            "is_urgent": False,
+            "is_free": self.is_free,
+            "response_type_label": self.response_type_label,
+            "published_at": self.published_at or self.created_at,
+            "created_at": self.created_at,
+        }
+
+
+class BaseFetcher(ABC):
+    """Абстрактный класс сборщика для любой биржи фриланса"""
+    platform_name: str
+    display_name: str
+
+    @abstractmethod
+    async def fetch_orders(self) -> List[NormalizedOrder]:
+        """Возвращает список свежих нормализованных заказов с площадки"""
         pass

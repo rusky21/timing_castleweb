@@ -2,27 +2,49 @@ import html
 from typing import Dict, Any
 
 def format_fl_order_message(order) -> str:
-    """Форматирование карточки заказа с FL.ru для Telegram"""
+    """Форматирование карточки заказа для Telegram с поддержкой мультибиржи"""
     title = html.escape(order.title or "Без заголовка")
     cat_name = html.escape(order.category_name or "Общая категория")
     desc = html.escape(order.description or "Без описания")
     if len(desc) > 300:
         desc = desc[:300].rsplit(" ", 1)[0] + "..."
 
-    # Бейджи
+    platform = (getattr(order, "platform", "fl") or "fl").lower()
+    platform_meta = {
+        "kwork": ("🟢", "#KWORK", "Kwork"),
+        "upwork": ("🟣", "#UPWORK", "Upwork"),
+        "freelancer": ("🔵", "#FREELANCER", "Freelancer"),
+        "fl": ("🟠", "#FL", "FL.ru"),
+        "workspace": ("🏢", "#WORKSPACE", "Workspace"),
+        "freelancehunt": ("🟡", "#FREELANCEHUNT", "Freelancehunt"),
+        "freelanceru": ("⚪", "#FREELANCERU", "Freelance.ru"),
+        "weblancer": ("🔴", "#WEBLANCER", "Weblancer"),
+        "peopleperhour": ("🇬🇧", "#PEOPLEPERHOUR", "PeoplePerHour"),
+        "contra": ("⚡", "#CONTRA", "Contra"),
+    }
+    icon, tag, plat_name = platform_meta.get(platform, ("💼", f"#{platform.upper()}", platform.upper()))
+
+    # Бейджи условий отклика
+    label = getattr(order, "response_type_label", None)
     badges = []
-    if getattr(order, "is_free", True):
+    if label:
+        badges.append(f"<b>{html.escape(label)}</b>")
+    elif getattr(order, "is_free", True):
         badges.append("✨ <b>Бесплатный отклик</b>")
     else:
         badges.append("💼 <b>Платный отклик (пакет)</b>")
-    if order.is_pro_only:
-        badges.append("👑 <b>Только для PRO</b>")
-    if order.is_urgent:
+
+    if getattr(order, "is_pro_only", False):
+        badges.append("👑 <b>Только PRO</b>")
+    if getattr(order, "is_urgent", False):
         badges.append("🔥 <b>Срочно</b>")
     badge_str = f" ({' | '.join(badges)})" if badges else ""
 
-    # Цена
-    if order.is_negotiable or not order.price_rub:
+    # Цена (поддержка валюты и сырой цены)
+    raw_price = getattr(order, "price_raw", None)
+    if raw_price and raw_price not in ("Договорная", "По договоренности"):
+        price_text = f"💰 <b>{html.escape(raw_price)}</b>"
+    elif order.is_negotiable or not order.price_rub:
         price_text = "🤝 <b>По договоренности</b>"
     else:
         price_text = f"💰 <b>{order.price_rub:,} ₽</b>".replace(",", " ")
@@ -38,9 +60,8 @@ def format_fl_order_message(order) -> str:
         pub_msk = pub_dt.astimezone(msk_tz).strftime("%H:%M")
         time_info += f" <i>(на бирже: {pub_msk})</i>"
 
-
     msg = (
-        f"💼 <b>{title}</b>{badge_str}\n"
+        f"{icon} {tag} | <b>{title}</b>{badge_str}\n"
         f"🏷 <i>{cat_name}</i>\n"
         f"{time_info}\n\n"
         f"{price_text}\n\n"

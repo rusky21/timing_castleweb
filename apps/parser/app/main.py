@@ -30,6 +30,7 @@ from app.api.settings import router as settings_router
 from app.api.outreach import router as outreach_router
 from app.api.websocket import ws_manager
 from app.services.fl.fl_worker import fl_worker
+from app.services.orchestrator import orchestrator
 from app.services.telegram.bot_service import tg_bot_service
 from app.services.telegram.outreach_bot_service import outreach_bot_service
 from app.services.outreach import session_manager, followup_worker
@@ -47,8 +48,9 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("Database initialized successfully.")
 
-    # Запуск фонового парсера FL.ru
+    # Запуск фонового парсера FL.ru и мультиплатформенного комбайна
     fl_worker.start()
+    await orchestrator.start()
 
     # Запуск основного Telegram-бота (Парсинг, FL.ru, уведомления по картам)
     await tg_bot_service.start()
@@ -73,6 +75,7 @@ async def lifespan(app: FastAPI):
     except Exception:
         pass
     fl_worker.stop()
+    await orchestrator.stop()
     await outreach_bot_service.stop()
     await tg_bot_service.stop()
     logger.info("Application shutdown complete.")

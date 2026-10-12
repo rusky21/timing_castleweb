@@ -54,14 +54,15 @@ class InteractionUpdate(BaseModel):
 async def get_categories():
     return FL_CATEGORIES
 
-@router.get("/orders", summary="Получить список заказов FL.ru с фильтрами")
+@router.get("/orders", summary="Получить список заказов с бирж с фильтрами")
 async def get_orders(
-    category_id: Optional[str] = Query(None, description="ID категории FL"),
+    platform: Optional[str] = Query(None, description="Фильтр по бирже (fl, kwork, upwork, freelancehunt, freelancer, freelanceru, workspace, etc.)"),
+    category_id: Optional[str] = Query(None, description="ID категории"),
     min_price: Optional[int] = Query(None, ge=0, description="Минимальный бюджет в рублях"),
     is_favorite: Optional[bool] = Query(None, description="Только избранные"),
     is_hidden: Optional[bool] = Query(False, description="Показывать скрытые"),
     search: Optional[str] = Query(None, description="Поиск по ключевым словам"),
-    is_pro_only: Optional[bool] = Query(None, description="Фильтр только для PRO"),
+    is_pro_only: Optional[bool] = Query(None, description="Фильтр только для PRO / платный отклик"),
     is_urgent: Optional[bool] = Query(None, description="Фильтр только срочных"),
     is_free: Optional[bool] = Query(None, description="Фильтр по бесплатным заказам"),
     allow_negotiable: Optional[bool] = Query(True, description="Включать проекты по договоренности"),
@@ -69,7 +70,25 @@ async def get_orders(
     page_size: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db)
 ):
+    from fastapi.params import Query as QueryParam
+    if isinstance(platform, QueryParam): platform = None
+    if isinstance(category_id, QueryParam): category_id = None
+    if isinstance(min_price, QueryParam): min_price = None
+    if isinstance(is_favorite, QueryParam): is_favorite = None
+    if isinstance(is_hidden, QueryParam): is_hidden = False
+    if isinstance(search, QueryParam): search = None
+    if isinstance(is_pro_only, QueryParam): is_pro_only = None
+    if isinstance(is_urgent, QueryParam): is_urgent = None
+    if isinstance(is_free, QueryParam): is_free = None
+    if isinstance(allow_negotiable, QueryParam): allow_negotiable = True
+    if isinstance(page, QueryParam): page = 1
+    if isinstance(page_size, QueryParam): page_size = 50
+
     query = select(FLOrder).options(selectinload(FLOrder.interaction))
+
+    # Фильтр по бирже
+    if platform and platform != "all":
+        query = query.where(FLOrder.platform == platform)
 
     # Скрытые / не скрытые
     if is_hidden is not None:
@@ -132,8 +151,8 @@ async def get_orders(
     total_res = await db.execute(count_stmt)
     total = total_res.scalar_one()
 
-    # Сортировка: самые свежие сверху
-    query = query.order_by(FLOrder.id.desc())
+    # Сортировка: самые свежие сверху по времени добавления
+    query = query.order_by(FLOrder.created_at.desc(), FLOrder.id.desc())
     query = query.offset((page - 1) * page_size).limit(page_size)
 
     res = await db.execute(query)
@@ -198,13 +217,23 @@ async def update_order_interaction(
         "is_read": interaction.is_read
     }
 
-@router.post("/poll", summary="Принудительно запустить шаг проверки ленты FL.ru")
+@router.post("/poll", summary="Принудительно запустить шаг проверки всех бирж")
 async def trigger_poll():
     import asyncio
+    from app.services.orchestrator import orchestrator
     asyncio.create_task(fl_worker.poll_cycle())
-    return {"status": "ok", "message": "Опрос FL.ru запущен в фоне"}
+    asyncio.create_task(orchestrator.poll_all_platforms())
+    return {"status": "ok", "message": "Опрос всех бирж запущен в фоне"}
 
-@router.get("/stats", summary="Сводка по заказам FL.ru")
+@router.get("/platforms", summary="Список подключенных бирж фриланса")
+async def get_platforms():
+    from app.services.orchestrator import orchestrator
+    return [
+        {"id": f.platform_name, "name": f.display_name}
+        for f in orchestrator.fetchers
+    ]
+
+@router.get("/stats", summary="Сводка по заказам бирж")
 async def get_stats(db: AsyncSession = Depends(get_db)):
     total = (await db.execute(select(func.count(FLOrder.id)))).scalar_one() or 0
     favorites = (await db.execute(
@@ -220,10 +249,14 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
         "last_synced_at": last_sync.synced_at.isoformat() if last_sync else None
     }
 
-@router.get("/worker/status", summary="Статус фонового воркера FL.ru")
+@router.get("/worker/status", summary="Статус фонового комбайна бирж")
 async def get_worker_status():
+    from app.services.orchestrator import orchestrator
     return {
-        "is_running": fl_worker.is_running,
+        "is_running": fl_worker.is_running or orchestrator.is_running,
+        "fl_worker_running": fl_worker.is_running,
+        "orchestrator_running": orchestrator.is_running,
+        "platforms_count": len(orchestrator.fetchers),
         "poll_interval_min": fl_worker.poll_interval_min,
         "poll_interval_max": fl_worker.poll_interval_max,
         "next_poll_in": round(fl_worker.next_poll_in, 1),

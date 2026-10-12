@@ -146,9 +146,9 @@ class TelegramDispatcher:
                     if not getattr(sub, "fl_live_mode", True):
                         continue
 
-                    # 1. Проверка категории
+                    # 1. Проверка категории (применяется к заказам FL.ru)
                     user_cats = sub.fl_categories or []
-                    if user_cats and order.category_id:
+                    if user_cats and order.category_id and getattr(order, "platform", "fl") == "fl":
                         if str(order.category_id) not in [str(c) for c in user_cats]:
                             continue
 
@@ -328,3 +328,4 @@ class TelegramDispatcher:
             logger.error(f"Ошибка broadcast_captcha_alert: {e}")
 
 tg_dispatcher = TelegramDispatcher()
+telegram_dispatcher = tg_dispatcher

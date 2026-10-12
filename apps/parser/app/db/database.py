@@ -58,6 +58,9 @@ async def init_db():
             "ALTER TABLE telegram_user_settings ADD COLUMN notify_captcha BOOLEAN DEFAULT 1",
             "ALTER TABLE telegram_user_settings ADD COLUMN fl_live_mode BOOLEAN DEFAULT 1",
             "ALTER TABLE fl_orders ADD COLUMN is_free BOOLEAN DEFAULT 1",
+            "ALTER TABLE fl_orders ADD COLUMN platform VARCHAR(50) DEFAULT 'fl'",
+            "ALTER TABLE fl_orders ADD COLUMN composite_id VARCHAR(255)",
+            "ALTER TABLE fl_orders ADD COLUMN response_type_label VARCHAR(255)",
             "ALTER TABLE users ADD COLUMN demo_searches_left INTEGER DEFAULT 5",
             "ALTER TABLE users ADD COLUMN max_companies_per_search INTEGER DEFAULT 5",
             "ALTER TABLE users ADD COLUMN last_search_at TIMESTAMP",
@@ -70,15 +73,32 @@ async def init_db():
             except Exception:
                 pass
 
-        # Корректировка существующих записей в fl_orders: помечаем старые платные заказы как is_free = 0
+        # Корректировка существующих записей в fl_orders: помечаем старые платные заказы FL.ru как is_free = 0
         try:
             await conn.execute(text("""
                 UPDATE fl_orders 
                 SET is_free = 0 
-                WHERE is_free = 1 
+                WHERE platform = 'fl'
+                  AND is_free = 1 
                   AND lower(title) NOT LIKE '%для всех%' 
                   AND (description IS NULL OR lower(description) NOT LIKE '%для всех%')
                   AND (category_name IS NULL OR (lower(category_name) NOT LIKE '%ваканси%' AND lower(category_name) NOT LIKE '%конкурс%'))
+            """))
+            # Восстанавливаем корректный флаг is_free для бесплатных заказов мультиплатформенных бирж
+            await conn.execute(text("""
+                UPDATE fl_orders
+                SET is_free = 1
+                WHERE platform IN ('workspace', 'freelancehunt', 'kwork', 'freelancer', 'contra', 'peopleperhour')
+                  AND (response_type_label LIKE '%Бесплатн%' 
+                       OR response_type_label LIKE '%Стандартн%' 
+                       OR response_type_label LIKE '%Базов%'
+                       OR response_type_label LIKE '%квот%')
+            """))
+            # Заполняем composite_id для старых записей
+            await conn.execute(text("""
+                UPDATE fl_orders
+                SET composite_id = 'fl_' || id, platform = 'fl'
+                WHERE composite_id IS NULL
             """))
         except Exception:
             pass
