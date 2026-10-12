@@ -393,6 +393,15 @@ setup_os_ubuntu() {
 
     systemctl enable --now fail2ban >/dev/null 2>&1 || true
     systemctl enable --now cron >/dev/null 2>&1 || true
+
+    # Защита от переполнения 40 ГБ диска: ограничение системного журнала journald (150 МБ) и очистка APT
+    if [ -f /etc/systemd/journald.conf ]; then
+        sed -i 's/^#*SystemMaxUse=.*/SystemMaxUse=150M/' /etc/systemd/journald.conf 2>/dev/null || true
+        systemctl restart systemd-journald >/dev/null 2>&1 || true
+    fi
+    journalctl --vacuum-size=100M >/dev/null 2>&1 || true
+    apt-get clean -y -q >/dev/null 2>&1 || true
+    log_success "Ограничение системных логов (journald до 150 МБ) и очистка APT настроены."
 }
 
 setup_docker() {
@@ -531,6 +540,11 @@ setup_ssl_and_cron() {
     (crontab -l 2>/dev/null | grep -v "certbot renew" ; echo "$CRON_CMD") | crontab -
     log_success "Автопродление SSL добавлено в системный crontab."
 
+    # Еженедельная очистка Docker (старые образы и слои сборки >7 дней каждое воскресенье в 03:00)
+    CRON_CLEANUP="0 3 * * 0 docker image prune -af --filter \"until=168h\" >/dev/null 2>&1"
+    (crontab -l 2>/dev/null | grep -v "docker image prune" ; echo "$CRON_CLEANUP") | crontab -
+    log_success "Еженедельная автоочистка Docker добавлена в системный crontab."
+
     # Dead Man's Switch — health check every 5 minutes, alert to Telegram on failure
     if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ "$TELEGRAM_BOT_TOKEN" != "your_bot_token_here" ]; then
         HEALTH_SCRIPT="${ROOT_DIR}/scripts/healthcheck.sh"
@@ -650,6 +664,10 @@ launch_and_post_install() {
 
     fi
 
+    # Очистка неиспользуемых промежуточных слоев сборки Docker
+    log_info "Очистка висячих слоев сборки Docker для экономии диска..."
+    docker image prune -f >/dev/null 2>&1 || true
+
     echo -e "\n${GREEN}${BOLD}=================================================================${NC}"
     echo -e "${GREEN}${BOLD}     🎉 ПРОЕКТ CASTLEWEB ПОЛНОСТЬЮ РАЗВЕРНУТ И ЗАПУЩЕН!         ${NC}"
     echo -e "${GREEN}${BOLD}=================================================================${NC}"
@@ -696,6 +714,7 @@ main() {
             docker compose -f "$DOCKER_COMPOSE_FILE" exec -u 0 -T backend chmod -R 777 /app/uploads /tmp/uploads 2>/dev/null || true
             curl -sf -X POST http://127.0.0.1:8000/api/v1/telegram/setup-webhook >/dev/null 2>&1 || true
             curl -sf -X POST http://127.0.0.1:8000/api/v1/telegram/test >/dev/null 2>&1 || true
+            docker image prune -f >/dev/null 2>&1 || true
             log_success "Бэкенд обновлен, Nginx синхронизирован и Telegram Webhook активирован!"
             ;;
         --parser-only)
@@ -705,6 +724,7 @@ main() {
             docker compose -f "$DOCKER_COMPOSE_FILE" build leadhunter
             docker compose -f "$DOCKER_COMPOSE_FILE" up -d --no-deps leadhunter
             docker compose -f "$DOCKER_COMPOSE_FILE" restart nginx
+            docker image prune -f >/dev/null 2>&1 || true
             log_success "Парсер LeadHunter Pro обновлен и Nginx синхронизирован!"
             ;;
         --ssl)
