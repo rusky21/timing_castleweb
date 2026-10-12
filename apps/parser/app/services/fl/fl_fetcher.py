@@ -400,11 +400,8 @@ class FLFetcher:
 
             # Бейджи: PRO, Срочно, Бесплатный отклик
             card_text = (card.text() or "").lower()
-            card_classes = (card.attributes.get("class") or "").lower()
             is_pro = bool(
                 card.css_first('.b-post__pro') or
-                card.css_first('span[class*="pro"]') or
-                "pro" in card_classes or
                 "только для pro" in card_text
             )
             is_urgent = bool(
@@ -476,11 +473,18 @@ class FLFetcher:
             link_lower = link.lower()
 
             # Проверка бесплатности отклика по официальным правилам FL.ru:
-            # 1. Заказ имеет опцию «для всех» в заголовке или описании
+            # 1. Заказ имеет опцию «для всех» в заголовке или описании (включая срезанные RSS-хвосты '(д')
             # 2. Вакансии (отклики бесплатны для всех)
             # 3. Конкурсы (отклики бесплатны для всех)
             # 4. Не требует PRO-аккаунт
-            is_for_all = ("для всех" in raw_title_lower) or ("для всех" in raw_desc_lower)
+            is_for_all = (
+                ("для всех" in raw_title_lower) or
+                ("для всех" in raw_desc_lower) or
+                raw_title_lower.endswith("(д") or
+                raw_title_lower.endswith("(д)") or
+                raw_title_lower.endswith("(для") or
+                raw_title_lower.endswith("(для ")
+            )
             is_vacancy = ("ваканси" in cat_lower) or ("/vakansii/" in link_lower)
             is_contest = ("конкурс" in cat_lower) or ("/konkurs/" in link_lower)
 
@@ -511,8 +515,9 @@ class FLFetcher:
                     if not price_raw:
                         price_raw = "По договоренности"
 
-            # Очищаем возможные хвосты "(для всех)" в названии
+            # Очищаем возможные хвосты "(для всех)" или обрезанные "(д" в названии
             clean_title = re.sub(r"[\(\[]\s*для всех\s*[\)\]]", "", clean_title, flags=re.IGNORECASE).strip()
+            clean_title = re.sub(r"\s*[\(\[]\s*д(?:ля)?\s*[\)\]]?\s*$", "", clean_title, flags=re.IGNORECASE).strip()
 
             price_rub, is_negotiable = self._parse_price(price_raw)
 

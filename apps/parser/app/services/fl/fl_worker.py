@@ -164,8 +164,8 @@ class FLWorker:
                     ))
                     await db.commit()
 
-            # 2. Скачиваем проекты (строго только бесплатные для отклика)
-            projects = await self.fetcher.fetch_projects(category_id=cat_id, only_free=True)
+            # 2. Скачиваем проекты (все свежие коммерческие заказы и вакансии)
+            projects = await self.fetcher.fetch_projects(category_id=cat_id, only_free=False)
             if not projects:
                 continue
 
@@ -173,10 +173,6 @@ class FLWorker:
             new_orders_saved = []
             async with async_session_factory() as db:
                 for proj in projects:
-                    # Фильтр: парсим исключительно заказы с бесплатным откликом ("для всех", вакансии, конкурсы)
-                    if not proj.get("is_free", False):
-                        continue
-
                     proj_id = proj["id"]
                     existing = await db.get(FLOrder, proj_id)
                     if existing:
@@ -256,7 +252,7 @@ class FLWorker:
             for order, age_seconds in orders_to_dispatch:
                 age_min = round(age_seconds / 60, 1) if age_seconds is not None else 0
                 logger.info(
-                    f"FLWorker: ⚡️ Обнаружен свежий бесплатный заказ #{order.id} (возраст {age_min} мин). Отправка в Telegram..."
+                    f"FLWorker: ⚡️ Обнаружен свежий заказ #{order.id} (free={order.is_free}, возраст {age_min} мин). Отправка..."
                 )
 
                 # А. Мгновенно отправляем в десктоп/веб через WebSocket
@@ -307,9 +303,19 @@ class FLWorker:
                 else:
                     logger.debug(f"FLWorker: Backend ответил {resp.status_code} при отправке заказа #{order.id}")
         except (httpx.ConnectError, httpx.ConnectTimeout):
+            if "backend:8000" in endpoint:
+                local_endpoint = endpoint.replace("backend:8000", "127.0.0.1:8000")
+                try:
+                    async with httpx.AsyncClient(timeout=2.0) as client:
+                        resp = await client.post(local_endpoint, json=payload)
+                        if resp.status_code == 200:
+                            logger.info(f"FLWorker: Заказ #{order.id} передан в локальный @castleweb_bot (200 OK)")
+                            return
+                except Exception:
+                    pass
             logger.debug(f"FLWorker: Главный бэкенд студии ({backend_url}) недоступен (локальный режим)")
         except Exception as e:
-            logger.debug(f"FLWorker: Передача заказа #{order.id} в бэкенд: {e}")
+            logger.warning(f"FLWorker: Передача заказа #{order.id} в бэкенд: {e}")
 
 fl_worker = FLWorker()
 

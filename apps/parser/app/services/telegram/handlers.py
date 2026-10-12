@@ -172,7 +172,6 @@ async def cmd_fl(message: Message):
     async with async_session_factory() as db:
         stmt = (
             select(FLOrder)
-            .where(FLOrder.is_free == True)
             .options(selectinload(FLOrder.interaction))
             .order_by(FLOrder.id.desc())
             .limit(5)
@@ -359,7 +358,6 @@ async def cb_fl_recent(call: CallbackQuery):
     async with async_session_factory() as db:
         stmt = (
             select(FLOrder)
-            .where(FLOrder.is_free == True)
             .options(selectinload(FLOrder.interaction))
             .order_by(FLOrder.id.desc())
             .limit(5)

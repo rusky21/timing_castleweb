@@ -1298,12 +1298,7 @@ async def broadcast_fl_order(request: Request):
     is_urgent = order_data.get("is_urgent", False)
     is_pro = order_data.get("is_pro_only", False)
     is_free = order_data.get("is_free", True)
-    # Строгий фильтр: транслируем только заказы с бесплатным откликом
-    if is_free is False or is_pro:
-        logger.info(f"broadcast_fl_order: Заказ #{order_id} требует оплаты отклика или PRO, пропуск рассылки.")
-        return {"ok": True, "skipped": "paid_order"}
-
-    badge = " ✨ БЕСПЛАТНЫЙ ОТКЛИК"
+    badge = " ✨ БЕСПЛАТНЫЙ ОТКЛИК" if is_free else " 💼 ПЛАТНЫЙ ОТКЛИК (ПАКЕТ)"
     if is_urgent:
         badge += " 🔥 СРОЧНЫЙ"
     if is_pro:

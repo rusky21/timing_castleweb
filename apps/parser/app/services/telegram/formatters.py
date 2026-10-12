@@ -13,6 +13,8 @@ def format_fl_order_message(order) -> str:
     badges = []
     if getattr(order, "is_free", True):
         badges.append("✨ <b>Бесплатный отклик</b>")
+    else:
+        badges.append("💼 <b>Платный отклик (пакет)</b>")
     if order.is_pro_only:
         badges.append("👑 <b>Только для PRO</b>")
     if order.is_urgent:

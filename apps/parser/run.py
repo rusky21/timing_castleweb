@@ -24,8 +24,15 @@ def check_playwright():
 
 def main():
     import os
+    from pathlib import Path
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(Path(__file__).resolve().parent / ".env")
+    except Exception:
+        pass
+
     host = os.environ.get("HOST", "0.0.0.0")
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", 8000))
 
     print("=" * 60)
     print(" 🚀 LeadHunter & Audit Backend API")
