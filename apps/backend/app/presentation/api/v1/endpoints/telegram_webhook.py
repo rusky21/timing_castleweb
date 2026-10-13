@@ -1127,17 +1127,24 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
 
         elif text.startswith("/help"):
             help_msg = (
-                f"🛠 <b>Команды:</b>\n"
-                f"/stats — статистика заявок\n"
-                f"/leads — последние заявки\n"
-                f"/find &lt;запрос&gt; — поиск по базе\n"
-                f"/del &lt;id&gt; — удалить заявку\n"
-                f"/status &lt;id&gt; — статус заявки\n"
-                f"/server — состояние сервера\n"
-                f"/cases — портфолио\n"
-                f"/export — выгрузка в CSV\n"
-                f"/admin — панель управления\n"
-                f"/id — узнать свой Telegram ID"
+                f"🛠 <b>Доступные команды бота:</b>\n\n"
+                f"<b>💼 Биржи фриланса и заказы:</b>\n"
+                f"• /fl — свежие заказы с биржи FL.ru (бесплатный отклик)\n"
+                f"• /kwork — свежие заказы с Kwork (Разработка & Дизайн)\n"
+                f"• /workspace — тендеры с биржи Workspace\n"
+                f"• /orders (или /freelance) — свежие заказы со всех бирж\n\n"
+                f"<b>📊 Заявки и клиенты (CastleWeb Studio):</b>\n"
+                f"• /stats — статистика заявок и конверсии\n"
+                f"• /leads — последние входящие заявки\n"
+                f"• /find &lt;запрос&gt; — поиск клиента по имени/телефону/задаче\n"
+                f"• /del &lt;id&gt; — удалить заявку\n"
+                f"• /status &lt;id&gt; — статус заявки\n"
+                f"• /export — выгрузка базы лидов в CSV\n\n"
+                f"<b>🖥 Сервер и управление:</b>\n"
+                f"• /server (или /sys) — состояние сервера (CPU, RAM, диск, аптайм)\n"
+                f"• /admin — админ-панель и вход в LeadHunter\n"
+                f"• /cases — портфолио и кейсы студии\n"
+                f"• /id — узнать свой Telegram ID и права"
             )
             await send_reply_message(chat_id, help_msg)
             return {"ok": True}
