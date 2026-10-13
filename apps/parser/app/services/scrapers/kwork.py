@@ -14,7 +14,8 @@ class KworkFetcher(BaseFetcher):
 
     def __init__(self, client: StealthClient | None = None):
         self.client = client or StealthClient()
-        self.url = "https://kwork.ru/projects"
+        # Категории: 11 = Разработка и IT, 15 = Дизайн
+        self.url = "https://kwork.ru/projects?c=11&c=15"
 
     async def fetch_orders(self) -> List[NormalizedOrder]:
         orders: List[NormalizedOrder] = []
@@ -31,6 +32,17 @@ class KworkFetcher(BaseFetcher):
 
             state = json.loads(m.group(1))
             wants = state.get("wants", [])
+
+            # Построение карты категорий Kwork
+            cat_map = {}
+            for p_id, c in state.get("categories", {}).items():
+                if isinstance(c, dict):
+                    p_name = c.get("name") or ""
+                    cat_map[str(p_id)] = p_name
+                    for sub in c.get("cats", []):
+                        s_id = str(sub.get("id") or sub.get("CATID") or "")
+                        s_name = sub.get("name") or ""
+                        cat_map[s_id] = f"{p_name} / {s_name}" if p_name else s_name
 
             for w in wants:
                 w_id = str(w.get("id"))
@@ -57,6 +69,9 @@ class KworkFetcher(BaseFetcher):
                 if kworks_filters:
                     label = "🔒 Фильтр исполнителей Kwork"
 
+                cid = str(w.get("category_id") or "")
+                cat_name = cat_map.get(cid) or "Разработка и IT"
+
                 order = NormalizedOrder(
                     composite_id=f"kwork_{w_id}",
                     platform="kwork",
@@ -69,7 +84,7 @@ class KworkFetcher(BaseFetcher):
                     currency="RUB",
                     is_free=is_free,
                     response_type_label=label,
-                    category_name="Биржа Kwork",
+                    category_name=cat_name,
                     created_at=utc_now(),
                     raw_payload=w
                 )

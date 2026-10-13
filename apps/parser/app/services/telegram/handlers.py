@@ -172,6 +172,7 @@ async def cmd_fl(message: Message):
     async with async_session_factory() as db:
         stmt = (
             select(FLOrder)
+            .where(FLOrder.platform == "fl")
             .options(selectinload(FLOrder.interaction))
             .order_by(FLOrder.id.desc())
             .limit(5)
@@ -180,7 +181,7 @@ async def cmd_fl(message: Message):
         orders = res.scalars().all()
 
     if not orders:
-        await message.answer("Заказы еще не загружены воркером. Подождите 15-20 секунд...")
+        await message.answer("Заказы с биржи FL.ru еще не загружены воркером. Подождите 15-20 секунд...")
         return
 
     await message.answer("⚡️ <b>Свежие заказы с биржи FL.ru:</b>", parse_mode="HTML")

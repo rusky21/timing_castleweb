@@ -897,7 +897,20 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
             await send_reply_message(chat_id, server_report, kb)
             return {"ok": True}
 
-        elif text.startswith("/fl"):
+        elif text.startswith("/fl") or text.startswith("/kwork") or text.startswith("/workspace") or text.startswith("/freelance") or text.startswith("/orders"):
+            target_plat = None
+            if text.startswith("/fl"):
+                target_plat = "fl"
+                plat_header = "биржи FL.ru (бесплатный отклик)"
+            elif text.startswith("/kwork"):
+                target_plat = "kwork"
+                plat_header = "биржи Kwork"
+            elif text.startswith("/workspace"):
+                target_plat = "workspace"
+                plat_header = "биржи Workspace (Тендеры)"
+            else:
+                plat_header = "бирж фриланса"
+
             if chat_id:
                 KNOWN_ADMIN_CHATS.add(str(chat_id))
             if from_id:
@@ -922,6 +935,13 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
             last_error = None
             found_resp = None
 
+            query_params = ["page=1", "page_size=5"]
+            if target_plat:
+                query_params.append(f"platform={target_plat}")
+                if target_plat == "fl":
+                    query_params.append("is_free=true")
+            qs = "&".join(query_params)
+
             for base_url in filter(None, internal_urls):
                 b_url = base_url.rstrip("/")
                 try:
@@ -932,8 +952,8 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                         except Exception:
                             pass
 
-                        # 1. Запрос заказов с заголовком X-Internal-Secret (только бесплатные)
-                        resp = await client.get(f"{b_url}/api/fl/orders?page=1&page_size=5&is_free=true", headers=headers)
+                        # 1. Запрос заказов с заголовком X-Internal-Secret
+                        resp = await client.get(f"{b_url}/api/fl/orders?{qs}", headers=headers)
 
                         # 2. Если парсер вернул 401 (старый контейнер без X-Internal-Secret) — мгновенная авторизация через /login
                         if resp.status_code == 401:
@@ -942,7 +962,7 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                                 data={"email": "admin@lead.pro", "password": "AdminPass123!_ChangeMe"}
                             )
                             if login_resp.status_code in (200, 303):
-                                resp = await client.get(f"{b_url}/api/fl/orders?page=1&page_size=5&is_free=true")
+                                resp = await client.get(f"{b_url}/api/fl/orders?{qs}")
 
                         if resp.status_code == 200:
                             found_resp = resp.json()
@@ -955,15 +975,16 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
             if found_resp is not None:
                 items = found_resp.get("items", [])
                 if not items:
-                    await send_reply_message(chat_id, "ℹ️ На бирже FL.ru пока нет сохраненных бесплатных заказов («для всех»). Опрос запущен в фоне, новые заказы скоро появятся!")
+                    await send_reply_message(chat_id, f"ℹ️ На {plat_header} пока нет сохраненных подходящих заказов. Опрос запущен в фоне, новые заказы скоро появятся!")
                 else:
-                    msg_lines = ["⚡️ <b>Свежие заказы с биржи FL.ru (бесплатный отклик):</b>\n"]
+                    msg_lines = [f"⚡️ <b>Свежие заказы с {plat_header}:</b>\n"]
                     for ord_item in items:
                         p = ord_item.get("price_raw") or "По договоренности"
                         t = ord_item.get("title", "")
                         u = ord_item.get("url", "https://www.fl.ru/projects/")
                         cat = ord_item.get("category_name", "Разработка")
-                        msg_lines.append(f"📌 <a href=\"{u}\"><b>{html.escape(t)}</b></a>\n💰 <b>{html.escape(str(p))}</b> | 📁 <i>{html.escape(str(cat))}</i>\n")
+                        plat = (ord_item.get("platform") or "fl").upper()
+                        msg_lines.append(f"📌 <a href=\"{u}\"><b>{html.escape(t)}</b></a>\n💰 <b>{html.escape(str(p))}</b> | 🏷 <b>[{plat}]</b> 📁 <i>{html.escape(str(cat))}</i>\n")
                     msg_lines.append("🟢 <i>Авто-мониторинг активен (15-20 сек). Все новые заказы автоматически приходят сюда.</i>")
                     await send_reply_message(chat_id, "\n".join(msg_lines))
             else:
