@@ -271,3 +271,28 @@ async def get_worker_status():
         "next_poll_in": round(fl_worker.next_poll_in, 1),
         "last_poll_at": fl_worker.last_poll_at.isoformat() if fl_worker.last_poll_at else None,
     }
+
+@router.get("/filters/stop-rules", summary="Список активных правил и исключенных категорий")
+async def get_stop_rules():
+    from app.services.filters import STOP_CATEGORIES_KEYWORDS
+    return {
+        "excluded_categories": [
+            "менеджер",
+            "монтаж коротких видео роликов",
+            "монтаж",
+            "отопление",
+            "SMM",
+            "создание аватара",
+            "создание ии аватара",
+            "привлечение клиентов",
+            "написать сценарии"
+        ],
+        "keywords_count": len(STOP_CATEGORIES_KEYWORDS)
+    }
+
+@router.post("/filters/clean-excluded", summary="Скрыть все существующие заказы по стоп-категориям")
+async def trigger_clean_excluded():
+    from app.services.filters import hide_existing_excluded_orders
+    hidden_count = await hide_existing_excluded_orders()
+    return {"status": "ok", "hidden_orders_count": hidden_count}
+

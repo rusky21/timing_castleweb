@@ -21,6 +21,7 @@ from app.services.scrapers.peopleperhour import PeoplePerHourFetcher
 from app.services.scrapers.contra import ContraFetcher
 from app.services.telegram.dispatcher import telegram_dispatcher
 from app.services.connection_manager import ws_manager
+from app.services.filters import is_order_excluded
 
 logger = logging.getLogger("orchestrator")
 
@@ -166,6 +167,16 @@ class MultiPlatformOrchestrator:
 
             async with async_session_factory() as db:
                 for order in fresh_orders:
+                    # Проверка стоп-категорий и стоп-слов
+                    is_excluded, reason = is_order_excluded(
+                        title=order.title,
+                        description=order.description or "",
+                        category_name=order.category_name or fetcher.display_name
+                    )
+                    if is_excluded:
+                        logger.debug(f"[{fetcher.display_name}] Пропущен заказ '{order.title}': {reason}")
+                        continue
+
                     # Проверяем наличие по composite_id или по id
                     safe_data = order.to_fl_order_dict()
                     safe_id = safe_data["id"]

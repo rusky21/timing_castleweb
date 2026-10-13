@@ -12,6 +12,7 @@ from app.db.models import FLOrder, FLCategorySync, FLOrderInteraction, FLOrderDe
 from app.services.fl.fl_fetcher import FLFetcher
 from app.services.fl.constants import CATEGORY_BY_ID, FL_CATEGORIES
 from app.services.connection_manager import ws_manager
+from app.services.filters import is_order_excluded
 
 logger = logging.getLogger("fl_worker")
 
@@ -173,6 +174,15 @@ class FLWorker:
             new_orders_saved = []
             async with async_session_factory() as db:
                 for proj in projects:
+                    # Проверка стоп-категорий и стоп-слов
+                    is_excluded, reason = is_order_excluded(
+                        title=proj.get("title", ""),
+                        description=proj.get("description", ""),
+                        category_name=proj.get("category_name", "") or cat_name
+                    )
+                    if is_excluded:
+                        continue
+
                     proj_id = proj["id"]
                     existing = await db.get(FLOrder, proj_id)
                     if existing:

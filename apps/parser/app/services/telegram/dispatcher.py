@@ -111,6 +111,17 @@ class TelegramDispatcher:
             logger.warning("dispatch_fl_order: Telegram-бот не инициализирован (проверьте TELEGRAM_BOT_TOKEN в .env)")
             return
 
+        # Глобальный фильтр стоп-категорий (менеджер, монтаж, отопление, SMM, аватары, привлечение клиентов, сценарии)
+        from app.services.filters import is_order_excluded
+        is_excluded, reason = is_order_excluded(
+            title=getattr(order, "title", "") or "",
+            description=getattr(order, "description", "") or "",
+            category_name=getattr(order, "category_name", "") or ""
+        )
+        if is_excluded:
+            logger.info(f"TG Dispatcher: заказ отклонен по стоп-категории '{reason}': {getattr(order, 'title', '')[:50]}")
+            return
+
         try:
             from app.config import ADMIN_TELEGRAM_IDS, MANAGER_TELEGRAM_CHAT_ID
 

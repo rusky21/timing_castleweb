@@ -48,6 +48,14 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("Database initialized successfully.")
 
+    # Скрытие старых нерелевантных заказов по стоп-категориям
+    try:
+        from app.services.filters import hide_existing_excluded_orders
+        hidden_count = await hide_existing_excluded_orders()
+        logger.info(f"Очистка стоп-категорий в БД: скрыто {hidden_count} нерелевантных заказов.")
+    except Exception as e:
+        logger.warning(f"Не удалось скрыть нерелевантные заказы при старте: {e}")
+
     # Запуск фонового парсера FL.ru и мультиплатформенного комбайна
     fl_worker.start()
     await orchestrator.start()
