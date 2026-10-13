@@ -111,9 +111,75 @@ if extra_stops:
             STOP_PATTERNS.append((re.compile(rf'\b{re.escape(w)}\b', re.IGNORECASE), f"Стоп-слово: {w}"))
 
 
+# ==============================================================================
+# ПРОФИЛЬ КОМПЕТЕНЦИЙ CASTLEWEB STUDIO (castleweb.ru)
+# ==============================================================================
+CASTLEWEB_RELEVANT_CATEGORIES = [
+    "разработка", "веб-программирование", "сайты «под ключ»", "сайты под ключ",
+    "вёрстка", "верстка", "дизайн сайтов", "интерфейсы", "скрипты и боты",
+    "мобильные приложения", "базы данных", "веб-дизайн", "разработка сайтов",
+    "программирование", "тендеры", "it /", "разработка и it"
+]
+
+CASTLEWEB_RELEVANT_PATTERNS = [
+    # 1. Веб-разработка & сайты
+    re.compile(r'\b(?:сайт\w*|лендинг\w*|веб[-\s]*сервис\w*|веб[-\s]*платформ\w*|веб[-\s]*приложени\w*|портал\w*|интернет[-\s]*магазин\w*|landing\w*)\b', re.IGNORECASE),
+    re.compile(r'\b(?:верстк\w*|сверстать\w*|html\w*|css\w*|frontend\w*|фронтенд\w*)\b', re.IGNORECASE),
+    re.compile(r'\b(?:редизайн\w*|доработк\w*\s+(?:по\s+)?сайт\w*|перенос\s+сайт\w*|правк\w*\s+на\s+сайт\w*)\b', re.IGNORECASE),
+    re.compile(r'\b(?:wordpress\w*|вордпресс\w*|tilda\w*|тильд\w*|битрикс\w*|bitrix\w*|opencart\w*|webflow\w*)\b', re.IGNORECASE),
+    re.compile(r'\b(?:react\w*|vue\w*|next(?:\.js)?\b|nuxt(?:\.js)?\b|tailwind\w*|javascript\w*|typescript\w*)\b', re.IGNORECASE),
+    
+    # 2. Бэкенд, базы данных, API
+    re.compile(r'\b(?:бэкенд\w*|backend\w*|api\b|fastapi\w*|django\w*|flask\w*|laravel\w*|node(?:\.js)?\b|php\b|python\w*|пайтон\w*|питон\w*)\b', re.IGNORECASE),
+    re.compile(r'\b(?:баз[аеу]\s+данных|базами\s+данных|sql\w*|postgresql\w*|mysql\w*|sqlite\w*|mongodb\w*)\b', re.IGNORECASE),
+    re.compile(r'\b(?:интеграци\w*\s+(?:api|сервис\w*|crm|платформ\w*)|микросервис\w*|личн\w*\s+кабинет\w*|crm\b)\b', re.IGNORECASE),
+    
+    # 3. Telegram боты & mini apps
+    re.compile(r'\b(?:telegram|телеграм\w*|тг)\s+(?:бот\w*|mini\s*app\w*|мини[-\s]*апп\w*|web\s*app\w*|канал\w*|чат[-\s]*бот\w*)\b', re.IGNORECASE),
+    re.compile(r'\b(?:бот\w*|bot\w*|чат[-\s]*бот\w*)\b', re.IGNORECASE),
+    
+    # 4. Парсеры & сбор данных
+    re.compile(r'\b(?:парсер\w*|парсинг\w*|скрап\w*|сбор\w*\s+данных|выгрузк\w*\s+данных|скрипт\w*)\b', re.IGNORECASE),
+    
+    # 5. Дизайн & UI/UX
+    re.compile(r'\b(?:дизайн\w*|веб[-\s]*дизайн\w*|ui[/_\s]*ux\w*|figma\w*|фигм\w*|макет\w*)\b', re.IGNORECASE),
+    
+    # 6. Софт & мобильные/десктоп приложения
+    re.compile(r'\b(?:приложени\w*|app\w*|apk|арк|android\w*|ios\b|flutter\w*|desktop\w*|десктоп\w*|программ\w*|софт\w*)\b', re.IGNORECASE),
+    
+    # 7. Инфраструктура & хостинг
+    re.compile(r'\b(?:хостинг\w*|домен\w*|ssl\b|nginx\b|docker\b|деплой\w*|сервер\w*)\b', re.IGNORECASE),
+]
+
+
+def is_relevant_to_castleweb(title: str, description: str = "", category_name: str = "") -> bool:
+    """
+    Проверяет, относится ли проект к компетенциям веб-студии CastleWeb:
+    - Веб-разработка (сайты, лендинги, сервисы, CMS, frontend, backend)
+    - Боты (Telegram боты, Mini Apps, чат-боты)
+    - Парсеры (сбор данных, скрапинг, автоматизация)
+    - Софт (приложения, скрипты, интеграции)
+    - UI/UX Дизайн (Figma, прототипы, макеты)
+    """
+    cat_lower = (category_name or "").lower().strip()
+    if cat_lower:
+        for rel_cat in CASTLEWEB_RELEVANT_CATEGORIES:
+            if rel_cat in cat_lower:
+                return True
+
+    full_text = f"{title or ''} {description or ''}"
+    for pattern in CASTLEWEB_RELEVANT_PATTERNS:
+        if pattern.search(full_text):
+            return True
+
+    return False
+
+
 def is_order_excluded(title: str, description: str = "", category_name: str = "") -> Tuple[bool, str]:
     """
-    Проверяет заказ на соответствие исключенным категориям или ключевым словам.
+    Проверяет заказ на соответствие исключенным категориям или ключевым словам:
+    1. Исключает стоп-категории и стоп-слова (менеджеры, SMM, видеомонтаж, отопление, репетиторы и др.)
+    2. Требует обязательное соответствие компетенциям студии CastleWeb (веб, боты, софт, парсинг, дизайн).
     Возвращает (True, причина), если заказ нужно отфильтровать, иначе (False, "").
     """
     cat_lower = (category_name or "").lower().strip()
@@ -121,22 +187,26 @@ def is_order_excluded(title: str, description: str = "", category_name: str = ""
     desc_raw = description or ""
     full_text = f"{title_raw} {desc_raw}"
 
-    # 1. Проверка категории биржи
+    # 1. Проверка категории биржи на стоп-слова
     if cat_lower:
         for stop_cat in STOP_CATEGORIES_KEYWORDS:
             if stop_cat in cat_lower:
-                return True, f"Категория: {category_name} ({stop_cat})"
+                return True, f"Стоп-категория: {category_name} ({stop_cat})"
 
-    # 2. Проверка заголовка (наивысший приоритет)
+    # 2. Проверка заголовка по стоп-паттернам (наивысший приоритет)
     for pattern, reason in STOP_PATTERNS:
         if pattern.search(title_raw):
             return True, f"{reason} в заголовке"
 
-    # 3. Проверка описания
+    # 3. Проверка описания по стоп-паттернам
     if desc_raw:
         for pattern, reason in STOP_PATTERNS:
             if pattern.search(full_text):
                 return True, f"{reason} в описании"
+
+    # 4. Проверка на соответствие профилю CastleWeb (веб-разработка, боты, софт, парсеры, дизайн)
+    if not is_relevant_to_castleweb(title_raw, desc_raw, category_name):
+        return True, "Не относится к профилю CastleWeb (веб, боты, софт, парсинг, дизайн)"
 
     return False, ""
 
