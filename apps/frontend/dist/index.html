@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ru" data-theme="light">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,12 +8,16 @@
   <script>document.documentElement.classList.add('js-ready');</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&family=Playfair+Display:wght@700;800;900&family=Reenie+Beanie&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Anton&family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&family=Playfair+Display:wght@700;800;900&family=Reenie+Beanie&family=Syne:wght@700;800&display=swap"
+    rel="stylesheet">
   <style>
     /* --------------------------------------------------
        RESET & BASE TOKENS (Строго по DESIGN_RULES.md)
        -------------------------------------------------- */
-    *, *::before, *::after {
+    *,
+    *::before,
+    *::after {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
@@ -87,7 +92,8 @@
       font-family: var(--font-family);
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
-      min-height: 220vh; /* Запас скролла для плавной кинематографичной анимации расхождения */
+      min-height: 220vh;
+      /* Запас скролла для плавной кинематографичной анимации расхождения */
       display: flex;
       flex-direction: column;
       overflow-x: hidden;
@@ -620,8 +626,8 @@
       border-radius: 26px;
       background: #FA4616;
       border: 1px solid rgba(20, 10, 6, 0.2);
-      box-shadow: 
-        0 24px 50px rgba(0, 0, 0, 0.65), 
+      box-shadow:
+        0 24px 50px rgba(0, 0, 0, 0.65),
         0 6px 16px rgba(0, 0, 0, 0.45);
       padding: 12px 12px 14px 12px;
       display: flex;
@@ -821,8 +827,8 @@
       height: 345px;
       border-radius: 28px;
       background: linear-gradient(140deg, #E6E8EC 0%, #D4D8DE 20%, #B8BEC6 45%, #C9CED5 65%, #AEB4BC 82%, #BFC4CA 100%);
-      box-shadow: 
-        inset 0 2px 3px rgba(255, 255, 255, 0.95), 
+      box-shadow:
+        inset 0 2px 3px rgba(255, 255, 255, 0.95),
         inset 0 -3px 6px rgba(0, 0, 0, 0.35),
         var(--card-shadow);
       border: 1.5px solid #EAECF0;
@@ -841,7 +847,7 @@
       inset: 6px;
       border-radius: 22px;
       border: 1.5px solid rgba(255, 255, 255, 0.85);
-      box-shadow: 
+      box-shadow:
         inset 1px 1px 2px rgba(0, 0, 0, 0.32),
         0.5px 0.5px 1.5px rgba(0, 0, 0, 0.18);
       pointer-events: none;
@@ -858,7 +864,7 @@
       background: #FA4616;
       color: #120C08;
       border-radius: 3px 0 0 3px;
-      box-shadow: 
+      box-shadow:
         -3px 3px 8px rgba(0, 0, 0, 0.4),
         inset 1px 0 1px rgba(255, 255, 255, 0.35);
       z-index: 5;
@@ -936,7 +942,7 @@
       letter-spacing: 0.05em;
       line-height: 0.95;
       color: #B5BAC1;
-      text-shadow: 
+      text-shadow:
         1.5px 1.5px 0.5px rgba(255, 255, 255, 0.95),
         2.5px 2.5px 2px rgba(255, 255, 255, 0.5),
         -1.5px -1.5px 0.5px rgba(45, 50, 58, 0.6),
@@ -1175,6 +1181,7 @@
       background: #111111;
       height: 4px;
     }
+
     .case-ruler span:nth-child(5n) {
       height: 8px;
     }
@@ -1206,25 +1213,41 @@
     }
 
     @keyframes bounce {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(4px); }
+
+      0%,
+      100% {
+        transform: translateY(0);
+      }
+
+      50% {
+        transform: translateY(4px);
+      }
     }
 
     @media (max-width: 900px) {
       .cards-stage {
         height: 320px;
       }
-      .card-craft, .card-lanyard, .card-ticket, .card-metal-box {
+
+      .card-craft,
+      .card-lanyard,
+      .card-ticket,
+      .card-metal-box {
         width: 170px;
         height: 250px;
       }
-      .card-studio, .card-bar, .card-case {
+
+      .card-studio,
+      .card-bar,
+      .card-case {
         width: 220px;
         height: 160px;
       }
+
       .site-header {
         padding: 0 20px;
       }
+
       .brand-name {
         display: none;
       }
@@ -1750,9 +1773,18 @@
       height: 10px;
       border-radius: 50%;
     }
-    .mockup-dot.dot-red { background-color: #FF5F56; }
-    .mockup-dot.dot-yellow { background-color: #FFBD2E; }
-    .mockup-dot.dot-green { background-color: #27C93F; }
+
+    .mockup-dot.dot-red {
+      background-color: #FF5F56;
+    }
+
+    .mockup-dot.dot-yellow {
+      background-color: #FFBD2E;
+    }
+
+    .mockup-dot.dot-green {
+      background-color: #27C93F;
+    }
 
     .mockup-app-title {
       font-family: var(--font-mono);
@@ -1790,8 +1822,17 @@
     }
 
     @keyframes pulseDot {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.4; transform: scale(0.85); }
+
+      0%,
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      50% {
+        opacity: 0.4;
+        transform: scale(0.85);
+      }
     }
 
     .mockup-body {
@@ -1961,12 +2002,15 @@
       .mockup-body {
         grid-template-columns: 1fr;
       }
+
       .mockup-sidebar {
         display: none;
       }
+
       .mockup-stats-row {
         grid-template-columns: 1fr;
       }
+
       .mockup-services-list {
         grid-template-columns: 1fr;
       }
@@ -2117,6 +2161,13 @@
       color: var(--text-primary);
     }
 
+    .form-select-line optgroup {
+      background-color: var(--dropdown-bg);
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 13px;
+    }
+
     .select-chevron {
       position: absolute;
       right: 0;
@@ -2162,7 +2213,7 @@
       transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
     }
 
-    .checkbox-native:checked + .checkbox-circle-ui {
+    .checkbox-native:checked+.checkbox-circle-ui {
       background-color: var(--color-input-focus);
       border-color: var(--color-input-focus);
       box-shadow: inset 0 0 0 3px var(--canvas-bg);
@@ -2227,7 +2278,7 @@
         min-height: 300px;
         border-radius: 20px;
       }
-      
+
       .statement-section {
         margin: 64px auto 30px auto;
       }
@@ -2243,18 +2294,18 @@
       .product-hero-section {
         padding: 48px 16px 20px;
       }
-      
+
       .product-hero-buttons {
         flex-direction: column;
         width: 100%;
         max-width: 300px;
       }
-      
+
       .btn-hero-primary,
       .btn-hero-secondary {
         width: 100%;
       }
-      
+
       .statement-section {
         margin: 48px auto 20px auto;
       }
@@ -2480,7 +2531,7 @@
       opacity: 0;
       transform: translateY(28px);
       transition: opacity 0.85s cubic-bezier(0.16, 1, 0.3, 1),
-                  transform 0.85s cubic-bezier(0.16, 1, 0.3, 1);
+        transform 0.85s cubic-bezier(0.16, 1, 0.3, 1);
       will-change: opacity, transform;
     }
 
@@ -2490,10 +2541,21 @@
     }
 
     /* Stagger delays */
-    html.js-ready .reveal-delay-1 { transition-delay: 0.08s; }
-    html.js-ready .reveal-delay-2 { transition-delay: 0.16s; }
-    html.js-ready .reveal-delay-3 { transition-delay: 0.24s; }
-    html.js-ready .reveal-delay-4 { transition-delay: 0.32s; }
+    html.js-ready .reveal-delay-1 {
+      transition-delay: 0.08s;
+    }
+
+    html.js-ready .reveal-delay-2 {
+      transition-delay: 0.16s;
+    }
+
+    html.js-ready .reveal-delay-3 {
+      transition-delay: 0.24s;
+    }
+
+    html.js-ready .reveal-delay-4 {
+      transition-delay: 0.32s;
+    }
 
     /* Hero initial load entrance */
     .hero-badge,
@@ -2505,10 +2567,21 @@
       animation: heroEntrance 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
 
-    .hero-badge { animation-delay: 0.08s; }
-    .hero-title { animation-delay: 0.2s; }
-    .hero-lead { animation-delay: 0.32s; }
-    .hero-action { animation-delay: 0.44s; }
+    .hero-badge {
+      animation-delay: 0.08s;
+    }
+
+    .hero-title {
+      animation-delay: 0.2s;
+    }
+
+    .hero-lead {
+      animation-delay: 0.32s;
+    }
+
+    .hero-action {
+      animation-delay: 0.44s;
+    }
 
     @keyframes heroEntrance {
       to {
@@ -2525,9 +2598,9 @@
     .form-submit-btn,
     .theme-toggle-btn {
       transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
-                  background-color 0.2s ease,
-                  color 0.2s ease,
-                  box-shadow 0.2s ease;
+        background-color 0.2s ease,
+        color 0.2s ease,
+        box-shadow 0.2s ease;
     }
 
     .header-btn:hover,
@@ -2579,6 +2652,7 @@
 
     /* Accessibility: Respect Reduced Motion */
     @media (prefers-reduced-motion: reduce) {
+
       html.js-ready .reveal-item,
       .hero-badge,
       .hero-title,
@@ -2592,6 +2666,7 @@
     }
   </style>
 </head>
+
 <body>
 
   <!-- ВЕРХНЯЯ НАВИГАЦИЯ -->
@@ -2599,10 +2674,11 @@
     <div class="header-left">
       <a href="#" class="brand-logo" aria-label="Castleweb Studio">
         <svg class="logo-mark" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="12" cy="5" r="3" fill="currentColor"/>
-          <circle cx="5" cy="18" r="3" fill="currentColor"/>
-          <circle cx="19" cy="18" r="3" fill="currentColor"/>
-          <path d="M12 8V14M7 16.5L10.5 14.5M17 16.5L13.5 14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="12" cy="5" r="3" fill="currentColor" />
+          <circle cx="5" cy="18" r="3" fill="currentColor" />
+          <circle cx="19" cy="18" r="3" fill="currentColor" />
+          <path d="M12 8V14M7 16.5L10.5 14.5M17 16.5L13.5 14.5" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" />
         </svg>
         <span class="brand-name">Castleweb</span>
       </a>
@@ -2642,7 +2718,8 @@
 
     <div class="header-right">
       <button class="theme-toggle-btn" id="theme-toggle" aria-label="Переключить тему" title="Переключить тему">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="5"></circle>
           <line x1="12" y1="1" x2="12" y2="3"></line>
           <line x1="12" y1="21" x2="12" y2="23"></line>
@@ -2666,7 +2743,8 @@
         Создаём сложные веб-сервисы <span class="inline-slash">/</span> сайты
       </h1>
       <p class="hero-lead">
-        Дуэт разработчиков полного цикла. Проектируем надёжную архитектуру и создаём быстрые интерфейсы напрямую с клиентом, без менеджеров и испорченного телефона.
+        Дуэт разработчиков полного цикла. Проектируем надёжную архитектуру и создаём быстрые интерфейсы напрямую с
+        клиентом, без менеджеров и испорченного телефона.
       </p>
       <div class="hero-action">
         <a href="#contacts" class="pill-button" id="cta-button">
@@ -2716,14 +2794,17 @@
       <div class="fanned-card card-lanyard" id="card-1" data-idx="1">
         <div class="lanyard-hole"></div>
         <svg class="lanyard-traces" viewBox="0 0 200 200" fill="none">
-          <path d="M40 0V80L80 120V200M160 0V70L120 110V200M100 0V60L100 200" stroke="#FFFFFF" stroke-width="1.2" stroke-linecap="round"/>
+          <path d="M40 0V80L80 120V200M160 0V70L120 110V200M100 0V60L100 200" stroke="#FFFFFF" stroke-width="1.2"
+            stroke-linecap="round" />
         </svg>
         <div class="lanyard-info">
           <div class="lanyard-name">Alex Mercer</div>
           <div class="lanyard-role">Lead Systems Architect</div>
           <div class="lanyard-bottom">
             <div class="lanyard-logo">
-              <svg viewBox="0 0 24 24"><path d="M3 3H21V7H3V3ZM3 10H14V14H3V10ZM3 17H10V21H3V17Z"/></svg>
+              <svg viewBox="0 0 24 24">
+                <path d="M3 3H21V7H3V3ZM3 10H14V14H3V10ZM3 17H10V21H3V17Z" />
+              </svg>
               <span>Nexis</span>
             </div>
             <span class="lanyard-url">nexis.id</span>
@@ -2758,27 +2839,28 @@
           <div class="ticket-stub">
             <div class="ticket-stub-info">
               <div class="ticket-badge"><span class="ticket-badge-dot">●</span> TICKET</div>
-              <div class="ticket-curator-copy">Aura is an art exhibition about the search for visual harmony, still life and beauty condensed in the quiet details of form.</div>
+              <div class="ticket-curator-copy">Aura is an art exhibition about the search for visual harmony, still life
+                and beauty condensed in the quiet details of form.</div>
             </div>
             <div class="ticket-barcode-wrap">
               <svg class="ticket-barcode-svg" viewBox="0 0 68 24" preserveAspectRatio="none">
-                <rect x="0" y="0" width="2" height="24" fill="#140C07"/>
-                <rect x="4" y="0" width="1" height="24" fill="#140C07"/>
-                <rect x="7" y="0" width="3" height="24" fill="#140C07"/>
-                <rect x="12" y="0" width="1.5" height="24" fill="#140C07"/>
-                <rect x="15" y="0" width="4" height="24" fill="#140C07"/>
-                <rect x="21" y="0" width="1" height="24" fill="#140C07"/>
-                <rect x="24" y="0" width="2" height="24" fill="#140C07"/>
-                <rect x="28" y="0" width="3" height="24" fill="#140C07"/>
-                <rect x="33" y="0" width="1.5" height="24" fill="#140C07"/>
-                <rect x="36" y="0" width="2" height="24" fill="#140C07"/>
-                <rect x="40" y="0" width="4" height="24" fill="#140C07"/>
-                <rect x="46" y="0" width="1" height="24" fill="#140C07"/>
-                <rect x="49" y="0" width="3" height="24" fill="#140C07"/>
-                <rect x="54" y="0" width="1.5" height="24" fill="#140C07"/>
-                <rect x="58" y="0" width="2.5" height="24" fill="#140C07"/>
-                <rect x="63" y="0" width="1" height="24" fill="#140C07"/>
-                <rect x="66" y="0" width="2" height="24" fill="#140C07"/>
+                <rect x="0" y="0" width="2" height="24" fill="#140C07" />
+                <rect x="4" y="0" width="1" height="24" fill="#140C07" />
+                <rect x="7" y="0" width="3" height="24" fill="#140C07" />
+                <rect x="12" y="0" width="1.5" height="24" fill="#140C07" />
+                <rect x="15" y="0" width="4" height="24" fill="#140C07" />
+                <rect x="21" y="0" width="1" height="24" fill="#140C07" />
+                <rect x="24" y="0" width="2" height="24" fill="#140C07" />
+                <rect x="28" y="0" width="3" height="24" fill="#140C07" />
+                <rect x="33" y="0" width="1.5" height="24" fill="#140C07" />
+                <rect x="36" y="0" width="2" height="24" fill="#140C07" />
+                <rect x="40" y="0" width="4" height="24" fill="#140C07" />
+                <rect x="46" y="0" width="1" height="24" fill="#140C07" />
+                <rect x="49" y="0" width="3" height="24" fill="#140C07" />
+                <rect x="54" y="0" width="1.5" height="24" fill="#140C07" />
+                <rect x="58" y="0" width="2.5" height="24" fill="#140C07" />
+                <rect x="63" y="0" width="1" height="24" fill="#140C07" />
+                <rect x="66" y="0" width="2" height="24" fill="#140C07" />
               </svg>
               <span class="ticket-barcode-num">8 912348 123431</span>
             </div>
@@ -2791,7 +2873,8 @@
         <div class="metal-rim"></div>
         <div class="metal-tape">
           <span class="metal-tape-title">SEALED PROTOCOL // 2026</span>
-          <span class="metal-tape-desc">UNA CAJA DE LOS RECUERDOS ES EL REFUGIO DE LA MEMORIA TANGIBLE. ARCHIVE VERIFIED.</span>
+          <span class="metal-tape-desc">UNA CAJA DE LOS RECUERDOS ES EL REFUGIO DE LA MEMORIA TANGIBLE. ARCHIVE
+            VERIFIED.</span>
         </div>
         <div>
           <div class="metal-top-copy">©MONO.ARCHIVE</div>
@@ -2862,7 +2945,8 @@
 
     <div class="scroll-hint">
       <span>Scroll to explore cards</span>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round">
         <polyline points="6 9 12 15 18 9"></polyline>
       </svg>
     </div>
@@ -2874,12 +2958,13 @@
   <section class="studio-statement-section" id="manifesto">
     <div class="statement-manifesto-container">
       <h2 class="statement-manifesto-text">
-        Мы Castleweb® <span class="statement-accent-dash">—</span> креативная студия, создающая смелые бренды, эстетичные веб&#8209;сайты и идеи, которые отказываются быть обычными.
+        Мы Castleweb® <span class="statement-accent-dash">—</span> креативная студия, создающая смелые бренды,
+        эстетичные веб&#8209;сайты и идеи, которые отказываются быть обычными.
       </h2>
     </div>
   </section>
 
-    <!-- ==================================================
+  <!-- ==================================================
        OUR TEAM / TWO WEB DEVELOPERS SECTION
        (Строго по референс-макету: чистая типографика,
        текст напротив портрета в обеих строках)
@@ -2914,7 +2999,9 @@
             </div>
           </div>
           <p class="dev-bio-text">
-            Бэкенд-инженер и архитектор систем из Москвы, специализирующийся на отказоустойчивой инфраструктуре, распределённых сервисах и высоконагруженных API. Превращает сложную бизнес-логику в надёжные и быстродействующие решения, обеспечивая масштабируемость и стабильность современных платформ.
+            Бэкенд-инженер и архитектор систем из Москвы, специализирующийся на отказоустойчивой инфраструктуре,
+            распределённых сервисах и высоконагруженных API. Превращает сложную бизнес-логику в надёжные и
+            быстродействующие решения, обеспечивая масштабируемость и стабильность современных платформ.
           </p>
         </div>
 
@@ -2948,7 +3035,9 @@
             </div>
           </div>
           <p class="dev-bio-text">
-            Фронтенд-инженер из Москвы, создающий выразительные, интерактивные и сверхбыстрые интерфейсы с бескомпромиссным вниманием к деталям. Объединяет передовые веб-технологии, выверенные дизайн-системы и плавную анимацию, превращая визуальные концепции в живой и безупречный цифровой опыт.
+            Фронтенд-инженер из Москвы, создающий выразительные, интерактивные и сверхбыстрые интерфейсы с
+            бескомпромиссным вниманием к деталям. Объединяет передовые веб-технологии, выверенные дизайн-системы и
+            плавную анимацию, превращая визуальные концепции в живой и безупречный цифровой опыт.
           </p>
         </div>
       </div>
@@ -2957,7 +3046,8 @@
       <div class="edison-projects-header">
         <h3 class="edison-projects-title">Недавние проекты</h3>
         <p class="edison-projects-subtitle">
-          От концепции до реализации — эти проекты отражают опыт создания инновационных решений, работающих на результат. Взгляните ближе на историю каждого проекта.
+          От концепции до реализации — эти проекты отражают опыт создания инновационных решений, работающих на
+          результат. Взгляните ближе на историю каждого проекта.
         </p>
       </div>
 
@@ -2966,7 +3056,8 @@
         <!-- 1. Onyx Racing Center -->
         <div class="edison-project-card" id="case-onyx-racing">
           <div class="edison-project-media">
-            <img src="/assets/onyx_racing_center-I61_eHia.png" alt="Onyx Racing Center" class="edison-project-img" loading="lazy">
+            <img src="/assets/onyx_racing_center-I61_eHia.png" alt="Onyx Racing Center" class="edison-project-img"
+              loading="lazy">
           </div>
           <div class="edison-project-caption">
             <span class="edison-project-name">Onyx Racing Center</span>
@@ -2988,7 +3079,8 @@
         <!-- 3. Skog Chalet // Guest App -->
         <div class="edison-project-card" id="case-skog-app">
           <div class="edison-project-media is-contain">
-            <img src="/assets/skog_guest_cabinet-CP_3XER2.png" alt="Skog Chalet App" class="edison-project-img" loading="lazy">
+            <img src="/assets/skog_guest_cabinet-CP_3XER2.png" alt="Skog Chalet App" class="edison-project-img"
+              loading="lazy">
           </div>
           <div class="edison-project-caption">
             <span class="edison-project-name">Skog Chalet App</span>
@@ -2999,18 +3091,21 @@
         <!-- 4. Onyx OS // System Suite -->
         <div class="edison-project-card" id="case-onyx-suite">
           <div class="edison-project-media">
-            <img src="/assets/onyx_system_settings-DjLEqy-Y.png" alt="Onyx OS System Suite" class="edison-project-img" loading="lazy">
+            <img src="/assets/onyx_system_settings-DjLEqy-Y.png" alt="Onyx OS System Suite" class="edison-project-img"
+              loading="lazy">
           </div>
           <div class="edison-project-caption">
             <span class="edison-project-name">Onyx OS Suite</span>
-            <span class="edison-project-tags">Hardware Control &nbsp;|&nbsp; Audio Routing &nbsp;|&nbsp; Desktop App</span>
+            <span class="edison-project-tags">Hardware Control &nbsp;|&nbsp; Audio Routing &nbsp;|&nbsp; Desktop
+              App</span>
           </div>
         </div>
 
         <!-- 5. Skog Chalet // Loyalty & Bonuses -->
         <div class="edison-project-card" id="case-skog-bonuses">
           <div class="edison-project-media is-contain">
-            <img src="/assets/skog_finances_bonus-CFqWi8W4.png" alt="Skog Chalet Loyalty" class="edison-project-img" loading="lazy">
+            <img src="/assets/skog_finances_bonus-CFqWi8W4.png" alt="Skog Chalet Loyalty" class="edison-project-img"
+              loading="lazy">
           </div>
           <div class="edison-project-caption">
             <span class="edison-project-name">Skog Chalet Loyalty</span>
@@ -3021,7 +3116,8 @@
         <!-- 6. Onyx OS // Games Catalog -->
         <div class="edison-project-card" id="case-onyx-games">
           <div class="edison-project-media">
-            <img src="/assets/onyx_games_launcher-BnVm5Dkq.png" alt="Onyx Games Launcher" class="edison-project-img" loading="lazy">
+            <img src="/assets/onyx_games_launcher-BnVm5Dkq.png" alt="Onyx Games Launcher" class="edison-project-img"
+              loading="lazy">
           </div>
           <div class="edison-project-caption">
             <span class="edison-project-name">Onyx Games</span>
@@ -3109,7 +3205,9 @@
             <div class="mockup-nav-item">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <circle cx="12" cy="12" r="3"></circle>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                <path
+                  d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                </path>
               </svg>
               <span>Безопасность</span>
             </div>
@@ -3146,8 +3244,10 @@
                     <stop offset="100%" stop-color="#E85934" stop-opacity="0.0"></stop>
                   </linearGradient>
                 </defs>
-                <path d="M0,75 Q40,55 80,62 T160,35 T240,48 T320,20 T400,32 T480,14 T540,24 T600,10 L600,100 L0,100 Z" fill="url(#chartGradient)"></path>
-                <path d="M0,75 Q40,55 80,62 T160,35 T240,48 T320,20 T400,32 T480,14 T540,24 T600,10" fill="none" stroke="#E85934" stroke-width="2.5"></path>
+                <path d="M0,75 Q40,55 80,62 T160,35 T240,48 T320,20 T400,32 T480,14 T540,24 T600,10 L600,100 L0,100 Z"
+                  fill="url(#chartGradient)"></path>
+                <path d="M0,75 Q40,55 80,62 T160,35 T240,48 T320,20 T400,32 T480,14 T540,24 T600,10" fill="none"
+                  stroke="#E85934" stroke-width="2.5"></path>
               </svg>
             </div>
 
@@ -3191,36 +3291,81 @@
           <div class="name-split-row">
             <div class="form-field">
               <label for="firstName" class="field-label">Имя</label>
-              <input type="text" id="firstName" name="firstName" class="form-input-line" required>
+              <input type="text" id="firstName" name="firstName" class="form-input-line" required placeholder="Ваше имя">
             </div>
             <div class="form-field">
               <label for="lastName" class="field-label">Фамилия</label>
-              <input type="text" id="lastName" name="lastName" class="form-input-line">
+              <input type="text" id="lastName" name="lastName" class="form-input-line" placeholder="Фамилия">
             </div>
           </div>
         </div>
 
-        <!-- Service -->
+        <!-- Service (Full Spectrum) -->
         <div class="form-field select-field-wrap">
           <label for="serviceSelect" class="field-label">Услуга</label>
           <div class="select-custom-container">
             <select id="serviceSelect" name="service" class="form-input-line form-select-line">
-              <option value="" disabled selected hidden></option>
-              <option value="development">Веб-сервисы и разработка</option>
-              <option value="ai-agent">AI-агенты и автоматизация</option>
-              <option value="design">UI/UX и дизайн-системы</option>
-              <option value="consulting">Технический консалтинг</option>
+              <option value="" disabled selected hidden>Выберите направление...</option>
+              <optgroup label="🌐 Веб-разработка &amp; E-commerce">
+                <option value="corporate-site">Корпоративный сайт / Промо-лендинг</option>
+                <option value="ecommerce">Интернет-магазин / E-commerce платформа</option>
+                <option value="saas-service">Сложный веб-сервис / SaaS / Личный кабинет</option>
+                <option value="custom-portal">Информационный портал / Платформа</option>
+              </optgroup>
+              <optgroup label="🤖 AI-агенты, Боты &amp; Автоматизация">
+                <option value="ai-agent">AI-агенты, Нейросети &amp; LLM-решения</option>
+                <option value="telegram-mini-app">Telegram Mini App (TMA) &amp; WebApp</option>
+                <option value="telegram-bot">Telegram / WhatsApp чат-бот для бизнеса</option>
+                <option value="data-parser">Парсер данных, Скрейпинг &amp; Лидогенерация</option>
+                <option value="workflow-automation">Автоматизация процессов &amp; Интеграция API</option>
+              </optgroup>
+              <optgroup label="📱 Мобильные приложения &amp; Софт">
+                <option value="mobile-app">Мобильное приложение (iOS / Android)</option>
+                <option value="desktop-software">Кастомное ПО / Десктопный софт</option>
+              </optgroup>
+              <optgroup label="🎨 UI/UX &amp; Брендинг">
+                <option value="ui-ux-design">UI/UX Дизайн &amp; Интерактивный прототип</option>
+                <option value="design-system">Дизайн-система &amp; Редизайн интерфейса</option>
+                <option value="branding">Брендинг, Айдентика &amp; Фирменный стиль</option>
+              </optgroup>
+              <optgroup label="⚡ Инженерия, Backend &amp; Серверы">
+                <option value="backend-api">Высоконагруженный Backend &amp; Микросервисы</option>
+                <option value="devops-infra">DevOps, Docker &amp; Серверная инфраструктура</option>
+                <option value="code-refactoring">Рефакторинг, Аудит &amp; Доработка чужого кода</option>
+                <option value="seo-audit">SEO-оптимизация &amp; Технический аудит сайта</option>
+              </optgroup>
+              <optgroup label="💼 Под ключ &amp; Консалтинг">
+                <option value="turnkey-project">Комплексный IT-проект под ключ</option>
+                <option value="consulting">Технический консалтинг &amp; Архитектура</option>
+                <option value="other">Другое (Индивидуальное решение)</option>
+              </optgroup>
             </select>
-            <svg class="select-chevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8">
+            <svg class="select-chevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+              stroke-width="1.8">
               <polyline points="6 9 12 15 18 9"></polyline>
             </svg>
           </div>
         </div>
 
-        <!-- Email (required) -->
+        <!-- Contacts Split Row: Telegram + Phone -->
+        <div class="form-row-group">
+          <div class="field-heading">Контакты для связи (укажите удобный способ)</div>
+          <div class="name-split-row">
+            <div class="form-field">
+              <label for="telegramInput" class="field-label">Telegram</label>
+              <input type="text" id="telegramInput" name="telegram" class="form-input-line" placeholder="@username или ссылка">
+            </div>
+            <div class="form-field">
+              <label for="phoneInput" class="field-label">Телефон / WhatsApp</label>
+              <input type="tel" id="phoneInput" name="phone" class="form-input-line" placeholder="+7 (___) ___-__-__">
+            </div>
+          </div>
+        </div>
+
+        <!-- Email (Optional) -->
         <div class="form-field">
-          <label for="emailInput" class="field-label">Email (обязательно)</label>
-          <input type="email" id="emailInput" name="email" class="form-input-line" required>
+          <label for="emailInput" class="field-label">Email (опционально)</label>
+          <input type="email" id="emailInput" name="email" class="form-input-line" placeholder="client@example.com">
         </div>
 
         <!-- Legal consent (152-ФЗ РФ) -->
@@ -3229,8 +3374,9 @@
             <input type="checkbox" name="legalConsent" class="checkbox-native" required checked>
             <span class="checkbox-circle-ui"></span>
             <span class="checkbox-text">
-              Отправляя заявку, я соглашаюсь на обработку персональных данных в соответствии с 
-              <a href="privacy.html" class="legal-inline-link" onclick="event.stopPropagation()">Политикой конфиденциальности</a> и 
+              Отправляя заявку, я соглашаюсь на обработку персональных данных в соответствии с
+              <a href="privacy.html" class="legal-inline-link" onclick="event.stopPropagation()">Политикой
+                конфиденциальности</a> и
               <a href="terms.html" class="legal-inline-link" onclick="event.stopPropagation()">Условиями сервиса</a>
             </span>
           </label>
@@ -3239,7 +3385,7 @@
         <!-- Project description -->
         <div class="form-field">
           <label for="projectDesc" class="field-label">Описание проекта</label>
-          <textarea id="projectDesc" name="description" rows="2" class="form-input-line form-textarea-line" placeholder="Расскажите вкратце о задаче..."></textarea>
+          <textarea id="projectDesc" name="description" rows="2" class="form-input-line form-textarea-line" placeholder="Расскажите вкратце о вашей задаче..."></textarea>
         </div>
 
         <!-- Anti-bot honeypot -->
@@ -3303,7 +3449,8 @@
           <div class="footer-nav-col">
             <span class="footer-col-heading">UPDATES</span>
             <ul class="footer-link-list">
-              <li><a href="https://t.me/kupidon996" target="_blank" rel="noopener noreferrer" class="footer-link">Telegram</a></li>
+              <li><a href="https://t.me/kupidon996" target="_blank" rel="noopener noreferrer"
+                  class="footer-link">Telegram</a></li>
               <li><a href="mailto:hello@castleweb.ru" class="footer-link">hello@castleweb.ru</a></li>
             </ul>
           </div>
@@ -3330,44 +3477,44 @@
       // 0: KRAFTEN (синяя крафтовая карточка с рогаликом)
       // Наклон влево, улетает в левый край экрана
       {
-        init:   { x: -210, y: 10,   rot: -14, z: 22 },
-        spread: { x: -950, y: 30,   rot: -36, opacity: 0 }
+        init: { x: -210, y: 10, rot: -14, z: 22 },
+        spread: { x: -950, y: 30, rot: -36, opacity: 0 }
       },
       // 1: NEXIS LAB (оранжево-черный бейдж на шнурке)
       // Сзади справа, улетает в правый край экрана
       {
-        init:   { x: 175,  y: -65, rot: 9,   z: 14 },
-        spread: { x: 920,  y: -15, rot: 34,  opacity: 0 }
+        init: { x: 175, y: -65, rot: 9, z: 14 },
+        spread: { x: 920, y: -15, rot: 34, opacity: 0 }
       },
       // 2: AURA TICKET (оранжевый выставочный билет с натюрмортом)
       // Высокий задний план по центру, улетает вверх и влево
       {
-        init:   { x: -25,  y: -85, rot: 4,   z: 12 },
+        init: { x: -25, y: -85, rot: 4, z: 12 },
         spread: { x: -520, y: -260, rot: -16, opacity: 0 }
       },
       // 3: MONOLITH METAL (алюминиевый кейс с тиснением и пломбой)
       // Передний план слева, улетает в левый край экрана
       {
-        init:   { x: -105, y: 40,  rot: -7,  z: 35 },
+        init: { x: -105, y: 40, rot: -7, z: 35 },
         spread: { x: -740, y: -40, rot: -20, opacity: 0.05 }
       },
       // 4: VOGUE/NINE STUDIO (кремовая карточка студии с крупным шрифтом)
       // Центр-право, улетает в правый край экрана
       {
-        init:   { x: 95,   y: -25, rot: -3,  z: 26 },
-        spread: { x: 740,  y: -30, rot: 22,  opacity: 0.05 }
+        init: { x: 95, y: -25, rot: -3, z: 26 },
+        spread: { x: 740, y: -30, rot: 22, opacity: 0.05 }
       },
       // 5: ROAM BAR (черный бар с белой крупной надписью)
       // Крайний левый фланг, улетает далеко за левый край экрана
       {
-        init:   { x: -310, y: 50,  rot: -22, z: 16 },
+        init: { x: -310, y: 50, rot: -22, z: 16 },
         spread: { x: -1300, y: 130, rot: -52, opacity: 0 }
       },
       // 6: UNIT 740 (ярко-розовый литой кейс с трафаретом 740)
       // Крайний правый фланг, улетает далеко за правый край экрана
       {
-        init:   { x: 235,  y: 60,  rot: 17,  z: 40 },
-        spread: { x: 1300, y: 130, rot: 52,  opacity: 0 }
+        init: { x: 235, y: 60, rot: 17, z: 40 },
+        spread: { x: 1300, y: 130, rot: 52, opacity: 0 }
       }
     ];
 
@@ -3483,9 +3630,9 @@
 
     // Обработка плавного скролла для всех якорных ссылок меню и логотипа
     document.querySelectorAll('a[href^="#"]').forEach(link => {
-      link.addEventListener('click', function(e) {
+      link.addEventListener('click', function (e) {
         const href = this.getAttribute('href');
-        
+
         // Клик по логотипу или пустой ссылке -> скролл в самый верх страницы
         if (href === '#' || href === '') {
           e.preventDefault();
@@ -3496,7 +3643,7 @@
 
         const targetId = href.substring(1);
         let targetEl = document.getElementById(targetId);
-        
+
         // Синонимы для стека и карточек
         if (!targetEl && targetId === 'stack') targetEl = document.getElementById('overview');
         if (!targetEl && targetId === 'overview') targetEl = document.getElementById('stack');
@@ -3640,16 +3787,51 @@
         const lastName = (document.getElementById('lastName')?.value || '').trim();
         const fullName = [firstName, lastName].filter(Boolean).join(' ') || 'Клиент';
 
+        const telegram = (document.getElementById('telegramInput')?.value || '').trim();
+        const phone = (document.getElementById('phoneInput')?.value || '').trim();
         const email = (document.getElementById('emailInput')?.value || '').trim();
+
+        // Проверка: хотя бы один канал связи должен быть заполнен
+        if (!telegram && !phone && !email) {
+          if (submitBtn) {
+            submitBtn.textContent = 'Укажите контакт: TG, телефон или Email';
+            setTimeout(() => {
+              submitBtn.textContent = origText;
+            }, 3000);
+          }
+          const tgField = document.getElementById('telegramInput');
+          if (tgField) tgField.focus();
+          return;
+        }
+
+        const contactParts = [];
+        if (telegram) {
+          const cleanTg = telegram.startsWith('@') || telegram.startsWith('http') ? telegram : '@' + telegram;
+          contactParts.push(`TG: ${cleanTg}`);
+        }
+        if (phone) {
+          contactParts.push(`Тел: ${phone}`);
+        }
+        if (email) {
+          contactParts.push(`Email: ${email}`);
+        }
+        const fullContact = contactParts.join(' | ');
+
         const serviceSelect = document.getElementById('serviceSelect');
-        const serviceVal = serviceSelect ? serviceSelect.options[serviceSelect.selectedIndex]?.text : '';
+        const serviceVal = serviceSelect && serviceSelect.selectedIndex >= 0 ? serviceSelect.options[serviceSelect.selectedIndex]?.text : '';
         const desc = (document.getElementById('projectDesc')?.value || '').trim();
         const hpWebsite = (document.getElementById('hpWebsite')?.value || '').trim();
 
         const taskParts = [];
-        if (serviceVal) taskParts.push(`Услуга: ${serviceVal}`);
-        if (desc) taskParts.push(`Описание: ${desc}`);
-        if (taskParts.length === 0) taskParts.push('Запрос с формы сайта Castleweb v2');
+        if (serviceVal && !serviceVal.includes('Выберите направление')) {
+          taskParts.push(`Услуга: ${serviceVal}`);
+        }
+        if (desc) {
+          taskParts.push(`Описание: ${desc}`);
+        }
+        if (taskParts.length === 0) {
+          taskParts.push('Заявка с сайта Castleweb Studio (все услуги)');
+        }
         const taskDescription = taskParts.join('\n');
 
         if (submitBtn) {
@@ -3663,7 +3845,7 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               name: fullName,
-              contact: email,
+              contact: fullContact,
               task_description: taskDescription,
               budget: null,
               hp_website: hpWebsite || null
@@ -3676,7 +3858,7 @@
           }
 
           if (submitBtn) {
-            submitBtn.textContent = '✓ Заявка принята!';
+            submitBtn.textContent = '✓ Заявка принята! Скоро свяжемся';
           }
           contactForm.reset();
           setTimeout(() => {
@@ -3698,7 +3880,8 @@
       });
     }
 
-    </script>
+  </script>
 
 </body>
+
 </html>
