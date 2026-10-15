@@ -39,3 +39,24 @@ def decode_session_token(token: str) -> Optional[Dict[str, Any]]:
         return payload
     except (jwt.PyJWTError, Exception):
         return None
+
+
+def is_safe_redirect_url(url: Optional[str]) -> bool:
+    """Проверяет, что URL является безопасным относительным путем без Open Redirect"""
+    if not url or not isinstance(url, str):
+        return False
+    # Должен начинаться с одиночного слеша
+    if not url.startswith("/") or url.startswith("//") or url.startswith("/\\"):
+        return False
+    # Запрещаем любые бэкслеши и управляющие символы
+    if any(c in url for c in ("\\", "\r", "\n", "\t")):
+        return False
+    return True
+
+
+def get_safe_redirect_url(url: Optional[str], default: str = "/") -> str:
+    """Возвращает проверенный безопасный URL редиректа или дефолтный путь"""
+    if is_safe_redirect_url(url):
+        return url
+    return default
+

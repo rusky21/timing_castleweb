@@ -1323,18 +1323,32 @@ async def broadcast_fl_order(request: Request):
     price = order_data.get("price_raw") or "По договоренности"
     cat_name = order_data.get("category_name", "Все категории")
     url = order_data.get("url", "https://www.fl.ru/projects/")
-    is_urgent = order_data.get("is_urgent", False)
     is_pro = order_data.get("is_pro_only", False)
     is_free = order_data.get("is_free", True)
-    badge = " ✨ БЕСПЛАТНЫЙ ОТКЛИК" if is_free else " 💼 ПЛАТНЫЙ ОТКЛИК (ПАКЕТ)"
-    if is_urgent:
-        badge += " 🔥 СРОЧНЫЙ"
+    is_urgent = order_data.get("is_urgent", False)
+    if not is_free or is_pro:
+        return {"ok": True, "skipped": "paid_or_pro_order"}
+
+    platform = (order_data.get("platform") or "fl").lower()
+    icon = "🟠" if platform == "fl" else "💼"
+    tag = f"#{platform.upper()}"
+
+    badges = []
+    label = order_data.get("response_type_label")
+    if label:
+        badges.append(f"<b>{html.escape(label)}</b>")
+    elif is_free:
+        badges.append("✨ <b>Бесплатный отклик</b>")
+    else:
+        badges.append("💼 <b>Платный отклик (пакет)</b>")
+
     if is_pro:
-        badge += " ⭐️ ТОЛЬКО PRO"
+        badges.append("👑 <b>Только PRO</b>")
+    if is_urgent:
+        badges.append("🔥 <b>Срочно</b>")
+    badge_str = f" ({' | '.join(badges)})" if badges else ""
 
-    short_desc = desc[:450] + ("..." if len(desc) > 450 else "") if desc else "Без описания"
-
-    header = "⚡️ <b>Новый заказ с FL.ru" + badge + "</b>"
+    short_desc = desc[:300].rsplit(" ", 1)[0] + "..." if len(desc) > 300 else (desc or "Без описания")
 
     from datetime import datetime, timezone, timedelta
     msk_tz = timezone(timedelta(hours=3))
@@ -1356,16 +1370,21 @@ async def broadcast_fl_order(request: Request):
         except Exception:
             pass
 
-    msg = (
-        f"{header}\n\n"
-        f"📌 <b>{html.escape(title)}</b>\n"
-        f"💰 Бюджет: <b>{html.escape(str(price))}</b>\n"
-        f"📁 Рубрика: <i>{html.escape(str(cat_name))}</i>\n"
-        f"⏱ Перехвачен ботом: <i>{msk_time} МСК</i>{pub_info}\n\n"
-        f"📝 <b>Описание:</b>\n"
-        f"<blockquote>{html.escape(short_desc)}</blockquote>"
-    )
+    price_str = str(price).strip()
+    if price_str and price_str not in ("Договорная", "По договоренности"):
+        price_text = f"💰 <b>{html.escape(price_str)}</b>"
+    else:
+        price_text = "🤝 <b>По договоренности</b>"
 
+    time_info = f"⚡️ <i>В эфире с: {msk_time} МСК</i>{pub_info}"
+
+    msg = (
+        f"{icon} {tag} | <b>{html.escape(title)}</b>{badge_str}\n"
+        f"🏷 <i>{html.escape(str(cat_name))}</i>\n"
+        f"{time_info}\n\n"
+        f"{price_text}\n\n"
+        f"📝 <b>Описание:</b>\n{html.escape(short_desc)}\n"
+    )
 
     kb = {
         "inline_keyboard": [

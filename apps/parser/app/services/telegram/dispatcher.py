@@ -111,6 +111,11 @@ class TelegramDispatcher:
             logger.warning("dispatch_fl_order: Telegram-бот не инициализирован (проверьте TELEGRAM_BOT_TOKEN в .env)")
             return
 
+        # Строгий фильтр: только бесплатные отклики и доступные для всех
+        if not getattr(order, "is_free", True):
+            logger.debug(f"TG Dispatcher: заказ #{getattr(order, 'id', '?')} отклонен (платный отклик / PRO)")
+            return
+
         # Глобальный фильтр стоп-категорий (менеджер, монтаж, отопление, SMM, аватары, привлечение клиентов, сценарии)
         from app.services.filters import is_order_excluded
         is_excluded, reason = is_order_excluded(

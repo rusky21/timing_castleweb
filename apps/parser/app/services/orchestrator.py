@@ -54,7 +54,8 @@ class MultiPlatformOrchestrator:
         ]
 
         # Список активных платформ:
-        # По умолчанию активны только: workspace, freelanceru, fl, kwork.
+        # По умолчанию активны: workspace, freelanceru, kwork.
+        # FL.ru обслуживается выделенным live-воркером fl_worker (12-16 сек) во избежание дублирования опроса.
         # Все остальные переведены в стоп-парсинг (is_enabled = False).
         # Можно также переопределить через переменную окружения ENABLED_PLATFORMS
         env_platforms = os.getenv("ENABLED_PLATFORMS")
@@ -63,7 +64,7 @@ class MultiPlatformOrchestrator:
                 p.strip().lower() for p in env_platforms.split(",") if p.strip()
             }
         else:
-            self.enabled_platform_names: Set[str] = {"workspace", "freelanceru", "fl", "kwork"}
+            self.enabled_platform_names: Set[str] = {"workspace", "freelanceru", "kwork"}
 
         self._apply_platform_states()
 
@@ -167,6 +168,11 @@ class MultiPlatformOrchestrator:
 
             async with async_session_factory() as db:
                 for order in fresh_orders:
+                    # Строгий фильтр: только бесплатные отклики и доступные для всех
+                    if not getattr(order, "is_free", True):
+                        logger.debug(f"[{fetcher.display_name}] Пропущен платный заказ '{order.title}'")
+                        continue
+
                     # Проверка стоп-категорий и стоп-слов
                     is_excluded, reason = is_order_excluded(
                         title=order.title,

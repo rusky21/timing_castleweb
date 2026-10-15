@@ -19,7 +19,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.db.database import init_db
 from app.api.auth import router as auth_router
-from app.core.security import decode_session_token
+from app.core.security import decode_session_token, get_safe_redirect_url
 from app.api.search import router as search_router
 from app.api.leads import router as leads_router
 from app.api.reports import router as reports_router
@@ -162,7 +162,8 @@ async def auth_guard_middleware(request: Request, call_next):
         return_url = request.url.path
         if request.url.query:
             return_url += f"?{request.url.query}"
-        return RedirectResponse(f"/login?returnUrl={return_url}", status_code=303)
+        safe_return = get_safe_redirect_url(return_url, default="/")
+        return RedirectResponse(f"/login?returnUrl={urllib.parse.quote(safe_return, safe='/?&=#')}", status_code=303)
 
     request.state.user = user_payload
     return await call_next(request)
@@ -234,7 +235,12 @@ if FRONTEND_DIST.exists():
         # Исключаем API и Swagger роуты
         if full_path.startswith(("api", "docs", "openapi.json", "ws")):
             raise HTTPException(status_code=404, detail="Not found")
-        file_candidate = FRONTEND_DIST / full_path
+
+        dist_root = FRONTEND_DIST.resolve()
+        file_candidate = (FRONTEND_DIST / full_path).resolve()
+        if not file_candidate.is_relative_to(dist_root):
+            raise HTTPException(status_code=403, detail="Access denied")
+
         if full_path and file_candidate.is_file():
             return FileResponse(file_candidate)
 
@@ -258,7 +264,9 @@ if FRONTEND_DIST.exists():
                     "role": role,
                     "is_admin": role in ("admin", "superuser", "root")
                 })
-                injection = f'<script>window.__CURRENT_USER__ = {user_json};</script>'
+                # Защита от Stored XSS через </script> в данных пользователя
+                safe_user_json = user_json.replace("<", "\\u003c").replace(">", "\\u003e")
+                injection = f'<script>window.__CURRENT_USER__ = {safe_user_json};</script>'
                 content = content.replace("<head>", f"<head>{injection}", 1)
             return HTMLResponse(content)
         except Exception:

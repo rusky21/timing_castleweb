@@ -106,6 +106,10 @@ class SessionManager:
                 env_p = os.environ.get("TELEGRAM_PROXY") or os.environ.get("HTTPS_PROXY")
                 if env_p and "workers.dev" not in env_p:
                     proxy_str = env_p
+            if not TELEGRAM_API_ID or not TELEGRAM_API_HASH:
+                logger.error("TELEGRAM_API_ID или TELEGRAM_API_HASH не настроены в переменных окружения")
+                return None
+
             proxy = parse_telethon_proxy(proxy_str)
             session_storage = StringSession(account.session_string)
             client = TelegramClient(
@@ -354,6 +358,9 @@ class SessionManager:
             env_p = os.environ.get("TELEGRAM_PROXY") or os.environ.get("HTTPS_PROXY")
             if env_p and "workers.dev" not in env_p:
                 proxy_url = env_p
+        if not TELEGRAM_API_ID or not TELEGRAM_API_HASH:
+            raise ValueError("TELEGRAM_API_ID и TELEGRAM_API_HASH должны быть настроены в .env для авторизации")
+
         proxy = parse_telethon_proxy(proxy_url)
         temp_session = StringSession()
         client = TelegramClient(

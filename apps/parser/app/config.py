@@ -73,8 +73,8 @@ MANAGER_TELEGRAM_CHAT_ID = int(_mgr_chat) if _mgr_chat.lstrip("-").isdigit() els
 
 # MTProto Telegram Client Credentials (API ID & Hash from my.telegram.org)
 _tg_api_id = os.environ.get("TELEGRAM_API_ID", "").strip()
-TELEGRAM_API_ID = int(_tg_api_id) if _tg_api_id.isdigit() else 2040  # Default official ID if not provided
-TELEGRAM_API_HASH = os.environ.get("TELEGRAM_API_HASH", "b18441a1ff607e10a989891a5462e627").strip()
+TELEGRAM_API_ID = int(_tg_api_id) if _tg_api_id.isdigit() else None
+TELEGRAM_API_HASH = os.environ.get("TELEGRAM_API_HASH", "").strip()
 
 # Настройки рассылки и безопасности (Anti-Spam & Limits)
 OUTREACH_COMPANY_NAME = "CastleWeb"

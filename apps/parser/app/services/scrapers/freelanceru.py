@@ -47,7 +47,7 @@ class FreelanceruFetcher(BaseFetcher):
                 # Находим родительский блок проекта
                 parent = a.parent
                 for _ in range(4):
-                    if parent and parent.parent:
+                    if parent and parent.parent and getattr(parent.parent, "tag", "") not in ("body", "html", "[document]"):
                         parent = parent.parent
 
                 cost_str = "Договорная"
@@ -76,8 +76,12 @@ class FreelanceruFetcher(BaseFetcher):
                     if "pro" in html_snippet and ("badge" in html_snippet or "label" in html_snippet or "pro-icon" in html_snippet):
                         is_pro = True
 
-                is_free = not is_pro
-                label = "✨ Бесплатный отклик" if is_free else "💼 Только для владельцев PRO"
+                # Строгий фильтр: только бесплатные отклики и доступные для всех (без PRO)
+                if is_pro:
+                    continue
+
+                is_free = True
+                label = "✨ Бесплатный отклик"
 
                 full_url = f"https://freelance.ru/task/view/{order_id}" if not href.startswith("http") else href
 

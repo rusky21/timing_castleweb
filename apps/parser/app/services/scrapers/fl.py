@@ -16,15 +16,17 @@ class FLScraperFetcher(BaseFetcher):
     async def fetch_orders(self) -> List[NormalizedOrder]:
         orders: List[NormalizedOrder] = []
         try:
-            # Получаем все свежие проекты с FL.ru (и бесплатные, и платные)
-            projects = await self.fetcher.fetch_projects(only_free=False)
+            # Получаем свежие проекты с FL.ru (строго бесплатные отклики и доступные для всех)
+            projects = await self.fetcher.fetch_projects(only_free=True)
             for p in projects:
                 p_id = str(p.get("id"))
                 if not p_id:
                     continue
 
-                is_free = bool(p.get("is_free", True))
-                label = "✨ Бесплатный отклик" if is_free else "💼 Платный отклик (пакет)"
+                is_free = bool(p.get("is_free", False))
+                if not is_free:
+                    continue
+                label = "✨ Бесплатный отклик"
 
                 order = NormalizedOrder(
                     composite_id=f"fl_{p_id}",

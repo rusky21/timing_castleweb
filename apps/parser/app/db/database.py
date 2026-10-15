@@ -1,7 +1,11 @@
+import logging
 from sqlalchemy import event
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
 from app.config import DATABASE_URL
+
+logger = logging.getLogger("database")
 
 # SQLite aiosqlite engine
 engine = create_async_engine(
@@ -70,8 +74,14 @@ async def init_db():
         for mig in migrations:
             try:
                 await conn.execute(text(mig))
-            except Exception:
-                pass
+            except OperationalError as e:
+                err_msg = str(e).lower()
+                if "duplicate column name" in err_msg or "already exists" in err_msg:
+                    logger.debug(f"Миграция уже применена: {mig}")
+                else:
+                    logger.warning(f"Ошибка выполнения миграции '{mig}': {e}")
+            except Exception as e:
+                logger.error(f"Непредвиденная ошибка миграции '{mig}': {e}", exc_info=True)
 
         # Корректировка существующих записей в fl_orders: помечаем старые платные заказы FL.ru как is_free = 0
         try:

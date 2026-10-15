@@ -165,8 +165,8 @@ class FLWorker:
                     ))
                     await db.commit()
 
-            # 2. Скачиваем проекты (все свежие коммерческие заказы и вакансии)
-            projects = await self.fetcher.fetch_projects(category_id=cat_id, only_free=False)
+            # 2. Скачиваем проекты (строго бесплатные отклики и доступные для всех)
+            projects = await self.fetcher.fetch_projects(category_id=cat_id, only_free=True)
             if not projects:
                 continue
 
@@ -174,6 +174,10 @@ class FLWorker:
             new_orders_saved = []
             async with async_session_factory() as db:
                 for proj in projects:
+                    # Строгий фильтр: только бесплатные отклики и доступные для всех
+                    if not proj.get("is_free", False):
+                        continue
+
                     # Проверка стоп-категорий и стоп-слов
                     is_excluded, reason = is_order_excluded(
                         title=proj.get("title", ""),
@@ -231,6 +235,9 @@ class FLWorker:
 
             orders_to_dispatch = []
             for order in new_orders_saved:
+                if not getattr(order, "is_free", True):
+                    continue
+
                 pub_dt = order.published_at
                 if pub_dt:
                     if pub_dt.tzinfo is None:
@@ -272,11 +279,13 @@ class FLWorker:
                     "data": order_dict
                 })
 
-                # Б. Отправляем в Telegram подписчикам и админам (локальный бот)
-                await tg_dispatcher.dispatch_fl_order(order)
-
-                # В. Отправляем в @castleweb_bot (командный чат студии и админам)
-                await self._notify_backend_fl_order(order, is_initial=False)
+                # Б. Отправка в Telegram без дублирования:
+                # Если у парсера инициализирован собственный бот — отправляем через локальный диспетчер
+                if tg_dispatcher.bot is not None:
+                    await tg_dispatcher.dispatch_fl_order(order)
+                else:
+                    # В. Фолбэк: если локальный бот не настроен, транслируем в @castleweb_bot через бэкенд
+                    await self._notify_backend_fl_order(order, is_initial=False)
 
             # Пауза 1.2 сек между запросами к разным категориям если их 2
             if i < len(targets) - 1:

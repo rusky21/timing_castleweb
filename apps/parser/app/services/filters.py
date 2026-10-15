@@ -223,11 +223,10 @@ async def hide_existing_excluded_orders() -> int:
     hidden_count = 0
     try:
         async with async_session_factory() as session:
-            stmt = select(FLOrder)
-            res = await session.execute(stmt)
-            orders = res.scalars().all()
+            stmt = select(FLOrder).execution_options(yield_per=500)
+            res = await session.stream_scalars(stmt)
 
-            for order in orders:
+            async for order in res:
                 excluded, _ = is_order_excluded(
                     title=order.title,
                     description=order.description or "",
@@ -249,6 +248,9 @@ async def hide_existing_excluded_orders() -> int:
                         interaction.is_hidden = True
                         interaction.updated_at = utc_now()
                         hidden_count += 1
+
+                if hidden_count > 0 and hidden_count % 500 == 0:
+                    await session.commit()
 
             if hidden_count > 0:
                 await session.commit()

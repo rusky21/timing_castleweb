@@ -13,6 +13,7 @@ except ImportError:
 
 from app.config import DEFAULT_TIMEOUT_CONNECT, DEFAULT_TIMEOUT_READ
 from app.services.pitch_maker import PitchMaker
+from app.core.utils import normalize_phone
 
 # Домены соцсетей и конструкторов визиток
 SOCIAL_DOMAINS = {
@@ -45,8 +46,8 @@ class SiteAuditor:
         self._client = client
         self._insecure_client: Optional[httpx.AsyncClient] = None
 
-    def _is_safe_host(self, host: str) -> bool:
-        """Защита от SSRF: блокирует локальные, приватные, петлевые и неглобальные IP-адреса, включая DNS-резолвинг"""
+    async def _is_safe_host(self, host: str) -> bool:
+        """Защита от SSRF: блокирует локальные, приватные, петлевые и неглобальные IP-адреса, включая асинхронный DNS-резолвинг"""
         if not host:
             return False
         host_clean = host.split(":")[0].strip().lower()
@@ -61,7 +62,8 @@ class SiteAuditor:
             pass
 
         try:
-            addr_info = socket.getaddrinfo(host_clean, None)
+            loop = asyncio.get_running_loop()
+            addr_info = await loop.getaddrinfo(host_clean, None)
             for item in addr_info:
                 ip_str = item[4][0]
                 ip = ipaddress.ip_address(ip_str)
@@ -130,12 +132,8 @@ class SiteAuditor:
         return any(soc in netloc for soc in SOCIAL_DOMAINS)
 
     def _clean_phone(self, raw: str) -> Optional[str]:
-        digits = re.sub(r"\D", "", raw)
-        if len(digits) == 11 and digits[0] in ("7", "8"):
-            return f"+7{digits[1:]}"
-        elif len(digits) == 10:
-            return f"+7{digits}"
-        return None
+        p = normalize_phone(raw)
+        return p if (p and p.startswith("+7") and len(p) == 12) else None
 
     def _is_valid_email(self, email: str) -> bool:
         email = email.lower().strip()
@@ -232,7 +230,7 @@ class SiteAuditor:
 
         # Проверка безопасности хоста (SSRF защита)
         parsed_target = urlparse(url)
-        if not self._is_safe_host(parsed_target.netloc):
+        if not await self._is_safe_host(parsed_target.netloc):
             score, badge, pitch = PitchMaker.calculate_score_and_pitch(
                 name=org_name, category=category, city=city, website=url,
                 status="SITE_DOWN", has_ssl=False, is_adaptive=False,

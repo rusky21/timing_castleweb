@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Политика конфиденциальности — Castleweb Studio</title>
+  <meta name="description" content="Политика обработки персональных данных Castleweb Studio в соответствии с Федеральным законом РФ № 152-ФЗ.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    /* --------------------------------------------------
+       RESET & BASE TOKENS (Строго по DESIGN_RULES.md)
+       -------------------------------------------------- */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      /* Dark theme tokens */
+      --canvas-bg: #0C0C0E;
+      --text-primary: #FFFFFF;
+      --text-muted: #8E8E93;
+      --nav-link: #8E8E93;
+      --nav-link-hover: #FFFFFF;
+      --nav-pill-bg: #222225;
+      --nav-pill-text: #FFFFFF;
+      --nav-pill-hover: #2C2C30;
+      --btn-bg: #FFFFFF;
+      --btn-text: #000000;
+      --btn-hover: #E5E5EA;
+      --dropdown-bg: #161618;
+      --dropdown-hover: #222226;
+      --tape-orange: #E85934;
+      --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+
+      /* Контрастный подвал: в темной теме сайта подвал светлый */
+      --footer-bg: #FFFFFF;
+      --footer-text: #000000;
+      --footer-muted: #71717A;
+      --footer-col-heading: #8E8E93;
+      --footer-link: #52525B;
+      --footer-link-hover: #000000;
+      --footer-giant-brand: #18181B;
+      --footer-icon-color: #52525B;
+    }
+
+    [data-theme="light"] {
+      /* Light theme tokens */
+      --canvas-bg: #FFFFFF;
+      --text-primary: #000000;
+      --text-muted: #666666;
+      --nav-link: #71717A;
+      --nav-link-hover: #111111;
+      --nav-pill-bg: #F0F0F2;
+      --nav-pill-text: #111111;
+      --nav-pill-hover: #E5E5E8;
+      --btn-bg: #000000;
+      --btn-text: #FFFFFF;
+      --btn-hover: #1F1F1F;
+      --dropdown-bg: #F5F5F7;
+      --dropdown-hover: #EBEBEF;
+
+      /* Контрастный подвал: в светлой теме сайта подвал темный */
+      --footer-bg: #0C0C0E;
+      --footer-text: #FFFFFF;
+      --footer-muted: #8E8E93;
+      --footer-col-heading: #71717A;
+      --footer-link: #A1A1A6;
+      --footer-link-hover: #FFFFFF;
+      --footer-giant-brand: #9E9EA6;
+      --footer-icon-color: #8E8E93;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background-color: var(--canvas-bg);
+      color: var(--text-primary);
+      font-family: var(--font-family);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      transition: background-color 0.25s ease, color 0.25s ease;
+    }
+
+    /* --------------------------------------------------
+       TOP NAVIGATION BAR
+       -------------------------------------------------- */
+    .site-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 76px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 40px;
+      z-index: 100;
+      background-color: transparent;
+      pointer-events: none;
+    }
+
+    .header-left,
+    .header-nav,
+    .header-right {
+      pointer-events: auto;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      min-width: 180px;
+    }
+
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--text-primary);
+    }
+
+    .logo-mark {
+      width: 24px;
+      height: 24px;
+      display: block;
+    }
+
+    .brand-name {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+    }
+
+    .header-nav {
+      display: flex;
+      align-items: center;
+      gap: 22px;
+    }
+
+    .nav-link {
+      font-size: 13.5px;
+      font-weight: 500;
+      color: var(--nav-link);
+      text-decoration: none;
+      letter-spacing: -0.01em;
+      transition: color 0.18s ease;
+      display: inline-flex;
+      align-items: center;
+      padding: 8px 12px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .nav-link:hover {
+      color: var(--nav-link-hover);
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      min-width: 180px;
+      justify-content: flex-end;
+    }
+
+    .header-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background-color: var(--btn-bg);
+      color: var(--btn-text);
+      font-size: 13px;
+      font-weight: 500;
+      padding: 9px 18px;
+      border-radius: 9999px;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      transition: background-color 0.18s ease, transform 0.15s ease;
+    }
+
+    .header-btn:hover {
+      background-color: var(--btn-hover);
+    }
+
+    .theme-toggle-btn {
+      background: none;
+      border: none;
+      color: var(--nav-link);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 9999px;
+      transition: color 0.18s ease, background-color 0.18s ease;
+    }
+
+    .theme-toggle-btn:hover {
+      color: var(--nav-link-hover);
+      background-color: var(--nav-pill-bg);
+    }
+
+    /* --------------------------------------------------
+       LEGAL ARTICLE CONTENT (EDITORIAL OPEN AIR)
+       -------------------------------------------------- */
+    .legal-main {
+      flex: 1;
+      width: 100%;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: clamp(120px, 11vw, 160px) clamp(24px, 4.5vw, 60px) clamp(60px, 8vw, 100px);
+    }
+
+    .legal-back-nav {
+      margin-bottom: 32px;
+    }
+
+    .back-link-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--nav-link);
+      text-decoration: none;
+      background-color: var(--nav-pill-bg);
+      padding: 7px 16px;
+      border-radius: 9999px;
+      transition: background-color 0.18s ease, color 0.18s ease;
+    }
+
+    .back-link-pill:hover {
+      background-color: var(--nav-pill-hover);
+      color: var(--nav-link-hover);
+    }
+
+    .legal-badge {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--tape-orange);
+      font-weight: 600;
+      margin-bottom: 14px;
+    }
+
+    .legal-title {
+      font-size: clamp(34px, 4.2vw, 54px);
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -0.035em;
+      color: var(--text-primary);
+      margin-bottom: 18px;
+    }
+
+    .legal-meta {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 48px;
+    }
+
+    .legal-meta span {
+      display: inline-block;
+      margin-right: 16px;
+    }
+
+    /* Section Styling */
+    .legal-section {
+      margin-bottom: 44px;
+    }
+
+    .legal-section-number {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-muted);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .legal-section-title {
+      font-size: clamp(20px, 2.2vw, 26px);
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      line-height: 1.25;
+      color: var(--text-primary);
+      margin-bottom: 14px;
+    }
+
+    .legal-p {
+      font-size: 15.5px;
+      line-height: 1.68;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+      font-weight: 400;
+      letter-spacing: -0.01em;
+    }
+
+    .legal-p strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    .legal-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin: 14px 0 18px 0;
+    }
+
+    .legal-list-item {
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--text-muted);
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+
+    .legal-list-item::before {
+      content: "—";
+      color: var(--tape-orange);
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .legal-link {
+      color: var(--text-primary);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      transition: opacity 0.18s ease;
+    }
+
+    .legal-link:hover {
+      opacity: 0.75;
+    }
+
+    /* --------------------------------------------------
+       CONTRAST SITE FOOTER (COSMOS MINIMALIST STYLE)
+       -------------------------------------------------- */
+    .site-footer {
+      width: 100%;
+      background-color: var(--footer-bg);
+      color: var(--footer-text);
+      padding: clamp(64px, 6vw, 100px) clamp(24px, 4.5vw, 72px) clamp(48px, 5vw, 80px);
+      transition: background-color 0.25s ease, color 0.25s ease;
+      position: relative;
+      overflow: hidden;
+      margin-top: 60px;
+    }
+
+    .footer-container {
+      max-width: 1600px;
+      margin: 0 auto;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .footer-top-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: clamp(40px, 6vw, 120px);
+      width: 100%;
+    }
+
+    .footer-brand-col {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      max-width: 440px;
+    }
+
+    .footer-symbol {
+      display: inline-flex;
+      align-items: center;
+      color: var(--footer-icon-color);
+      transition: color 0.2s ease;
+    }
+
+    .footer-constellation-icon {
+      display: block;
+      width: 22px;
+      height: 22px;
+      transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), color 0.2s ease;
+    }
+
+    .footer-symbol:hover .footer-constellation-icon {
+      transform: rotate(45deg);
+      color: var(--footer-text);
+    }
+
+    .footer-tagline {
+      font-family: var(--font-family);
+      font-size: clamp(15px, 1.25vw, 18px);
+      line-height: 1.45;
+      font-weight: 450;
+      color: var(--footer-text);
+      letter-spacing: -0.015em;
+    }
+
+    .footer-nav-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(110px, auto));
+      gap: clamp(36px, 5.5vw, 96px);
+      align-items: flex-start;
+    }
+
+    .footer-nav-col {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .footer-col-heading {
+      font-family: var(--font-family);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--footer-col-heading);
+      user-select: none;
+    }
+
+    .footer-link-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 11px;
+    }
+
+    .footer-link {
+      font-family: var(--font-family);
+      font-size: 14px;
+      font-weight: 450;
+      color: var(--footer-link);
+      text-decoration: none;
+      letter-spacing: -0.01em;
+      transition: color 0.18s ease, transform 0.18s ease;
+      display: inline-block;
+    }
+
+    .footer-link:hover {
+      color: var(--footer-link-hover);
+      transform: translateX(3px);
+    }
+
+    .footer-bottom-stage {
+      width: 100%;
+      margin-top: clamp(48px, 5.5vw, 84px);
+      padding: 0;
+      overflow: hidden;
+      user-select: none;
+      display: flex;
+      justify-content: flex-start;
+      align-items: baseline;
+    }
+
+    .footer-giant-title {
+      display: inline-flex;
+      align-items: baseline;
+      gap: clamp(8px, 1.2vw, 20px);
+      line-height: 1;
+      margin: 0;
+      width: 100%;
+    }
+
+    .footer-giant-letters {
+      font-family: var(--font-family);
+      font-size: clamp(36px, 8.2vw, 130px);
+      font-weight: 800;
+      letter-spacing: -0.035em;
+      text-transform: uppercase;
+      color: var(--footer-giant-brand);
+      display: inline-block;
+      white-space: nowrap;
+      line-height: 1;
+      transition: color 0.25s ease;
+    }
+
+    .footer-giant-copy {
+      font-family: var(--font-family);
+      font-size: clamp(14px, 2.2vw, 36px);
+      font-weight: 700;
+      color: var(--footer-giant-brand);
+      line-height: 1;
+      transform: translateY(-0.12em);
+      margin: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: color 0.25s ease;
+    }
+
+    /* Responsive Queries */
+    @media (max-width: 900px) {
+      .site-header {
+        padding: 0 20px;
+      }
+      .header-nav {
+        display: none;
+      }
+      .footer-top-row {
+        flex-direction: column;
+        gap: 44px;
+      }
+      .footer-brand-col {
+        max-width: 100%;
+      }
+      .footer-nav-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 24px;
+        width: 100%;
+      }
+      .footer-bottom-stage {
+        margin-top: 44px;
+      }
+    }
+
+    @media (max-width: 580px) {
+      .footer-nav-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 32px 18px;
+      }
+      .footer-giant-letters {
+        font-size: clamp(32px, 9vw, 56px);
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ВЕРХНЯЯ НАВИГАЦИЯ -->
+  <header class="site-header">
+    <div class="header-left">
+      <a href="index.html" class="brand-logo" aria-label="Castleweb Studio Главная">
+        <svg class="logo-mark" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="12" cy="5" r="3" fill="currentColor"/>
+          <circle cx="5" cy="18" r="3" fill="currentColor"/>
+          <circle cx="19" cy="18" r="3" fill="currentColor"/>
+          <path d="M12 8V14M7 16.5L10.5 14.5M17 16.5L13.5 14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <span class="brand-name">Castleweb</span>
+      </a>
+    </div>
+
+    <nav class="header-nav" aria-label="Навигация">
+      <a href="index.html#projects" class="nav-link">Проекты</a>
+      <a href="index.html#overview" class="nav-link">Стек</a>
+      <a href="index.html#manifesto" class="nav-link">Манифест</a>
+      <a href="index.html#contacts" class="nav-link">Контакты</a>
+    </nav>
+
+    <div class="header-right">
+      <button class="theme-toggle-btn" id="theme-toggle" aria-label="Переключить тему" title="Переключить тему">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="5"></circle>
+          <line x1="12" y1="1" x2="12" y2="3"></line>
+          <line x1="12" y1="21" x2="12" y2="23"></line>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+          <line x1="1" y1="12" x2="3" y2="12"></line>
+          <line x1="21" y1="12" x2="23" y2="12"></line>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        </svg>
+      </button>
+      <a href="index.html#contacts" class="header-btn">Обсудить проект</a>
+    </div>
+  </header>
+
+  <!-- ОСНОВНОЙ КОНТЕНТ ПОЛИТИКИ -->
+  <main class="legal-main" id="main-content">
+    
+    <div class="legal-back-nav">
+      <a href="index.html" class="back-link-pill">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12"></line>
+          <polyline points="12 19 5 12 12 5"></polyline>
+        </svg>
+        <span>На главную</span>
+      </a>
+    </div>
+
+    <span class="legal-badge">[ 152-ФЗ РФ · ЗАЩИТА ПЕРСОНАЛЬНЫХ ДАННЫХ ]</span>
+    <h1 class="legal-title">Политика конфиденциальности</h1>
+    <div class="legal-meta">
+      <span>Редакция от 13 октября 2026 г.</span>
+      <span>Действует для сайта castleweb.ru</span>
+    </div>
+
+    <!-- 01 -->
+    <section class="legal-section">
+      <div class="legal-section-number">01</div>
+      <h2 class="legal-section-title">Общие положения и оператор данных</h2>
+      <p class="legal-p">
+        Настоящая Политика конфиденциальности (далее — «Политика») определяет порядок сбора, систематизации, хранения и защиты информации о физических лицах (далее — «Пользователи»), использующих веб-сайт студии разработки <strong>Castleweb Studio</strong> (далее — «Студия»), расположенный в сети Интернет по адресу <strong>castleweb.ru</strong>.
+      </p>
+      <p class="legal-p">
+        Оператором персональных данных является команда Castleweb Studio (г. Москва). Настоящий документ составлен в строгом соответствии с положениями Федерального закона Российской Федерации от 27.07.2006 № 152-ФЗ «О персональных данных».
+      </p>
+      <p class="legal-p">
+        Используя сайт и отправляя форму обратной связи, Пользователь выражает свое полное и безоговорочное согласие с условиями настоящей Политики.
+      </p>
+    </section>
+
+    <!-- 02 -->
+    <section class="legal-section">
+      <div class="legal-section-number">02</div>
+      <h2 class="legal-section-title">Категории собираемых персональных данных</h2>
+      <p class="legal-p">
+        Студия собирает и обрабатывает только те персональные данные, которые необходимы для связи с потенциальным клиентом, оценки требований проекта и формирования технического предложения:
+      </p>
+      <ul class="legal-list">
+        <li class="legal-list-item"><strong>Идентификационные данные:</strong> Имя и фамилия контактного лица;</li>
+        <li class="legal-list-item"><strong>Контактные данные:</strong> Адрес электронной почты (Email);</li>
+        <li class="legal-list-item"><strong>Информация о проекте:</strong> Выбранное направление услуг (веб-сервисы, AI-агенты, дизайн-системы, консалтинг) и текстовое описание задачи;</li>
+        <li class="legal-list-item"><strong>Технические метаданные:</strong> IP-адрес, данные файлов cookie (cookie-файлы), тип устройства, разрешение экрана и версия браузера (исключительно для обеспечения работоспособности и безопасности интерфейса).</li>
+      </ul>
+    </section>
+
+    <!-- 03 -->
+    <section class="legal-section">
+      <div class="legal-section-number">03</div>
+      <h2 class="legal-section-title">Цели обработки информации</h2>
+      <p class="legal-p">
+        Обработка персональных данных Пользователей осуществляется Студией исключительно в следующих целях:
+      </p>
+      <ul class="legal-list">
+        <li class="legal-list-item">Рассмотрение входящих заявок, оценка сложности архитектуры и расчет предварительной стоимости разработки;</li>
+        <li class="legal-list-item">Установление прямой обратной связи (по email или через мессенджер) без посредников и менеджеров;</li>
+        <li class="legal-list-item">Подготовка проектов договоров, технических заданий (ТЗ) и соглашений о конфиденциальности (NDA);</li>
+        <li class="legal-list-item">Обеспечение стабильности и информационной безопасности веб-сервиса Студии.</li>
+      </ul>
+    </section>
+
+    <!-- 04 -->
+    <section class="legal-section">
+      <div class="legal-section-number">04</div>
+      <h2 class="legal-section-title">Принципы и условия обработки</h2>
+      <p class="legal-p">
+        Студия придерживается принципа минимизации данных: мы запрашиваем ровно столько сведений, сколько требуется для квалифицированного инженерного ответа.
+      </p>
+      <p class="legal-p">
+        <strong>Запрет передачи третьим лицам:</strong> Студия ни при каких обстоятельствах не продает, не сдает в аренду и не передает персональные данные Пользователей рекламным сетям, брокерам данных или любым сторонним организациям.
+      </p>
+      <p class="legal-p">
+        Раскрытие информации допускается исключительно в случаях, прямо предусмотренных действующим законодательством Российской Федерации в рамках установленной процессуальной процедуры.
+      </p>
+    </section>
+
+    <!-- 05 -->
+    <section class="legal-section">
+      <div class="legal-section-number">05</div>
+      <h2 class="legal-section-title">Хранение и техническая защита данных</h2>
+      <p class="legal-p">
+        Базы данных информации граждан РФ размещаются на защищенных серверных мощностях, физически расположенных на территории Российской Федерации (в соответствии с частью 5 статьи 18 152-ФЗ РФ).
+      </p>
+      <p class="legal-p">
+        Для защиты передаваемой информации применяются современные протоколы шифрования SSL/TLS, механизмы изоляции доступа и регулярный аудит безопасности инфраструктуры. Доступ к заявкам имеют только ведущие инженеры студии: Олег Судаков (Lead Backend) и Эмиль Герасимов (Lead Frontend).
+      </p>
+    </section>
+
+    <!-- 06 -->
+    <section class="legal-section">
+      <div class="legal-section-number">06</div>
+      <h2 class="legal-section-title">Права пользователя (отзыв и удаление)</h2>
+      <p class="legal-p">
+        Каждый Пользователь имеет гарантированное законом право:
+      </p>
+      <ul class="legal-list">
+        <li class="legal-list-item">Получать информацию об объеме и целях обработки своих персональных данных;</li>
+        <li class="legal-list-item">Требовать уточнения, блокирования или уничтожения недостоверных либо неактуальных сведений;</li>
+        <li class="legal-list-item">В любой момент отозвать данное согласие на обработку персональных данных.</li>
+      </ul>
+      <p class="legal-p">
+        Для отзыва согласия или запроса на удаление данных достаточно направить уведомление в свободной форме на электронную почту: <a href="mailto:hello@castleweb.ru" class="legal-link">hello@castleweb.ru</a> с темой письма <em>«Персональные данные / Отзыв согласия»</em>. Запрос исполняется в течение 3 (трех) рабочих дней.
+      </p>
+    </section>
+
+    <!-- 07 -->
+    <section class="legal-section">
+      <div class="legal-section-number">07</div>
+      <h2 class="legal-section-title">Использование файлов Cookie</h2>
+      <p class="legal-p">
+        На сайте Castleweb используются только базовые функциональные cookie-файлы (в частности, сохранение выбранной светлой или темной темы в браузере Пользователя: <code>castleweb-theme</code>).
+      </p>
+      <p class="legal-p">
+        Мы не используем навязчивые отслеживающие трекеры или сторонние рекламные пиксели. Пользователь может отключить поддержку cookie в настройках своего веб-браузера.
+      </p>
+    </section>
+
+    <!-- 08 -->
+    <section class="legal-section">
+      <div class="legal-section-number">08</div>
+      <h2 class="legal-section-title">Контакты для связи</h2>
+      <p class="legal-p">
+        По всем юридическим и техническим вопросам, связанным с настоящей Политикой, Пользователи могут обращаться напрямую к команде Castleweb Studio:
+      </p>
+      <ul class="legal-list">
+        <li class="legal-list-item">Email: <a href="mailto:hello@castleweb.ru" class="legal-link">hello@castleweb.ru</a></li>
+        <li class="legal-list-item">Telegram: <a href="https://t.me/kupidon996" target="_blank" rel="noopener noreferrer" class="legal-link">@kupidon996</a></li>
+        <li class="legal-list-item">Условия сотрудничества: <a href="terms.html" class="legal-link">Ознакомиться с Условиями сервиса</a></li>
+      </ul>
+    </section>
+
+  </main>
+
+  <!-- КОНТРАСТНЫЙ ПОДВАЛ -->
+  <footer class="site-footer" id="site-footer" aria-label="Подвал сайта">
+    <div class="footer-container">
+      <div class="footer-top-row">
+        <div class="footer-brand-col">
+          <div class="footer-symbol" aria-hidden="true" title="Castleweb">
+            <svg class="footer-constellation-icon" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+              <circle cx="12" cy="3.5" r="1.4" />
+              <circle cx="18.01" cy="5.99" r="1.4" />
+              <circle cx="20.5" cy="12" r="1.4" />
+              <circle cx="18.01" cy="18.01" r="1.4" />
+              <circle cx="12" cy="20.5" r="1.4" />
+              <circle cx="5.99" cy="18.01" r="1.4" />
+              <circle cx="3.5" cy="12" r="1.4" />
+              <circle cx="5.99" cy="5.99" r="1.4" />
+            </svg>
+          </div>
+          <p class="footer-tagline">
+            Castleweb — студия разработки,<br>
+            которую вы искали.
+          </p>
+        </div>
+
+        <nav class="footer-nav-grid" aria-label="Навигация в подвале">
+          <div class="footer-nav-col">
+            <span class="footer-col-heading">USEFUL</span>
+            <ul class="footer-link-list">
+              <li><a href="index.html#projects" class="footer-link">Проекты</a></li>
+              <li><a href="index.html#overview" class="footer-link">Стек & Решения</a></li>
+              <li><a href="index.html#manifesto" class="footer-link">Манифест</a></li>
+              <li><a href="index.html#contacts" class="footer-link">Обсудить проект</a></li>
+            </ul>
+          </div>
+
+          <div class="footer-nav-col">
+            <span class="footer-col-heading">LEGAL</span>
+            <ul class="footer-link-list">
+              <li><a href="privacy.html" class="footer-link">Конфиденциальность</a></li>
+              <li><a href="terms.html" class="footer-link">Условия сервиса</a></li>
+            </ul>
+          </div>
+
+          <div class="footer-nav-col">
+            <span class="footer-col-heading">UPDATES</span>
+            <ul class="footer-link-list">
+              <li><a href="https://t.me/kupidon996" target="_blank" rel="noopener noreferrer" class="footer-link">Telegram</a></li>
+              <li><a href="mailto:hello@castleweb.ru" class="footer-link">hello@castleweb.ru</a></li>
+            </ul>
+          </div>
+        </nav>
+      </div>
+
+      <div class="footer-bottom-stage">
+        <div class="footer-giant-title">
+          <span class="footer-giant-letters">CASTLEWEB</span>
+          <span class="footer-giant-copy">©</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Синхронизация темы (светлая / темная)
+    const toggleBtn = document.getElementById('theme-toggle');
+    const htmlEl = document.documentElement;
+
+    const savedTheme = localStorage.getItem('castleweb-theme');
+    if (savedTheme) {
+      htmlEl.setAttribute('data-theme', savedTheme);
+    }
+
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => {
+        const current = htmlEl.getAttribute('data-theme');
+        const next = current === 'dark' ? 'light' : 'dark';
+        htmlEl.setAttribute('data-theme', next);
+        localStorage.setItem('castleweb-theme', next);
+      });
+    }
+  </script>
+
+</body>
+</html>

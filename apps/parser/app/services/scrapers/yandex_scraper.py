@@ -9,6 +9,7 @@ from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 
 from app.config import CAPTCHA_TIMEOUT_SECONDS
 from app.services.scrapers.base import BaseScraper, ScrapedOrgItem
+from app.core.utils import normalize_phone
 
 logger = logging.getLogger("yandex_scraper")
 
@@ -31,12 +32,7 @@ class YandexScraper(BaseScraper):
         self._captcha_resolved_event.set()
 
     def _normalize_phone(self, raw: str) -> Optional[str]:
-        digits = re.sub(r"\D", "", raw)
-        if len(digits) == 11 and digits[0] in ("7", "8"):
-            return f"+7{digits[1:]}"
-        elif len(digits) == 10:
-            return f"+7{digits}"
-        return raw if raw else None
+        return normalize_phone(raw)
 
     def _clean_website(self, raw_url: str) -> Optional[str]:
         if not raw_url:

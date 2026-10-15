@@ -18,12 +18,8 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
-        cases: resolve(__dirname, 'cases.html'),
-        brief: resolve(__dirname, 'brief.html'),
-        policy: resolve(__dirname, 'policy.html'),
-        instagram: resolve(__dirname, 'instagram.html'),
-        behance: resolve(__dirname, 'behance.html'),
-        dprofile: resolve(__dirname, 'dprofile.html'),
+        privacy: resolve(__dirname, 'privacy.html'),
+        terms: resolve(__dirname, 'terms.html'),
       },
     },
   },

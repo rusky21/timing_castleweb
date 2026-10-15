@@ -1,4 +1,6 @@
 import os
+import html
+import urllib.parse
 from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, Request, Response, Form, HTTPException, status
@@ -8,7 +10,7 @@ from sqlalchemy import select
 
 from app.db.database import get_db
 from app.db.models import User
-from app.core.security import verify_password, create_session_token, decode_session_token
+from app.core.security import verify_password, create_session_token, decode_session_token, get_safe_redirect_url
 from app.core.rate_limiter import login_limiter
 
 router = APIRouter(tags=["Authentication"])
@@ -20,9 +22,10 @@ COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "true").lower() in ("true", "1",
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request, returnUrl: str = "/", error: Optional[str] = None):
     """Страница входа в систему LeadHunter Pro в стилистике основного интерфейса"""
+    safe_return = get_safe_redirect_url(returnUrl, default="/")
     token = request.cookies.get("access_token")
     if token and decode_session_token(token):
-        return RedirectResponse(url=returnUrl or "/", status_code=status.HTTP_303_SEE_OTHER)
+        return RedirectResponse(url=safe_return, status_code=status.HTTP_303_SEE_OTHER)
 
     error_html = ""
     if error == "invalid_credentials":
@@ -569,7 +572,7 @@ async def login_page(request: Request, returnUrl: str = "/", error: Optional[str
 
             <!-- Form -->
             <form method="POST" action="/login" id="loginForm">
-                <input type="hidden" name="returnUrl" value="{returnUrl}">
+                <input type="hidden" name="returnUrl" value="{html.escape(safe_return)}">
 
                 <div class="form-group">
                     <label for="email">
@@ -702,6 +705,9 @@ async def login_submit(
     user = result.scalar_one_or_none()
 
     # Проверка пароля и статуса пользователя
+    safe_return = get_safe_redirect_url(returnUrl, default="/")
+    encoded_return = urllib.parse.quote(safe_return, safe="/?&=#")
+
     if not user or not verify_password(password, user.password_hash):
         if "application/json" in request.headers.get("accept", ""):
             raise HTTPException(
@@ -709,7 +715,7 @@ async def login_submit(
                 detail="Неверный email или пароль"
             )
         return RedirectResponse(
-            url=f"/login?error=invalid_credentials&returnUrl={returnUrl}",
+            url=f"/login?error=invalid_credentials&returnUrl={encoded_return}",
             status_code=status.HTTP_303_SEE_OTHER
         )
 
@@ -720,7 +726,7 @@ async def login_submit(
                 detail="Учетная запись деактивирована"
             )
         return RedirectResponse(
-            url=f"/login?error=inactive&returnUrl={returnUrl}",
+            url=f"/login?error=inactive&returnUrl={encoded_return}",
             status_code=status.HTTP_303_SEE_OTHER
         )
 
@@ -732,7 +738,7 @@ async def login_submit(
     token = create_session_token(user.id, user.email, user.role)
 
     # 5. Установка защищенной HTTP-Only Cookie
-    target_url = returnUrl if (returnUrl and not returnUrl.startswith("/login")) else "/"
+    target_url = safe_return if not safe_return.startswith("/login") else "/"
     response = RedirectResponse(url=target_url, status_code=status.HTTP_303_SEE_OTHER)
     response.set_cookie(
         key="access_token",

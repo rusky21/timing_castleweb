@@ -62,12 +62,14 @@ class KworkFetcher(BaseFetcher):
                     except (ValueError, TypeError):
                         pass
 
-                # Статус отклика на Kwork
+                # Статус отклика на Kwork: только доступные для всех (без закрытых фильтров заказчика)
                 kworks_filters = w.get("kworks_filters") or []
+                if kworks_filters:
+                    # Заказ закрыт фильтрами заказчика (требуется рейтинг/отзывы, не доступен всем)
+                    continue
+
                 is_free = True
                 label = "✨ Базовый отклик (коннекты)"
-                if kworks_filters:
-                    label = "🔒 Фильтр исполнителей Kwork"
 
                 cid = str(w.get("category_id") or "")
                 cat_name = cat_map.get(cid) or "Разработка и IT"

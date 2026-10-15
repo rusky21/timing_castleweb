@@ -1,3 +1,4 @@
+import hashlib
 from abc import ABC, abstractmethod
 from typing import List, Optional, Callable, Awaitable, Dict, Any
 from dataclasses import dataclass, field
@@ -79,7 +80,9 @@ class NormalizedOrder:
         try:
             safe_int_id = int(self.external_id)
         except (ValueError, TypeError):
-            safe_int_id = abs(hash(f"{self.platform}_{self.external_id}")) % 2147483647
+            # Детерминированный 32-bit ID на основе MD5 для устойчивости между перезапусками процесса
+            hash_hex = hashlib.md5(f"{self.platform}_{self.external_id}".encode("utf-8")).hexdigest()
+            safe_int_id = int(hash_hex[:8], 16) % 2147483647
 
         return {
             "id": safe_int_id,
