@@ -2143,37 +2143,134 @@
       border-bottom: 1.5px solid var(--color-input-focus);
     }
 
-    /* Custom Select Dropdown */
-    .select-custom-container {
+    /* Custom In-Theme Select Dropdown (Strictly No Emojis, No Overcrowding) */
+    .custom-select-wrapper {
       position: relative;
       width: 100%;
     }
 
-    .form-select-line {
-      appearance: none;
-      -webkit-appearance: none;
+    .custom-select-trigger {
+      width: 100%;
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid var(--color-input-border);
+      font-size: 15px;
+      font-family: var(--font-family);
+      color: var(--text-primary);
+      padding: 6px 0 8px 0;
+      outline: none;
+      border-radius: 0;
       cursor: pointer;
-      padding-right: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      text-align: left;
+      transition: border-color 0.18s ease;
     }
 
-    .form-select-line option {
-      background-color: var(--dropdown-bg);
+    .custom-select-trigger:focus-visible,
+    .custom-select-wrapper.is-open .custom-select-trigger {
+      border-bottom: 1.5px solid var(--color-input-focus, #e85934);
+    }
+
+    .custom-select-value {
       color: var(--text-primary);
+      font-size: 15px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
-    .form-select-line optgroup {
-      background-color: var(--dropdown-bg);
+    .custom-select-value.is-placeholder {
       color: var(--text-muted);
-      font-weight: 600;
-      font-size: 13px;
+      font-weight: 400;
     }
 
-    .select-chevron {
-      position: absolute;
-      right: 0;
-      bottom: 8px;
-      pointer-events: none;
+    .custom-select-chevron {
       color: var(--text-primary);
+      transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+      flex-shrink: 0;
+      margin-left: 8px;
+    }
+
+    .custom-select-wrapper.is-open .custom-select-chevron {
+      transform: rotate(180deg);
+    }
+
+    .custom-select-menu {
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 0;
+      right: 0;
+      background-color: var(--dropdown-bg);
+      border: 1px solid var(--color-input-border);
+      border-radius: 16px;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.25);
+      padding: 6px;
+      margin: 0;
+      list-style: none;
+      z-index: 100;
+      max-height: 290px;
+      overflow-y: auto;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-6px);
+      transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s;
+      pointer-events: none;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+
+    .custom-select-wrapper.is-open .custom-select-menu {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+
+    .custom-select-item {
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 14.5px;
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: background-color 0.15s ease, color 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      user-select: none;
+    }
+
+    .custom-select-item:hover,
+    .custom-select-item:focus-visible {
+      background-color: var(--dropdown-hover);
+      outline: none;
+    }
+
+    .custom-select-item.is-selected {
+      background-color: var(--nav-pill-bg);
+      font-weight: 600;
+    }
+
+    .custom-select-item-check {
+      display: none;
+      color: var(--tape-orange, #E85934);
+    }
+
+    .custom-select-item.is-selected .custom-select-item-check {
+      display: block;
+    }
+
+    .custom-select-menu::-webkit-scrollbar {
+      width: 6px;
+    }
+    .custom-select-menu::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .custom-select-menu::-webkit-scrollbar-thumb {
+      background: var(--color-input-border);
+      border-radius: 4px;
     }
 
     /* Textarea */
@@ -3300,50 +3397,52 @@
           </div>
         </div>
 
-        <!-- Service (Full Spectrum) -->
+        <!-- Service (Custom In-Theme Dropdown, No Emojis, No Mobile Apps) -->
         <div class="form-field select-field-wrap">
-          <label for="serviceSelect" class="field-label">Услуга</label>
-          <div class="select-custom-container">
-            <select id="serviceSelect" name="service" class="form-input-line form-select-line">
-              <option value="" disabled selected hidden>Выберите направление...</option>
-              <optgroup label="🌐 Веб-разработка &amp; E-commerce">
-                <option value="corporate-site">Корпоративный сайт / Промо-лендинг</option>
-                <option value="ecommerce">Интернет-магазин / E-commerce платформа</option>
-                <option value="saas-service">Сложный веб-сервис / SaaS / Личный кабинет</option>
-                <option value="custom-portal">Информационный портал / Платформа</option>
-              </optgroup>
-              <optgroup label="🤖 AI-агенты, Боты &amp; Автоматизация">
-                <option value="ai-agent">AI-агенты, Нейросети &amp; LLM-решения</option>
-                <option value="telegram-mini-app">Telegram Mini App (TMA) &amp; WebApp</option>
-                <option value="telegram-bot">Telegram / WhatsApp чат-бот для бизнеса</option>
-                <option value="data-parser">Парсер данных, Скрейпинг &amp; Лидогенерация</option>
-                <option value="workflow-automation">Автоматизация процессов &amp; Интеграция API</option>
-              </optgroup>
-              <optgroup label="📱 Мобильные приложения &amp; Софт">
-                <option value="mobile-app">Мобильное приложение (iOS / Android)</option>
-                <option value="desktop-software">Кастомное ПО / Десктопный софт</option>
-              </optgroup>
-              <optgroup label="🎨 UI/UX &amp; Брендинг">
-                <option value="ui-ux-design">UI/UX Дизайн &amp; Интерактивный прототип</option>
-                <option value="design-system">Дизайн-система &amp; Редизайн интерфейса</option>
-                <option value="branding">Брендинг, Айдентика &amp; Фирменный стиль</option>
-              </optgroup>
-              <optgroup label="⚡ Инженерия, Backend &amp; Серверы">
-                <option value="backend-api">Высоконагруженный Backend &amp; Микросервисы</option>
-                <option value="devops-infra">DevOps, Docker &amp; Серверная инфраструктура</option>
-                <option value="code-refactoring">Рефакторинг, Аудит &amp; Доработка чужого кода</option>
-                <option value="seo-audit">SEO-оптимизация &amp; Технический аудит сайта</option>
-              </optgroup>
-              <optgroup label="💼 Под ключ &amp; Консалтинг">
-                <option value="turnkey-project">Комплексный IT-проект под ключ</option>
-                <option value="consulting">Технический консалтинг &amp; Архитектура</option>
-                <option value="other">Другое (Индивидуальное решение)</option>
-              </optgroup>
-            </select>
-            <svg class="select-chevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
-              stroke-width="1.8">
-              <polyline points="6 9 12 15 18 9"></polyline>
-            </svg>
+          <label for="serviceSelectTrigger" class="field-label">Услуга</label>
+          <div class="custom-select-wrapper" id="serviceSelectWrapper">
+            <button type="button" class="custom-select-trigger" id="serviceSelectTrigger" aria-haspopup="listbox" aria-expanded="false" aria-label="Выберите направление услуги">
+              <span class="custom-select-value is-placeholder" id="serviceSelectValue">Выберите направление</span>
+              <svg class="custom-select-chevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+                stroke-width="1.8">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+            <input type="hidden" name="service" id="serviceInput" value="">
+            <ul class="custom-select-menu" id="serviceSelectMenu" role="listbox" tabindex="-1">
+              <li class="custom-select-item" role="option" data-value="Веб-сервисы, SaaS и платформы">
+                <span>Веб-сервисы, SaaS и платформы</span>
+                <svg class="custom-select-item-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              </li>
+              <li class="custom-select-item" role="option" data-value="Сайты и интернет-магазины">
+                <span>Сайты и интернет-магазины</span>
+                <svg class="custom-select-item-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              </li>
+              <li class="custom-select-item" role="option" data-value="AI-агенты, нейросети и боты">
+                <span>AI-агенты, нейросети и боты</span>
+                <svg class="custom-select-item-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              </li>
+              <li class="custom-select-item" role="option" data-value="Telegram Mini Apps и WebApp">
+                <span>Telegram Mini Apps и WebApp</span>
+                <svg class="custom-select-item-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              </li>
+              <li class="custom-select-item" role="option" data-value="UI/UX дизайн и дизайн-системы">
+                <span>UI/UX дизайн и дизайн-системы</span>
+                <svg class="custom-select-item-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              </li>
+              <li class="custom-select-item" role="option" data-value="Серверная инфраструктура и бэкенд">
+                <span>Серверная инфраструктура и бэкенд</span>
+                <svg class="custom-select-item-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              </li>
+              <li class="custom-select-item" role="option" data-value="Комплексный проект под ключ">
+                <span>Комплексный проект под ключ</span>
+                <svg class="custom-select-item-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              </li>
+              <li class="custom-select-item" role="option" data-value="Другая задача">
+                <span>Другая задача</span>
+                <svg class="custom-select-item-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              </li>
+            </ul>
           </div>
         </div>
 
@@ -3774,6 +3873,59 @@
     }
 
     // ==================================================
+    // Custom In-Theme Service Dropdown
+    // ==================================================
+    const selectWrapper = document.getElementById('serviceSelectWrapper');
+    const selectTrigger = document.getElementById('serviceSelectTrigger');
+    const selectValue = document.getElementById('serviceSelectValue');
+    const serviceInput = document.getElementById('serviceInput');
+    const selectItems = document.querySelectorAll('.custom-select-item');
+
+    if (selectWrapper && selectTrigger) {
+      const toggleSelect = () => {
+        const isOpen = selectWrapper.classList.toggle('is-open');
+        selectTrigger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      };
+
+      const closeSelect = () => {
+        selectWrapper.classList.remove('is-open');
+        selectTrigger.setAttribute('aria-expanded', 'false');
+      };
+
+      selectTrigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleSelect();
+      });
+
+      selectItems.forEach(item => {
+        item.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const val = item.getAttribute('data-value') || '';
+          if (serviceInput) serviceInput.value = val;
+          if (selectValue) {
+            selectValue.textContent = val;
+            selectValue.classList.remove('is-placeholder');
+          }
+          selectItems.forEach(i => i.classList.remove('is-selected'));
+          item.classList.add('is-selected');
+          closeSelect();
+        });
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!selectWrapper.contains(e.target)) {
+          closeSelect();
+        }
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          closeSelect();
+        }
+      });
+    }
+
+    // ==================================================
     // Contact Form Submission to /api/v1/leads
     // ==================================================
     const contactForm = document.getElementById('contactForm');
@@ -3817,20 +3969,19 @@
         }
         const fullContact = contactParts.join(' | ');
 
-        const serviceSelect = document.getElementById('serviceSelect');
-        const serviceVal = serviceSelect && serviceSelect.selectedIndex >= 0 ? serviceSelect.options[serviceSelect.selectedIndex]?.text : '';
+        const serviceVal = (serviceInput?.value || '').trim();
         const desc = (document.getElementById('projectDesc')?.value || '').trim();
         const hpWebsite = (document.getElementById('hpWebsite')?.value || '').trim();
 
         const taskParts = [];
-        if (serviceVal && !serviceVal.includes('Выберите направление')) {
+        if (serviceVal) {
           taskParts.push(`Услуга: ${serviceVal}`);
         }
         if (desc) {
           taskParts.push(`Описание: ${desc}`);
         }
         if (taskParts.length === 0) {
-          taskParts.push('Заявка с сайта Castleweb Studio (все услуги)');
+          taskParts.push('Заявка с сайта Castleweb Studio');
         }
         const taskDescription = taskParts.join('\n');
 
@@ -3861,6 +4012,14 @@
             submitBtn.textContent = '✓ Заявка принята! Скоро свяжемся';
           }
           contactForm.reset();
+          if (serviceInput) serviceInput.value = '';
+          if (selectValue) {
+            selectValue.textContent = 'Выберите направление';
+            selectValue.classList.add('is-placeholder');
+          }
+          if (selectItems) {
+            selectItems.forEach(i => i.classList.remove('is-selected'));
+          }
           setTimeout(() => {
             if (submitBtn) {
               submitBtn.textContent = origText;
