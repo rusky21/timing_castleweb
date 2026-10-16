@@ -265,7 +265,9 @@ print("  -> В главном меню клиента присутствует �
 print("  ✅ ТЕСТ 4 ПРОЙДЕН: Все шаблоны и клавиатуры Telegram согласованы.")
 """
     ]
-    sub_res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(BASE_DIR), encoding="utf-8")
+    import os
+    env = dict(os.environ, PYTHONIOENCODING="utf-8")
+    sub_res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(BASE_DIR), encoding="utf-8", errors="replace", env=env)
     print(sub_res.stdout)
     if sub_res.returncode != 0:
         print(sub_res.stderr)

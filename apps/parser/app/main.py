@@ -3,6 +3,7 @@ import os
 import json
 import asyncio
 import secrets
+import urllib.parse
 
 if sys.platform == "win32" and sys.version_info < (3, 14):
     try:
