@@ -14,8 +14,8 @@ class KworkFetcher(BaseFetcher):
 
     def __init__(self, client: StealthClient | None = None):
         self.client = client or StealthClient()
-        # Категории: 11 = Разработка и IT, 15 = Дизайн
-        self.url = "https://kwork.ru/projects?c=11&c=15"
+        # Сбор со всех категорий биржи Kwork (без ограничений c=11&c=15, чтобы не терять IT-заявки из смежных рубрик)
+        self.url = "https://kwork.ru/projects"
 
     async def fetch_orders(self) -> List[NormalizedOrder]:
         orders: List[NormalizedOrder] = []
@@ -72,7 +72,7 @@ class KworkFetcher(BaseFetcher):
                 label = "✨ Базовый отклик (коннекты)"
 
                 cid = str(w.get("category_id") or "")
-                cat_name = cat_map.get(cid) or "Разработка и IT"
+                cat_name = cat_map.get(cid) or "Kwork"
 
                 order = NormalizedOrder(
                     composite_id=f"kwork_{w_id}",

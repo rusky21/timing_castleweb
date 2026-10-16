@@ -162,11 +162,8 @@ class TelegramDispatcher:
                     if not getattr(sub, "fl_live_mode", True):
                         continue
 
-                    # 1. Проверка категории (применяется к заказам FL.ru)
-                    user_cats = sub.fl_categories or []
-                    if user_cats and order.category_id and getattr(order, "platform", "fl") == "fl":
-                        if str(order.category_id) not in [str(c) for c in user_cats]:
-                            continue
+                    # 1. Проверка категории отключена (клиенты часто размещают IT-задачи в нецелевых рубриках)
+                    # Все валидные заказы бирж должны доставляться без потерь
 
                     # 2. Проверка флага "Скрывать PRO"
                     if getattr(sub, "fl_hide_pro", False) and getattr(order, "is_pro_only", False):

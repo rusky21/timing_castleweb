@@ -16,7 +16,6 @@ import os
 import re
 import logging
 from typing import Tuple, List, Set, Optional
-from sqlalchemy import select
 
 logger = logging.getLogger("order_filters")
 
@@ -160,13 +159,10 @@ def is_relevant_to_castleweb(title: str, description: str = "", category_name: s
     - Парсеры (сбор данных, скрапинг, автоматизация)
     - Софт (приложения, скрипты, интеграции)
     - UI/UX Дизайн (Figma, прототипы, макеты)
-    """
-    cat_lower = (category_name or "").lower().strip()
-    if cat_lower:
-        for rel_cat in CASTLEWEB_RELEVANT_CATEGORIES:
-            if rel_cat in cat_lower:
-                return True
 
+    Примечание: проверка по названию категории убрана, так как клиенты часто размещают
+    заказы на IT-услуги в нецелевых рубриках (маркетинг, тексты, разное, бизнес).
+    """
     full_text = f"{title or ''} {description or ''}"
     for pattern in CASTLEWEB_RELEVANT_PATTERNS:
         if pattern.search(full_text):
@@ -177,36 +173,43 @@ def is_relevant_to_castleweb(title: str, description: str = "", category_name: s
 
 def is_order_excluded(title: str, description: str = "", category_name: str = "") -> Tuple[bool, str]:
     """
-    Проверяет заказ на соответствие исключенным категориям или ключевым словам:
-    1. Исключает стоп-категории и стоп-слова (менеджеры, SMM, видеомонтаж, отопление, репетиторы и др.)
-    2. Требует обязательное соответствие компетенциям студии CastleWeb (веб, боты, софт, парсинг, дизайн).
+    Проверяет заказ на соответствие исключенным направлениям или стоп-словам.
+
+    ВАЖНОЕ ИЗМЕНЕНИЕ ПО ТРЕБОВАНИЮ ПРОЕКТА:
+    Фильтр по нишам и категориям бирж ПОЛНОСТЬЮ ОТКЛЮЧЕН.
+    Заказчики часто размещают заявки на сайты, ботов, скрипты и софт в «не тех» рубриках
+    («Маркетинг», «Услуги», «Тексты», «Бизнес», «Консалтинг», «Разное» и др.).
+
+    Логика фильтрации:
+    1. Категории биржи НЕ фильтруются и не служат поводом для отбрасывания заказа.
+    2. Если заказ содержит признаки IT-компетенций (веб, боты, скрипты, софт, парсеры, дизайн),
+       он сохраняется ВСЕГДА, даже если в нем встречаются слова из стоп-списков (например:
+       «Telegram-бот для SMM» или «Сайт для компании по отоплению»).
+    3. Отсекается только явный не-IT оффтоп (чистый видеомонтаж/Reels, найм живых операторов/менеджеров,
+       репетиторы/дипломы, физический строительный монтаж) при отсутствии IT-задачи.
     Возвращает (True, причина), если заказ нужно отфильтровать, иначе (False, "").
     """
-    cat_lower = (category_name or "").lower().strip()
     title_raw = title or ""
     desc_raw = description or ""
-    full_text = f"{title_raw} {desc_raw}"
+    full_text = f"{title_raw} {desc_raw}".strip()
 
-    # 1. Проверка категории биржи на стоп-слова
-    if cat_lower:
-        for stop_cat in STOP_CATEGORIES_KEYWORDS:
-            if stop_cat in cat_lower:
-                return True, f"Стоп-категория: {category_name} ({stop_cat})"
+    if not full_text:
+        return False, ""
 
-    # 2. Проверка заголовка по стоп-паттернам (наивысший приоритет)
+    # Приоритет IT: если это разработка сайта, бота, скрипта, парсера или дизайна, пропускаем всегда
+    is_it_service = is_relevant_to_castleweb(title_raw, desc_raw)
+    if is_it_service:
+        return False, ""
+
+    # Если явных IT-паттернов нет, проверяем заголовок и описание на стоп-паттерны (оффтоп)
     for pattern, reason in STOP_PATTERNS:
         if pattern.search(title_raw):
             return True, f"{reason} в заголовке"
 
-    # 3. Проверка описания по стоп-паттернам
     if desc_raw:
         for pattern, reason in STOP_PATTERNS:
             if pattern.search(full_text):
                 return True, f"{reason} в описании"
-
-    # 4. Проверка на соответствие профилю CastleWeb (веб-разработка, боты, софт, парсеры, дизайн)
-    if not is_relevant_to_castleweb(title_raw, desc_raw, category_name):
-        return True, "Не относится к профилю CastleWeb (веб, боты, софт, парсинг, дизайн)"
 
     return False, ""
 
@@ -217,6 +220,7 @@ async def hide_existing_excluded_orders() -> int:
     Проверяет все существующие в базе данных SQLite заказы и помечает
     нерелевантные как is_hidden=True, чтобы они не засоряли интерфейс.
     """
+    from sqlalchemy import select
     from app.db.database import async_session_factory
     from app.db.models import FLOrder, FLOrderInteraction, utc_now
 
