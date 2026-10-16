@@ -49,6 +49,7 @@ async def init_db():
 
         # Безопасная миграция для существующих БД
         migrations = [
+            "ALTER TABLE organizations ADD COLUMN city VARCHAR(255)",
             "ALTER TABLE organizations ADD COLUMN telegram VARCHAR(255)",
             "ALTER TABLE organizations ADD COLUMN has_telegram BOOLEAN DEFAULT 0",
             "ALTER TABLE telegram_user_settings ADD COLUMN fl_keywords TEXT DEFAULT '[]'",

@@ -83,6 +83,7 @@ class Organization(Base):
     
     name: Mapped[str] = mapped_column(String(500), nullable=False)
     category: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    city: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # Город сбора организации
     address: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     rating: Mapped[float] = mapped_column(Float, default=0.0)
     reviews_count: Mapped[int] = mapped_column(Integer, default=0)

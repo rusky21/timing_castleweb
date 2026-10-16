@@ -1,4 +1,6 @@
 import uuid
+import re
+import logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +15,25 @@ from app.schemas.search import (
 )
 from app.core.security import decode_session_token
 from app.services.task_manager import task_manager
+
+logger = logging.getLogger("search_api")
+
+def parse_cities(city_str: str, cities_list: list[str] | None = None) -> list[str]:
+    """Извлекает уникальный список городов из строки и/или массива"""
+    raw: list[str] = []
+    if cities_list:
+        for c in cities_list:
+            if isinstance(c, str):
+                for part in re.split(r'[,;]+', c):
+                    cl = part.strip()
+                    if cl and cl not in raw:
+                        raw.append(cl)
+    if city_str:
+        for part in re.split(r'[,;]+', city_str):
+            cl = part.strip()
+            if cl and cl not in raw:
+                raw.append(cl)
+    return raw if raw else ["Казань"]
 
 router = APIRouter(prefix="/api/search", tags=["Поиск и сбор"])
 
@@ -126,9 +147,12 @@ async def start_search(
             logger.warning(f"Error checking user limits: {e}")
 
     # Создаем запись кампании с привязкой к пользователю
+    cities_list = parse_cities(req.city, req.cities)
+    clean_city_str = ", ".join(cities_list)
+
     campaign = SearchCampaign(
         niche=req.niche.strip(),
-        city=req.city.strip(),
+        city=clean_city_str,
         source=req.source,
         target_limit=effective_limit,
         status="RUNNING",
@@ -147,14 +171,16 @@ async def start_search(
         city=campaign.city,
         source=campaign.source,
         limit=campaign.target_limit,
-        user_id=uid
+        user_id=uid,
+        cities=cities_list
     )
 
+    cities_display = f"в городах: {clean_city_str}" if len(cities_list) > 1 else f"в г. {clean_city_str}"
     return SearchStartResponse(
         campaign_id=campaign.id,
         task_id=task_id,
         status="STARTED",
-        message=f"Сбор запущен для «{campaign.niche}» в г. {campaign.city}. Подключитесь к WebSocket /ws/{campaign.id} для получения логов."
+        message=f"Сбор запущен для «{campaign.niche}» {cities_display}. Подключитесь к WebSocket /ws/{campaign.id} для получения логов."
     )
 
 @router.post("/stop", response_model=SearchStopResponse, summary="Принудительно остановить сбор")

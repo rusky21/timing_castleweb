@@ -4,7 +4,8 @@ from pydantic import BaseModel, Field
 class SearchStartRequest(BaseModel):
     """Параметры запуска поиска с главной формы"""
     niche: str = Field(..., min_length=2, description="Ниша поиска (например, 'Стоматология', 'Автосервис')")
-    city: str = Field(..., min_length=2, description="Город поиска (например, 'Казань', 'Москва')")
+    city: str = Field(..., min_length=2, description="Город или список городов через запятую (например, 'Казань', 'Москва, Санкт-Петербург')")
+    cities: Optional[list[str]] = Field(default=None, description="Опциональный массив городов для мультигородского сбора")
     source: Literal["yandex", "2gis", "all"] = Field(default="yandex", description="Источник сбора карт (по умолчанию Яндекс.Карты)")
     limit: int = Field(default=50, ge=1, le=500, description="Лимит количества собираемых лидов")
 

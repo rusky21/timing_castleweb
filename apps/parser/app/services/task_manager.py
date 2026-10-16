@@ -54,11 +54,11 @@ class TaskManager:
             return True
         return False
 
-    def start_campaign(self, campaign_id: int, niche: str, city: str, source: str, limit: int, user_id: Optional[int] = None):
+    def start_campaign(self, campaign_id: int, niche: str, city: str, source: str, limit: int, user_id: Optional[int] = None, cities: Optional[list[str]] = None):
         ctx = TaskContext(campaign_id)
         self._tasks[campaign_id] = ctx
         ctx.task = asyncio.create_task(
-            self._run_campaign_worker(ctx, niche, city, source, limit, user_id=user_id)
+            self._run_campaign_worker(ctx, niche, city, source, limit, user_id=user_id, cities=cities)
         )
         return ctx.task
 
@@ -69,7 +69,8 @@ class TaskManager:
         city: str,
         source: str,
         limit: int,
-        user_id: Optional[int] = None
+        user_id: Optional[int] = None,
+        cities: Optional[list[str]] = None
     ):
         campaign_id = ctx.campaign_id
         auditor = SiteAuditor()
@@ -137,12 +138,14 @@ class TaskManager:
                 }
             })
 
+            item_city = item.city or (cities[0] if cities else city)
+
             # Выполняем глубокий аудит сайта
             audit_res = await auditor.audit_url(
                 url=item.website,
                 org_name=item.name,
                 category=item.category or niche,
-                city=city
+                city=item_city
             )
 
             # Объединяем соцсети и мессенджеры из скрейпера карт и сайта
@@ -166,6 +169,7 @@ class TaskManager:
                             external_id=item.external_id,
                             name=item.name,
                             category=item.category or niche,
+                            city=item_city,
                             address=item.address,
                             rating=item.rating,
                             reviews_count=item.reviews_count,
@@ -225,6 +229,7 @@ class TaskManager:
                             campaign_id=campaign_id,
                             name=org.name,
                             category=org.category,
+                            city=org.city or item_city,
                             address=org.address,
                             rating=org.rating,
                             reviews_count=org.reviews_count,
@@ -290,10 +295,11 @@ class TaskManager:
         try:
             # Запуск скрейперов в зависимости от выбранного источника
             # Парсинг исключительно через Яндекс.Карты (2ГИС отключен)
+            target_cities = cities if cities else city
             ctx.active_yandex_scraper = YandexScraper(headless=HEADLESS)
             await ctx.active_yandex_scraper.scrape(
                 niche=niche,
-                city=city,
+                city=target_cities,
                 limit=limit,
                 on_item_scraped=on_item_scraped,
                 on_status=on_status,

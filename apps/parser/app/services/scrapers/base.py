@@ -16,6 +16,7 @@ class ScrapedOrgItem(BaseModel):
     external_id: str
     name: str
     category: Optional[str] = None
+    city: Optional[str] = None
     address: Optional[str] = None
     rating: float = 0.0
     reviews_count: int = 0

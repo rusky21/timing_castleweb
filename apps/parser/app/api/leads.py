@@ -120,6 +120,7 @@ async def get_leads(
             campaign_id=org.campaign_id,
             name=org.name,
             category=org.category,
+            city=org.city,
             address=org.address,
             rating=org.rating,
             reviews_count=org.reviews_count,

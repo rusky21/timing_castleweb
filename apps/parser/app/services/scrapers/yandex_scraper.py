@@ -52,7 +52,7 @@ class YandexScraper(BaseScraper):
         except Exception:
             return raw_url
 
-    def _parse_business_item(self, raw: dict) -> Optional[ScrapedOrgItem]:
+    def _parse_business_item(self, raw: dict, city: Optional[str] = None) -> Optional[ScrapedOrgItem]:
         # Проверяем, что это организация, а не подборка/баннер
         item_type = raw.get("type")
         if item_type and item_type not in ("business", "topObject"):
@@ -142,6 +142,7 @@ class YandexScraper(BaseScraper):
             external_id=external_id,
             name=name,
             category=category,
+            city=city,
             address=address,
             rating=rating,
             reviews_count=reviews_count,
@@ -204,7 +205,7 @@ class YandexScraper(BaseScraper):
     async def scrape(
         self,
         niche: str,
-        city: str,
+        city: str | List[str],
         limit: int,
         on_item_scraped: Callable[[ScrapedOrgItem], Awaitable[None]],
         on_status: Callable[[str], Awaitable[None]],
@@ -215,11 +216,14 @@ class YandexScraper(BaseScraper):
         seen_ids: Set[str] = set()
         pending_tasks: Set[asyncio.Task] = set()
 
-        search_query = f"{niche} {city}".strip()
-        encoded_query = urllib.parse.quote(search_query)
-        start_url = f"https://yandex.ru/maps/?text={encoded_query}"
+        if isinstance(city, list):
+            cities_list = [c.strip() for c in city if isinstance(c, str) and c.strip()]
+        else:
+            cities_list = [c.strip() for c in re.split(r'[,;]+', str(city)) if c.strip()]
+        if not cities_list:
+            cities_list = ["Казань"]
 
-        await on_status(f"Запуск браузера и открытие Яндекс.Карт: «{search_query}»...")
+        current_city_context = {"city": cities_list[0], "target": limit}
 
         playwright_obj = None
         browser = None
@@ -254,16 +258,16 @@ class YandexScraper(BaseScraper):
 
             # 1. Перехватчик ответов AJAX поиска (подгрузка при скролле)
             async def handle_response(resp):
-                if "maps/api/search" in resp.url and len(results) < limit and not is_cancelled():
+                if "maps/api/search" in resp.url and len(results) < current_city_context["target"] and len(results) < limit and not is_cancelled():
                     try:
                         data = await resp.json()
                         def walk_and_extract(obj):
                             if isinstance(obj, dict):
                                 if "items" in obj and isinstance(obj["items"], list):
                                     for raw_it in obj["items"]:
-                                        if len(results) >= limit or is_cancelled():
+                                        if len(results) >= current_city_context["target"] or len(results) >= limit or is_cancelled():
                                             break
-                                        item = self._parse_business_item(raw_it)
+                                        item = self._parse_business_item(raw_it, city=current_city_context["city"])
                                         if item and item.external_id not in seen_ids:
                                             seen_ids.add(item.external_id)
                                             results.append(item)
@@ -278,75 +282,106 @@ class YandexScraper(BaseScraper):
 
             page.on("response", handle_response)
 
-            # Открываем поиск
-            await page.goto(start_url, timeout=35000, wait_until="domcontentloaded")
-            await asyncio.sleep(2.5)
+            for city_idx, current_city in enumerate(cities_list):
+                if len(results) >= limit or is_cancelled():
+                    break
 
-            # Проверяем капчу на старте
-            await self._check_and_handle_captcha(page, on_captcha, on_status)
+                # Рассчитываем квоту на этот город с учетом переноса недосбора
+                remaining_needed = limit - len(results)
+                remaining_cities_count = len(cities_list) - city_idx
+                if remaining_cities_count <= 1:
+                    city_quota = remaining_needed
+                else:
+                    city_quota = max(1, int(remaining_needed / remaining_cities_count))
 
-            if is_cancelled():
-                return results
+                city_target_total = min(limit, len(results) + city_quota)
+                current_city_context["city"] = current_city
+                current_city_context["target"] = city_target_total
 
-            # 2. Извлечение первичных 25 элементов из скрипта начального состояния
-            script_el = await page.query_selector("script.state-view, script[class*='state-view']")
-            if script_el:
-                try:
-                    txt = await script_el.inner_text()
-                    data = json.loads(txt)
-                    for s in data.get("stack", []):
-                        for raw_it in s.get("results", {}).get("items", []):
-                            if len(results) >= limit or is_cancelled():
-                                break
-                            item = self._parse_business_item(raw_it)
-                            if item and item.external_id not in seen_ids:
-                                seen_ids.add(item.external_id)
-                                results.append(item)
-                                await on_item_scraped(item)
-                except Exception as e:
-                    logger.warning(f"Error reading initial state-view: {e}")
+                search_query = f"{niche} {current_city}".strip()
+                encoded_query = urllib.parse.quote(search_query)
+                start_url = f"https://yandex.ru/maps/?text={encoded_query}"
 
-            # 3. Цикл плавного скроллинга выдачи
-            no_new_cards_counter = 0
-            max_stuck_attempts = 8
+                if len(cities_list) > 1:
+                    await on_status(f"[{city_idx + 1}/{len(cities_list)}] Поиск «{niche}» в г. {current_city} (цель города: {city_quota}, всего {len(results)}/{limit})...")
+                else:
+                    await on_status(f"Запуск браузера и открытие Яндекс.Карт: «{search_query}»...")
 
-            while len(results) < limit and not is_cancelled():
-                # Проверяем капчу во время работы
+                # Открываем поиск
+                await page.goto(start_url, timeout=35000, wait_until="domcontentloaded")
+                await asyncio.sleep(2.5)
+
+                # Проверяем капчу на старте
                 await self._check_and_handle_captcha(page, on_captcha, on_status)
 
-                prev_count = len(results)
+                if is_cancelled():
+                    break
 
-                # Скроллим контейнер вниз для подгрузки следующей порции организаций
-                try:
-                    scroll_script = """
-                        () => {
-                            const scrollable = document.querySelector('.scroll__container') || 
-                                               document.querySelector('div[class*="search-list-view"]') ||
-                                               document.querySelector('div[role="region"]');
-                            if (scrollable) {
-                                scrollable.scrollTop += 1800;
-                                return true;
+                # 2. Извлечение первичных 25 элементов из скрипта начального состояния
+                script_el = await page.query_selector("script.state-view, script[class*='state-view']")
+                if script_el:
+                    try:
+                        txt = await script_el.inner_text()
+                        data = json.loads(txt)
+                        for s in data.get("stack", []):
+                            for raw_it in s.get("results", {}).get("items", []):
+                                if len(results) >= current_city_context["target"] or len(results) >= limit or is_cancelled():
+                                    break
+                                item = self._parse_business_item(raw_it, city=current_city)
+                                if item and item.external_id not in seen_ids:
+                                    seen_ids.add(item.external_id)
+                                    results.append(item)
+                                    await on_item_scraped(item)
+                    except Exception as e:
+                        logger.warning(f"Error reading initial state-view: {e}")
+
+                # 3. Цикл плавного скроллинга выдачи
+                no_new_cards_counter = 0
+                max_stuck_attempts = 8
+
+                while len(results) < current_city_context["target"] and len(results) < limit and not is_cancelled():
+                    # Проверяем капчу во время работы
+                    await self._check_and_handle_captcha(page, on_captcha, on_status)
+
+                    prev_count = len(results)
+
+                    # Скроллим контейнер вниз для подгрузки следующей порции организаций
+                    try:
+                        scroll_script = """
+                            () => {
+                                const scrollable = document.querySelector('.scroll__container') || 
+                                                   document.querySelector('div[class*="search-list-view"]') ||
+                                                   document.querySelector('div[role="region"]');
+                                if (scrollable) {
+                                    scrollable.scrollTop += 1800;
+                                    return true;
+                                }
+                                window.scrollBy(0, 1000);
+                                return false;
                             }
-                            window.scrollBy(0, 1000);
-                            return false;
-                        }
-                    """
-                    await page.evaluate(scroll_script)
-                    pause = random.uniform(1.8, 2.8)
-                    await asyncio.sleep(pause)
-                except Exception:
-                    break
+                        """
+                        await page.evaluate(scroll_script)
+                        pause = random.uniform(1.8, 2.8)
+                        await asyncio.sleep(pause)
+                    except Exception:
+                        break
 
-                # Если количество не изменилось, увеличиваем счетчик отсутствия новых карточек
-                if len(results) == prev_count:
-                    no_new_cards_counter += 1
-                else:
-                    no_new_cards_counter = 0
+                    # Если количество не изменилось, увеличиваем счетчик отсутствия новых карточек
+                    if len(results) == prev_count:
+                        no_new_cards_counter += 1
+                    else:
+                        no_new_cards_counter = 0
 
-                # Детектор конца выдачи
-                if no_new_cards_counter >= max_stuck_attempts:
-                    await on_status("Достигнут конец выдачи Яндекс.Карт.")
-                    break
+                    # Детектор конца выдачи для текущего города
+                    if no_new_cards_counter >= max_stuck_attempts:
+                        if len(cities_list) > 1:
+                            await on_status(f"Конец выдачи по г. {current_city}. Переход к следующему...")
+                        else:
+                            await on_status("Достигнут конец выдачи Яндекс.Карт.")
+                        break
+
+                if len(cities_list) > 1 and len(results) < limit and not is_cancelled():
+                    await asyncio.sleep(1.0)
 
         except Exception as e:
             logger.exception(f"Error during Yandex Maps scrape: {e}")

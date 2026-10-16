@@ -14,6 +14,7 @@ class LeadItem(BaseModel):
     campaign_id: int
     name: str
     category: Optional[str] = None
+    city: Optional[str] = None
     address: Optional[str] = None
     rating: float = 0.0
     reviews_count: int = 0
