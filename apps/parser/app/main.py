@@ -263,7 +263,9 @@ if FRONTEND_DIST.exists():
                     "id": user_payload.get("sub"),
                     "email": user_payload.get("email"),
                     "role": role,
-                    "is_admin": role in ("admin", "superuser", "root")
+                    "is_admin": role in ("admin", "superuser", "root"),
+                    "is_paid": role == "paid",
+                    "daily_limit": 100 if role == "paid" else (999999 if role in ("admin", "superuser", "root") else 5)
                 })
                 # Защита от Stored XSS через </script> в данных пользователя
                 safe_user_json = user_json.replace("<", "\\u003c").replace(">", "\\u003e")

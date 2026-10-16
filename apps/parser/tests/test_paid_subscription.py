@@ -8,6 +8,9 @@ from pathlib import Path
 BASE_DIR = Path("c:/Users/fake_netrunner/Desktop/мой сайтик)))))").resolve()
 sys.path.insert(0, str(BASE_DIR / "apps" / "parser"))
 sys.path.insert(0, str(BASE_DIR / "apps" / "backend"))
+parser_pkg = BASE_DIR / "парсеп" / "parser" / ".venv" / "Lib" / "site-packages"
+if parser_pkg.exists():
+    sys.path.append(str(parser_pkg))
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
@@ -216,66 +219,123 @@ async def run_all_tests():
     print("  ✅ ТЕСТ 3 ПРОЙДЕН: Суточный лимит 100 компаний, автосброс в полночь и проверка срока работают безупречно.")
 
     # ---------------------------------------------------------
-    # ТЕСТ 4: Меню Telegram-бота и карточки менеджеров
+    # ТЕСТ 4: Меню Telegram-бота и карточки менеджеров / Личный кабинет
     # ---------------------------------------------------------
-    print("\n[ТЕСТ 4] Проверка Telegram-шаблонов меню и кнопок менеджеров...")
+    print("\n[ТЕСТ 4] Проверка Telegram-шаблонов меню, карточки ЛК и кнопок менеджеров...")
     import subprocess
-    cmd = [
-        sys.executable, "-c",
-        """
-import sys
-from pathlib import Path
-BASE_DIR = Path("c:/Users/fake_netrunner/Desktop/мой сайтик)))))").resolve()
-sys.path.insert(0, str(BASE_DIR / "apps" / "backend"))
-from app.presentation.api.v1.endpoints.telegram_webhook import (
-    get_buy_parser_menu,
-    get_manager_grant_keyboard,
-    format_demo_access_response,
-    get_client_main_menu
-)
-
-buy_text, buy_kb = get_buy_parser_menu()
-assert "2 000 ₽" in buy_text
-assert "5 000 ₽" in buy_text
-assert "10 000 ₽" in buy_text
-assert "50 000 ₽" in buy_text
-assert "100" in buy_text
-callbacks = [btn["callback_data"] for row in buy_kb["inline_keyboard"] for btn in row if "callback_data" in btn]
-assert "buy_parser_request" in callbacks
-print("  -> Меню покупки содержит правильные цены (2к/5к/10к/50к) и кнопку заявки.")
-
-mgr_kb = get_manager_grant_keyboard(123456789)
-mgr_callbacks = [btn["callback_data"] for row in mgr_kb["inline_keyboard"] for btn in row if "callback_data" in btn]
-print(f"  -> Callback'и в группе менеджеров: {mgr_callbacks}")
-assert "grant_sub:123456789:1m" in mgr_callbacks
-assert "grant_sub:123456789:3m" in mgr_callbacks
-assert "grant_sub:123456789:1y" in mgr_callbacks
-assert "grant_sub:123456789:lifetime" in mgr_callbacks
-assert "decline_sub:123456789" in mgr_callbacks
-
-exhausted_text, exhausted_kb = format_demo_access_response({"status": "exhausted"}, "https://leads.castleweb.ru")
-ex_callbacks = [btn["callback_data"] for row in exhausted_kb["inline_keyboard"] for btn in row if "callback_data" in btn]
-assert "buy_parser_menu" in ex_callbacks
-print("  -> В карточке исчерпанного демо присутствует кнопка покупки подписки.")
-
-main_text, main_kb = get_client_main_menu("Иван")
-main_callbacks = [btn["callback_data"] for row in main_kb["inline_keyboard"] for btn in row if "callback_data" in btn]
-assert "buy_parser_menu" in main_callbacks
-print("  -> В главном меню клиента присутствует кнопка покупки парсера.")
-print("  ✅ ТЕСТ 4 ПРОЙДЕН: Все шаблоны и клавиатуры Telegram согласованы.")
-"""
-    ]
-    import os
-    env = dict(os.environ, PYTHONIOENCODING="utf-8")
-    sub_res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(BASE_DIR), encoding="utf-8", errors="replace", env=env)
+    menu_test_script = BASE_DIR / "apps" / "parser" / "tests" / "test_telegram_menu.py"
+    sub_res = subprocess.run(
+        [sys.executable, str(menu_test_script)],
+        capture_output=True,
+        text=True,
+        cwd=str(BASE_DIR),
+        encoding="utf-8",
+        errors="replace"
+    )
     print(sub_res.stdout)
     if sub_res.returncode != 0:
         print(sub_res.stderr)
         assert False, f"Тест 4 завершился с ошибкой: {sub_res.stderr}"
 
+    # ---------------------------------------------------------
+    # ТЕСТ 5: Внутренние эндпоинты ЛК и сброса пароля (auth.py)
+    # ---------------------------------------------------------
+    print("\n[ТЕСТ 5] Проверка API Личного кабинета и сброса пароля (/api/internal/user-cabinet & reset-password)...")
+    from app.api.auth import get_user_cabinet_internal, reset_password_internal, ResetPasswordPayload, verify_password
+
+    async with session_factory() as db:
+        # Проверяем получение ЛК для существующего платного пользователя (999001)
+        cab_data = await get_user_cabinet_internal(
+            tg_user_id="999001",
+            request=mock_request(),
+            db=db
+        )
+        print(f"  -> Данные ЛК из API: роль={cab_data.get('role')}, план={cab_data.get('plan_title')}, лимит={cab_data.get('daily_limit')}")
+        assert cab_data["status"] == "ok"
+        assert cab_data["is_paid"] is True
+        assert cab_data["daily_limit"] == 100
+        assert cab_data["daily_remaining"] == 100
+        assert cab_data["daily_companies_parsed"] == 0
+        assert "subscription_until_human" in cab_data
+
+        # Проверяем сброс пароля
+        reset_res = await reset_password_internal(
+            payload=ResetPasswordPayload(tg_user_id="999001"),
+            request=mock_request(),
+            db=db
+        )
+        new_pass = reset_res["new_password"]
+        print(f"  -> Новый пароль успешно сгенерирован: {new_pass}")
+        assert len(new_pass) == 10
+
+        # Проверяем в БД, что пароль обновился и проходит верификацию
+        u1_updated = (await db.execute(select(User).where(User.tg_user_id == "999001"))).scalar_one()
+        assert verify_password(new_pass, u1_updated.password_hash) is True
+        print("  -> Хеш нового пароля в БД валиден и подтвержден verify_password.")
+
+    print("  ✅ ТЕСТ 5 ПРОЙДЕН: Эндпоинты ЛК и сброса пароля работают корректно.")
+
+    # ---------------------------------------------------------
+    # ТЕСТ 6: Защита от спама лидов в Telegram (только в браузере)
+    # ---------------------------------------------------------
+    print("\n[ТЕСТ 6] Проверка фильтрации уведомлений о лидах в Telegram (Zero TG Leaks for Paid Users)...")
+    import app.services.telegram.dispatcher as dispatcher_module
+    from app.services.telegram.dispatcher import TelegramDispatcher
+    from app.db.models import TelegramUser, TelegramUserSettings
+
+    dispatcher_module.async_session_factory = session_factory
+
+    async with session_factory() as db:
+        # Создаем двух пользователей Telegram:
+        # 1. Платный клиент (не админ)
+        # 2. Администратор студии
+        tg_client = TelegramUser(chat_id=777001, username="paid_client_vasya", is_active=True)
+        tg_client_settings = TelegramUserSettings(chat_id=777001, maps_enabled=True)
+
+        tg_admin = TelegramUser(chat_id=1878543896, username="kupidon996", is_active=True)
+        tg_admin_settings = TelegramUserSettings(chat_id=1878543896, maps_enabled=True)
+
+        db.add_all([tg_client, tg_client_settings, tg_admin, tg_admin_settings])
+        await db.commit()
+
+        # Инициализируем диспетчер с заглушкой бота
+        dispatcher = TelegramDispatcher()
+        dispatcher.bot = MagicMock()
+        
+        # Симулируем отправку лида
+        lead_data = {
+            "id": 1234,
+            "name": "ООО Ромашка",
+            "source": "yandex_maps",
+            "primary_phone": "+79991234567",
+            "telegram": "@romashka",
+            "website": "http://romashka.ru",
+            "status_badge": "OK"
+        }
+
+        # Перехватываем очередь диспетчера
+        await dispatcher.dispatch_lead(lead_data)
+
+        queued_items = []
+        while not dispatcher._queue.empty():
+            queued_items.append(await dispatcher._queue.get())
+
+        queued_chat_ids = [item[0] for item in queued_items]
+        print(f"  -> Получатели лида в очереди TelegramDispatcher: {queued_chat_ids}")
+        
+        # Строгая проверка инварианта: платный клиент НЕ должен получить лид в TG!
+        assert 777001 not in queued_chat_ids, "ОШИБКА БЕЗОПАСНОСТИ: Платный клиент получил уведомление о лиде в Telegram!"
+        # Администратор студии должен получить лид
+        assert 1878543896 in queued_chat_ids, "Администратор студии не получил уведомление о лиде!"
+        print("  -> Платный клиент (chat_id=777001) отфильтрован: лиды доступны ТОЛЬКО в браузере.")
+        print("  -> Администратор студии (chat_id=1878543896) успешно получил уведомление.")
+
+    print("  ✅ ТЕСТ 6 ПРОЙДЕН: Уведомления о лидах строго изолированы от платных подписчиков.")
+
     print("\n" + "=" * 60)
-    print("🎉 ВСЕ ТЕСТЫ УСПЕШНО ПРОЙДЕНЫ! СИСТЕМА ГОТОВА К ПРОДАКШНУ.")
+    print("🎉 ВСЕ ТЕСТЫ УСПЕШНО ПРОЙДЕНЫ! СИСТЕМА ПОЛНОСТЬЮ ГОТОВА И ПРОВЕРЕНА.")
     print("=" * 60)
 
 if __name__ == "__main__":
     asyncio.run(run_all_tests())
+

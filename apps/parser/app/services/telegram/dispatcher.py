@@ -264,18 +264,31 @@ class TelegramDispatcher:
         lead_source = (lead_dict.get("source") or "").lower()
 
         try:
+            from app.config import ADMIN_TELEGRAM_IDS, MANAGER_TELEGRAM_CHAT_ID
+
             async with async_session_factory() as db:
                 stmt = (
-                    select(TelegramUserSettings)
-                    .join(TelegramUser)
+                    select(TelegramUserSettings, TelegramUser)
+                    .join(TelegramUser, TelegramUserSettings.chat_id == TelegramUser.chat_id)
                     .where(TelegramUser.is_active == True)
                     .where(TelegramUserSettings.maps_enabled == True)
                 )
                 res = await db.execute(stmt)
-                subscribers = res.scalars().all()
+                subscriber_pairs = res.all()
 
-                for sub in subscribers:
+                for sub, user in subscriber_pairs:
                     chat_id = sub.chat_id
+
+                    # СТРОГАЯ ПРОВЕРКА: Уведомления о лидах отправляются ТОЛЬКО администраторам студии.
+                    # Платные клиенты просматривают лиды исключительно в веб-интерфейсе браузера.
+                    user_login = (getattr(user, "username", "") or "").lower().lstrip("@")
+                    is_admin_sub = (
+                        user_login in ("kupidon996", "ya_emildjan", "castleweb_admin", "admin")
+                        or (ADMIN_TELEGRAM_IDS and chat_id in ADMIN_TELEGRAM_IDS)
+                        or (str(chat_id) in ("1878543896", str(MANAGER_TELEGRAM_CHAT_ID)))
+                    )
+                    if not is_admin_sub:
+                        continue
 
                     # 1. Фильтр по наличию Telegram
                     if sub.maps_only_with_telegram and not has_tg:

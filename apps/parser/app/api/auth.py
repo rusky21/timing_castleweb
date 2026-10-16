@@ -786,6 +786,7 @@ async def get_current_user_info(request: Request, db: AsyncSession = Depends(get
         "email": user_obj.email if user_obj else user_data.get("email"),
         "role": user_obj.role if user_obj else role,
         "is_admin": (user_obj.role if user_obj else role) in ("admin", "superuser", "root"),
+        "is_paid": (user_obj.role if user_obj else role) == "paid",
         "subscription_plan": user_obj.subscription_plan if user_obj else None,
         "subscription_until": user_obj.subscription_until.isoformat() if user_obj and user_obj.subscription_until else None,
         "daily_companies_parsed": user_obj.daily_companies_parsed if user_obj else 0,
@@ -993,6 +994,34 @@ async def create_demo_user(
             }
 
     if existing_user:
+        # Если у пользователя уже активирован платный доступ — отдаем карточку платного тарифа
+        if existing_user.role == "paid":
+            new_password = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(8))
+            existing_user.password_hash = hash_password(new_password)
+            existing_user.is_active = True
+            await db.commit()
+            now = datetime.now(timezone.utc)
+            sub_until = existing_user.subscription_until
+            if sub_until and sub_until.tzinfo is None:
+                sub_until = sub_until.replace(tzinfo=timezone.utc)
+            is_expired = bool(sub_until and sub_until < now)
+            until_human = sub_until.strftime("%d.%m.%Y") if sub_until else "Бессрочно (навсегда)"
+            plan_key = existing_user.subscription_plan or "1m"
+            return {
+                "status": "paid",
+                "email": existing_user.email,
+                "password": new_password,
+                "role": "paid",
+                "plan": plan_key,
+                "plan_title": PAID_PLAN_TITLES.get(plan_key, "Платная подписка (100 орг/день)"),
+                "subscription_until": sub_until.isoformat() if sub_until else None,
+                "subscription_until_human": until_human,
+                "daily_limit": 100,
+                "daily_companies_parsed": existing_user.daily_companies_parsed or 0,
+                "is_expired": is_expired,
+                "message": "Активный платный доступ LeadHunter"
+            }
+
         # Если попытки уже исчерпаны — тестовый режим повторно не выдается
         if existing_user.demo_searches_left <= 0:
             return {
@@ -1075,6 +1104,14 @@ PAID_PLAN_TITLES = {
 }
 
 
+def verify_internal_secret(request: Request, payload_secret: str | None = None):
+    secret = (request.headers.get("X-Internal-Secret") or payload_secret or "").strip()
+    expected_secret = (os.environ.get("INTERNAL_API_SECRET") or "castleweb-internal-demo-secret").strip()
+    valid_secrets = {expected_secret, "castleweb-internal-demo-secret"}
+    if secret not in valid_secrets:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden: Invalid internal secret")
+
+
 @router.post("/api/internal/grant-paid-access")
 async def grant_paid_access(
     payload: GrantPaidAccessPayload,
@@ -1090,11 +1127,7 @@ async def grant_paid_access(
     - Бессрочно: 50 000 ₽ (без ограничения)
     Лимит: 100 спарсенных организаций в день.
     """
-    secret = (request.headers.get("X-Internal-Secret") or payload.secret_key or "").strip()
-    expected_secret = (os.environ.get("INTERNAL_API_SECRET") or "castleweb-internal-demo-secret").strip()
-    valid_secrets = {expected_secret, "castleweb-internal-demo-secret"}
-    if secret not in valid_secrets:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden: Invalid internal secret")
+    verify_internal_secret(request, payload.secret_key)
 
     clean_plan = str(payload.plan).strip().lower()
     if clean_plan not in PAID_PLAN_DAYS:
@@ -1190,5 +1223,101 @@ async def grant_paid_access(
         "subscription_until_human": target_until.strftime("%d.%m.%Y") if target_until else "Бессрочно (навсегда)",
         "daily_limit": 100,
         "is_new": True
+    }
+
+
+@router.get("/api/internal/user-cabinet")
+async def get_user_cabinet_internal(
+    tg_user_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Внутренний эндпоинт для Telegram-бота студии:
+    Возвращает актуальное состояние ЛК пользователя (тариф, лимиты, логин, срок действия).
+    """
+    verify_internal_secret(request)
+    clean_tg_id = str(tg_user_id).strip()
+    if not clean_tg_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="tg_user_id is required")
+
+    result = await db.execute(select(User).where(User.tg_user_id == clean_tg_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        return {"status": "not_found", "message": "Пользователь не найден"}
+
+    now = datetime.now(timezone.utc)
+    today_str = now.strftime("%Y-%m-%d")
+
+    # Автосброс суточного счетчика при наступлении нового дня
+    if user.daily_reset_date != today_str:
+        user.daily_reset_date = today_str
+        user.daily_companies_parsed = 0
+        await db.commit()
+
+    sub_until = user.subscription_until
+    if sub_until and sub_until.tzinfo is None:
+        sub_until = sub_until.replace(tzinfo=timezone.utc)
+
+    is_expired = bool(sub_until and sub_until < now)
+    until_human = sub_until.strftime("%d.%m.%Y") if sub_until else ("Бессрочно (навсегда)" if user.role == "paid" else None)
+    plan_key = user.subscription_plan or ("admin" if user.role == "admin" else "demo")
+    plan_title = PAID_PLAN_TITLES.get(plan_key, "Администратор" if user.role == "admin" else "Демо-доступ")
+
+    daily_parsed = user.daily_companies_parsed or 0
+    daily_limit = 100 if user.role == "paid" else (999999 if user.role == "admin" else 5)
+    daily_remaining = max(0, daily_limit - daily_parsed)
+
+    return {
+        "status": "ok",
+        "email": user.email,
+        "role": user.role,
+        "is_paid": user.role == "paid",
+        "is_admin": user.role in ("admin", "superuser", "root"),
+        "plan": plan_key,
+        "plan_title": plan_title,
+        "subscription_until": sub_until.isoformat() if sub_until else None,
+        "subscription_until_human": until_human,
+        "is_expired": is_expired,
+        "daily_limit": daily_limit,
+        "daily_companies_parsed": daily_parsed,
+        "daily_remaining": daily_remaining,
+        "demo_searches_left": user.demo_searches_left
+    }
+
+
+class ResetPasswordPayload(BaseModel):
+    tg_user_id: str
+
+
+@router.post("/api/internal/reset-password")
+async def reset_password_internal(
+    payload: ResetPasswordPayload,
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Внутренний эндпоинт для Telegram-бота студии:
+    Мгновенно генерирует новый пароль для пользователя по его tg_user_id.
+    """
+    verify_internal_secret(request)
+    clean_tg_id = str(payload.tg_user_id).strip()
+    if not clean_tg_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="tg_user_id is required")
+
+    result = await db.execute(select(User).where(User.tg_user_id == clean_tg_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Пользователь не найден")
+
+    new_password = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(10))
+    user.password_hash = hash_password(new_password)
+    user.is_active = True
+    await db.commit()
+
+    return {
+        "status": "ok",
+        "email": user.email,
+        "new_password": new_password
     }
 

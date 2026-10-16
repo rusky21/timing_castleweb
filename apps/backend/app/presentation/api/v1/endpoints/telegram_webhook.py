@@ -401,6 +401,164 @@ async def request_parser_paid_access(tg_user_id: str | int, plan: str, username:
     raise RuntimeError(f"Parser API unavailable: {last_error}")
 
 
+async def request_parser_user_cabinet(tg_user_id: str | int) -> dict:
+    """
+    Запрашивает актуальное состояние ЛК пользователя из сервиса LeadHunter:
+    - тариф подписки
+    - дату окончания
+    - текущий суточный расход (из 100 компаний)
+    - логин и статус
+    """
+    configured_url = (getattr(settings, "PARSER_INTERNAL_URL", "") or os.environ.get("PARSER_INTERNAL_URL", "")).strip()
+    raw_urls = [
+        "http://leadhunter:8000",
+        configured_url,
+        "http://127.0.0.1:8080",
+        "http://localhost:8080",
+    ]
+    internal_urls = []
+    for u in raw_urls:
+        if u and u.rstrip("/") not in internal_urls:
+            internal_urls.append(u.rstrip("/"))
+
+    configured_secret = (getattr(settings, "INTERNAL_API_SECRET", "") or os.environ.get("INTERNAL_API_SECRET", "")).strip()
+    secrets_to_try = [s for s in dict.fromkeys([configured_secret, "castleweb-internal-demo-secret"]) if s]
+
+    last_error = None
+    for secret in secrets_to_try:
+        params = {"tg_user_id": str(tg_user_id)}
+        for base_url in internal_urls:
+            url = f"{base_url}/api/internal/user-cabinet"
+            try:
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    resp = await client.get(url, params=params, headers={"X-Internal-Secret": secret})
+                    if resp.status_code == 200:
+                        return resp.json()
+                    last_error = f"HTTP {resp.status_code}: {resp.text}"
+            except Exception as e:
+                last_error = str(e)
+
+    raise RuntimeError(f"Parser API unavailable: {last_error}")
+
+
+async def request_parser_reset_password(tg_user_id: str | int) -> dict:
+    """
+    Запрашивает генерацию нового пароля для пользователя в LeadHunter.
+    """
+    configured_url = (getattr(settings, "PARSER_INTERNAL_URL", "") or os.environ.get("PARSER_INTERNAL_URL", "")).strip()
+    raw_urls = [
+        "http://leadhunter:8000",
+        configured_url,
+        "http://127.0.0.1:8080",
+        "http://localhost:8080",
+    ]
+    internal_urls = []
+    for u in raw_urls:
+        if u and u.rstrip("/") not in internal_urls:
+            internal_urls.append(u.rstrip("/"))
+
+    configured_secret = (getattr(settings, "INTERNAL_API_SECRET", "") or os.environ.get("INTERNAL_API_SECRET", "")).strip()
+    secrets_to_try = [s for s in dict.fromkeys([configured_secret, "castleweb-internal-demo-secret"]) if s]
+
+    last_error = None
+    for secret in secrets_to_try:
+        payload = {"tg_user_id": str(tg_user_id)}
+        for base_url in internal_urls:
+            url = f"{base_url}/api/internal/reset-password"
+            try:
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    resp = await client.post(url, json=payload, headers={"X-Internal-Secret": secret})
+                    if resp.status_code == 200:
+                        return resp.json()
+                    last_error = f"HTTP {resp.status_code}: {resp.text}"
+            except Exception as e:
+                last_error = str(e)
+
+    raise RuntimeError(f"Parser API unavailable: {last_error}")
+
+
+def format_user_cabinet(res: dict, parser_public_url: str, new_pass: str | None = None) -> tuple[str, dict]:
+    """
+    Формирует красивый интерфейс Личного Кабинета подписчика LeadHunter в Telegram:
+    - тариф и статус подписки
+    - срок действия
+    - использованный дневной лимит из 100 компаний
+    - ссылку на сайт и учетные данные
+    - акцент на то, что лиды приходят ТОЛЬКО в браузере
+    """
+    st = res.get("status")
+    if st == "not_found":
+        text = (
+            "👤 <b>Личный кабинет LeadHunter</b>\n\n"
+            "У вас пока нет зарегистрированного аккаунта в парсере Яндекс.Карт.\n\n"
+            "Вы можете получить бесплатный демо-доступ (5 запросов) или оформить коммерческую подписку "
+            "со 100 компаниями в день, выгрузкой в Excel и контактами (телефоны, Telegram, сайты)."
+        )
+        kb = {
+            "inline_keyboard": [
+                [{"text": "🔑 Получить демо-доступ", "callback_data": "get_demo_access"}],
+                [{"text": "💳 Оформить подписку", "callback_data": "buy_parser_menu"}],
+                [{"text": "🔙 Главное меню", "callback_data": "client_menu"}]
+            ]
+        }
+        return text, kb
+
+    is_paid = bool(res.get("is_paid")) or res.get("role") == "paid"
+    is_admin = bool(res.get("is_admin")) or res.get("role") in ("admin", "superuser", "root")
+    plan_title = res.get("plan_title", "Тариф не указан")
+    until_human = res.get("subscription_until_human", "—")
+    daily_parsed = res.get("daily_companies_parsed", 0)
+    daily_limit = res.get("daily_limit", 100)
+    daily_rem = res.get("daily_remaining", max(0, daily_limit - daily_parsed))
+    is_expired = res.get("is_expired", False)
+    email = res.get("email", "—")
+
+    if is_admin:
+        badge = "👑 <b>Администратор студии</b> (Безлимитный доступ)"
+        limit_line = "⚡️ <b>Лимит:</b> Без ограничений"
+    elif is_paid:
+        if is_expired:
+            badge = "⚠️ <b>Подписка истекла</b> (требуется продление)"
+        else:
+            badge = f"💎 <b>Платная подписка: {plan_title}</b>"
+        limit_line = (
+            f"📊 <b>Расход сегодня:</b> <code>{daily_parsed}</code> из <code>{daily_limit}</code> компаний\n"
+            f"⚡️ <b>Осталось на сегодня:</b> <b>{daily_rem}</b> компаний\n"
+            f"🔄 <i>(Лимит автоматически обновляется каждый день в 00:00 UTC)</i>"
+        )
+    else:
+        badge = "🧪 <b>Демо-режим</b> (Тестовый период)"
+        demo_left = res.get("demo_searches_left", 0)
+        limit_line = f"📊 <b>Осталось демо-поисков:</b> <b>{demo_left} из 5</b> (до 5 компаний за раз)"
+
+    pass_block = f"\n🔑 <b>Ваш новый пароль:</b> <code>{new_pass}</code>\n" if new_pass else ""
+
+    text = (
+        f"👤 <b>ЛИЧНЫЙ КАБИНЕТ LEADHUNTER</b>\n\n"
+        f"Статус: {badge}\n"
+        f"📅 <b>Срок действия:</b> {until_human}\n\n"
+        f"{limit_line}\n\n"
+        f"🌐 <b>Адрес веб-панели:</b> <a href=\"{parser_public_url}\">{parser_public_url}</a>\n"
+        f"👤 <b>Логин для входа:</b> <code>{email}</code>"
+        f"{pass_block}\n"
+        f"💡 <i>Лиды отображаются только в веб-интерфейсе в браузере (уведомления в Telegram отключены, чтобы не спамить чат).</i>"
+    )
+
+    kb = {
+        "inline_keyboard": [
+            [{"text": "🚀 Войти в веб-панель LeadHunter", "url": parser_public_url}],
+            [
+                {"text": "🔄 Обновить данные лимита", "callback_data": "client_cabinet"},
+                {"text": "🔑 Сбросить пароль", "callback_data": "cabinet_reset_password"}
+            ],
+            [{"text": "💳 Продлить / Сменить тариф", "callback_data": "buy_parser_menu"}],
+            [{"text": "💬 Поддержка менеджера (@kupidon996)", "url": "https://t.me/kupidon996"}],
+            [{"text": "🔙 Главное меню", "callback_data": "client_menu"}]
+        ]
+    }
+    return text, kb
+
+
 def get_buy_parser_menu() -> tuple[str, dict]:
     """
     Формирует текст и кнопки тарифов платного доступа к парсеру LeadHunter.
@@ -455,11 +613,15 @@ def get_manager_grant_keyboard(client_tg_id: str | int) -> dict:
 def format_demo_access_response(res: dict, parser_public_url: str) -> tuple[str, dict]:
     """
     Формирует текст и клавиатуру в зависимости от статуса демо-доступа:
+    - 'paid': активный платный аккаунт (перенаправляет в ЛК);
     - 'created': выдан впервые (5 запросов);
     - 'already_active': напоминание данных существующего аккаунта (тест выдается только 1 раз);
     - 'exhausted': 5 запросов полностью исчерпаны (тест завершен, связь с разработчиком).
     """
     status = res.get("status")
+
+    if status == "paid":
+        return format_user_cabinet(res, parser_public_url)
 
     if status == "admin":
         text = (
@@ -565,7 +727,8 @@ def get_client_main_menu(name: str = "Гость") -> tuple[str, dict]:
     )
     kb = {
         "inline_keyboard": [
-            [{"text": "🔑 Демо-доступ к парсеру LeadHunter", "callback_data": "get_demo_access"}],
+            [{"text": "👤 Личный кабинет LeadHunter", "callback_data": "client_cabinet"}],
+            [{"text": "🔑 Демо-доступ к парсеру", "callback_data": "get_demo_access"}],
             [{"text": "💳 Купить доступ к парсеру (от 2к)", "callback_data": "buy_parser_menu"}],
             [{"text": "💼 Портфолио и кейсы", "callback_data": "client_cases"}],
             [{"text": "📊 Калькулятор сметы", "url": "https://castleweb.ru/#calculator"}],
@@ -753,6 +916,45 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
         elif data == "noop":
             await answer_callback_query(cb_id, "OK")
 
+        elif data == "client_cabinet":
+            await answer_callback_query(cb_id, "Загрузка Личного кабинета...")
+            domain = getattr(settings, "DOMAIN_NAME", None) or "castleweb.ru"
+            parser_public_url = os.environ.get("PARSER_PUBLIC_URL", f"https://leads.{domain}").rstrip("/")
+            try:
+                res = await request_parser_user_cabinet(user.get("id", ""))
+                cab_text, cab_kb = format_user_cabinet(res, parser_public_url)
+                if message_id and chat_id:
+                    try:
+                        await TelegramBotService.edit_message_text(chat_id, message_id, cab_text, cab_kb)
+                    except Exception:
+                        await send_reply_message(chat_id, cab_text, cab_kb)
+                else:
+                    await send_reply_message(chat_id, cab_text, cab_kb)
+            except Exception as e:
+                logger.error(f"Error loading user cabinet: {e}")
+                err_text = "⚠️ Не удалось связаться с сервером парсера. Попробуйте через минуту или напишите @kupidon996"
+                await send_reply_message(chat_id, err_text)
+
+        elif data == "cabinet_reset_password":
+            await answer_callback_query(cb_id, "Генерация нового пароля...")
+            domain = getattr(settings, "DOMAIN_NAME", None) or "castleweb.ru"
+            parser_public_url = os.environ.get("PARSER_PUBLIC_URL", f"https://leads.{domain}").rstrip("/")
+            try:
+                reset_res = await request_parser_reset_password(user.get("id", ""))
+                new_pass = reset_res.get("new_password")
+                cab_res = await request_parser_user_cabinet(user.get("id", ""))
+                cab_text, cab_kb = format_user_cabinet(cab_res, parser_public_url, new_pass=new_pass)
+                if message_id and chat_id:
+                    try:
+                        await TelegramBotService.edit_message_text(chat_id, message_id, cab_text, cab_kb)
+                    except Exception:
+                        await send_reply_message(chat_id, cab_text, cab_kb)
+                else:
+                    await send_reply_message(chat_id, cab_text, cab_kb)
+            except Exception as e:
+                logger.error(f"Error resetting password: {e}")
+                await answer_callback_query(cb_id, "⚠️ Ошибка сброса пароля", show_alert=True)
+
         elif data == "get_demo_access":
             await answer_callback_query(cb_id, "Проверяем доступ к парсеру...")
             domain = getattr(settings, "DOMAIN_NAME", None) or "castleweb.ru"
@@ -928,11 +1130,13 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                         f"🌐 <b>Адрес панели:</b> <a href=\"{parser_public_url}\">{parser_public_url}</a>\n"
                         f"👤 <b>Логин:</b> <code>{res.get('email')}</code>\n"
                         f"🔑 <b>Пароль:</b> <code>{res.get('password')}</code>\n\n"
-                        "💡 <i>Нажмите на логин или пароль, чтобы скопировать. Сохраните эти данные для входа на сайт!</i>"
+                        "📱 <i>Управлять аккаунтом, смотреть суточный остаток и сбрасывать пароль можно в Личном кабинете прямо в боте (команда /lk).</i>\n"
+                        "💡 <i>Спарсенные компании и контакты выводятся только в веб-интерфейсе в браузере.</i>"
                     )
                     client_kb = {
                         "inline_keyboard": [
                             [{"text": "🚀 Войти в панель LeadHunter", "url": parser_public_url}],
+                            [{"text": "👤 Личный кабинет", "callback_data": "client_cabinet"}],
                             [{"text": "💬 Поддержка (@kupidon996)", "url": "https://t.me/kupidon996"}],
                             [{"text": "🔙 Главное меню", "callback_data": "client_menu"}]
                         ]
@@ -1360,6 +1564,7 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 f"<b>🖥 Сервер и управление:</b>\n"
                 f"• /server (или /sys) — состояние сервера (CPU, RAM, диск, аптайм)\n"
                 f"• /admin — админ-панель и вход в LeadHunter\n"
+                f"• /lk — Личный кабинет LeadHunter (тариф, лимиты, сброс пароля)\n"
                 f"• /cases — портфолио и кейсы студии\n"
                 f"• /id — узнать свой Telegram ID и права"
             )
@@ -1367,7 +1572,20 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
             return {"ok": True}
 
 
-        # Б. Интерактивные команды для всех типов чатов (/demo, /start, /menu)
+        # Б. Интерактивные команды для всех типов чатов (/lk, /demo, /start, /menu)
+        # 0. Личный кабинет подписчика / пользователя LeadHunter (/lk, /cabinet, /profile)
+        if text.startswith("/lk") or text.startswith("/cabinet") or text.startswith("/profile"):
+            domain = getattr(settings, "DOMAIN_NAME", None) or "castleweb.ru"
+            parser_public_url = os.environ.get("PARSER_PUBLIC_URL", f"https://leads.{domain}").rstrip("/")
+            try:
+                res = await request_parser_user_cabinet(from_id)
+                cab_text, cab_kb = format_user_cabinet(res, parser_public_url)
+                await send_reply_message(chat_id, cab_text, reply_markup=cab_kb)
+            except Exception as e:
+                logger.error(f"Error loading user cabinet via command: {e}")
+                await send_reply_message(chat_id, "⚠️ Сервер парсера временно недоступен. Попробуйте через минуту.")
+            return {"ok": True}
+
         # 1. Прямая команда /demo
         if text.startswith("/demo") or (text.startswith("/start") and "demo" in text.lower()):
             domain = getattr(settings, "DOMAIN_NAME", None) or "castleweb.ru"
