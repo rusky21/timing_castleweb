@@ -28,7 +28,10 @@ class Settings(BaseSettings):
 
     # Telegram Bot (Headless CRM)
     TELEGRAM_BOT_TOKEN: str = ""
-    TELEGRAM_CHAT_ID: str = ""
+    TELEGRAM_CHAT_ID: str = Field(
+        default="",
+        validation_alias=AliasChoices("TELEGRAM_CHAT_ID", "MANAGER_TELEGRAM_CHAT_ID")
+    )
     TELEGRAM_API_BASE_URL: str = Field(
         default="https://api.telegram.org/bot",
         validation_alias=AliasChoices("TELEGRAM_API_BASE_URL", "TELEGRAM_PROXY_URL")

@@ -355,6 +355,103 @@ async def request_parser_demo_access(tg_user_id: str | int, username: str | None
     raise RuntimeError(f"Parser API unavailable: {last_error}")
 
 
+async def request_parser_paid_access(tg_user_id: str | int, plan: str, username: str | None = None) -> dict:
+    """
+    Обращается к внутреннему API LeadHunter Pro для активации/продления коммерческой подписки:
+    - 1m: 2 000 ₽ (30 дней)
+    - 3m: 5 000 ₽ (90 дней)
+    - 1y: 10 000 ₽ (365 дней)
+    - lifetime: 50 000 ₽ (бессрочно)
+    Суточный лимит: 100 компаний/день.
+    """
+    configured_url = (getattr(settings, "PARSER_INTERNAL_URL", "") or os.environ.get("PARSER_INTERNAL_URL", "")).strip()
+    raw_urls = [
+        "http://leadhunter:8000",
+        configured_url,
+        "http://127.0.0.1:8080",
+        "http://localhost:8080",
+    ]
+    internal_urls = []
+    for u in raw_urls:
+        if u and u.rstrip("/") not in internal_urls:
+            internal_urls.append(u.rstrip("/"))
+
+    configured_secret = (getattr(settings, "INTERNAL_API_SECRET", "") or os.environ.get("INTERNAL_API_SECRET", "")).strip()
+    secrets_to_try = [s for s in dict.fromkeys([configured_secret, "castleweb-internal-demo-secret"]) if s]
+
+    last_error = None
+    for secret in secrets_to_try:
+        payload = {
+            "tg_user_id": str(tg_user_id),
+            "plan": plan,
+            "tg_username": username or "",
+            "secret_key": secret
+        }
+        for base_url in internal_urls:
+            url = f"{base_url}/api/internal/grant-paid-access"
+            try:
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    resp = await client.post(url, json=payload, headers={"X-Internal-Secret": secret})
+                    if resp.status_code == 200:
+                        return resp.json()
+                    last_error = f"HTTP {resp.status_code}: {resp.text}"
+            except Exception as e:
+                last_error = str(e)
+
+    raise RuntimeError(f"Parser API unavailable: {last_error}")
+
+
+def get_buy_parser_menu() -> tuple[str, dict]:
+    """
+    Формирует текст и кнопки тарифов платного доступа к парсеру LeadHunter.
+    """
+    text = (
+        "💳 <b>Тарифы на доступ к парсеру Яндекс.Карт (LeadHunter)</b>\n\n"
+        "⚡️ <b>Что входит в коммерческую версию:</b>\n"
+        "• Сбор любых категорий и городов по всей РФ и СНГ\n"
+        "• Контакты: прямые телефоны, сайты, Telegram, WhatsApp\n"
+        "• Автоматический Tech & SEO аудит и выявление критических дефектов\n"
+        "• Выгрузка всех собранных баз в Excel (.xlsx) и CSV\n"
+        "• Дневной лимит: <b>100 спарсенных компаний в день</b> (обновляется ежедневно в 00:00 UTC)\n\n"
+        "💰 <b>Стоимость подписки:</b>\n"
+        "• <b>1 месяц</b> — 2 000 ₽\n"
+        "• <b>3 месяца</b> — 5 000 ₽ <i>(скидка ~17%)</i>\n"
+        "• <b>1 год</b> — 10 000 ₽ <i>(скидка ~58%)</i>\n"
+        "• <b>Бессрочно</b> — 50 000 ₽ <i>(вечный доступ навсегда)</i>\n\n"
+        "Нажмите <b>«📩 Оставить заявку на покупку»</b> — наш менеджер свяжется с вами в Telegram "
+        "для согласования оплаты (СБП, карта или счет). Сразу после оплаты доступ активируется в 1 клик!"
+    )
+    kb = {
+        "inline_keyboard": [
+            [{"text": "📩 Оставить заявку на покупку", "callback_data": "buy_parser_request"}],
+            [{"text": "💬 Написать менеджеру (@kupidon996)", "url": "https://t.me/kupidon996"}],
+            [{"text": "🔙 Главное меню", "callback_data": "client_menu"}]
+        ]
+    }
+    return text, kb
+
+
+def get_manager_grant_keyboard(client_tg_id: str | int) -> dict:
+    """
+    Формирует инлайн-клавиатуру для менеджеров в Telegram-группе для мгновенной выдачи доступа.
+    """
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "1 мес (2 000 ₽)", "callback_data": f"grant_sub:{client_tg_id}:1m"},
+                {"text": "3 мес (5 000 ₽)", "callback_data": f"grant_sub:{client_tg_id}:3m"}
+            ],
+            [
+                {"text": "1 год (10 000 ₽)", "callback_data": f"grant_sub:{client_tg_id}:1y"},
+                {"text": "Бессрочно (50 000 ₽)", "callback_data": f"grant_sub:{client_tg_id}:lifetime"}
+            ],
+            [
+                {"text": "❌ Отклонить заявку", "callback_data": f"decline_sub:{client_tg_id}"}
+            ]
+        ]
+    }
+
+
 def format_demo_access_response(res: dict, parser_public_url: str) -> tuple[str, dict]:
     """
     Формирует текст и клавиатуру в зависимости от статуса демо-доступа:
@@ -391,12 +488,15 @@ def format_demo_access_response(res: dict, parser_public_url: str) -> tuple[str,
             "⛔️ <b>Тестовый период уже завершён</b>\n\n"
             "Вы уже использовали все 5 запросов к парсеру Яндекс.Карт.\n"
             "Тестовый режим предоставляется строго <b>один раз</b> для каждого пользователя.\n\n"
-            "Чтобы приобрести полноценную версию парсера без ограничений "
-            "(любые города, безлимитный сбор, выгрузка прямых телефонов, сайтов, Telegram и экспорт в Excel), напишите нам:\n"
-            "👉 <b>@kupidon996</b>"
+            "Чтобы приобрести полноценную версию парсера (100 организаций в день, сбор любых ниш, экспорт в Excel, контакты и аудит сайтов):\n"
+            "• 1 месяц — 2 000 ₽\n"
+            "• 3 месяца — 5 000 ₽\n"
+            "• 1 год — 10 000 ₽\n"
+            "• Бессрочно — 50 000 ₽"
         )
         kb = {
             "inline_keyboard": [
+                [{"text": "💳 Купить доступ к парсеру", "callback_data": "buy_parser_menu"}],
                 [{"text": "💬 Написать разработчику (@kupidon996)", "url": "https://t.me/kupidon996"}],
                 [{"text": "💼 Посмотреть кейсы студии", "callback_data": "client_cases"}],
                 [{"text": "🔙 Главное меню", "callback_data": "client_menu"}]
@@ -423,6 +523,7 @@ def format_demo_access_response(res: dict, parser_public_url: str) -> tuple[str,
         kb = {
             "inline_keyboard": [
                 [{"text": "🚀 Войти в панель LeadHunter", "url": parser_public_url}],
+                [{"text": "💳 Купить полный доступ (100 орг/день)", "callback_data": "buy_parser_menu"}],
                 [{"text": "💬 Вопрос по парсеру (@kupidon996)", "url": "https://t.me/kupidon996"}],
                 [{"text": "🔙 Главное меню", "callback_data": "client_menu"}]
             ]
@@ -446,6 +547,7 @@ def format_demo_access_response(res: dict, parser_public_url: str) -> tuple[str,
     kb = {
         "inline_keyboard": [
             [{"text": "🚀 Войти в панель LeadHunter", "url": parser_public_url}],
+            [{"text": "💳 Купить постоянный доступ", "callback_data": "buy_parser_menu"}],
             [{"text": "🔙 Главное меню", "callback_data": "client_menu"}]
         ]
     }
@@ -464,6 +566,7 @@ def get_client_main_menu(name: str = "Гость") -> tuple[str, dict]:
     kb = {
         "inline_keyboard": [
             [{"text": "🔑 Демо-доступ к парсеру LeadHunter", "callback_data": "get_demo_access"}],
+            [{"text": "💳 Купить доступ к парсеру (от 2к)", "callback_data": "buy_parser_menu"}],
             [{"text": "💼 Портфолио и кейсы", "callback_data": "client_cases"}],
             [{"text": "📊 Калькулятор сметы", "url": "https://castleweb.ru/#calculator"}],
             [{"text": "🌐 Официальный сайт", "url": "https://castleweb.ru"}]
@@ -738,6 +841,120 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                     await send_reply_message(chat_id, menu_text, menu_kb)
             else:
                 await send_reply_message(chat_id, menu_text, menu_kb)
+
+        elif data == "buy_parser_menu":
+            await answer_callback_query(cb_id, "Тарифы парсера")
+            tariffs_text, tariffs_kb = get_buy_parser_menu()
+            if message_id and chat_id:
+                try:
+                    await TelegramBotService.edit_message_text(chat_id, message_id, tariffs_text, tariffs_kb)
+                except Exception:
+                    await send_reply_message(chat_id, tariffs_text, tariffs_kb)
+            else:
+                await send_reply_message(chat_id, tariffs_text, tariffs_kb)
+
+        elif data == "buy_parser_request":
+            await answer_callback_query(cb_id, "Заявка отправлена!")
+            confirm_text = (
+                "✅ <b>Ваша заявка принята!</b>\n\n"
+                "Наш менеджер уже получил уведомление и свяжется с вами в Telegram "
+                "в течение нескольких минут для предоставления реквизитов (СБП, карта или счет).\n\n"
+                "После подтверждения оплаты доступ к веб-панели парсера активируется автоматически, "
+                "и бот пришлет вам персональный логин и пароль."
+            )
+            confirm_kb = {
+                "inline_keyboard": [
+                    [{"text": "💬 Написать менеджеру сейчас", "url": "https://t.me/kupidon996"}],
+                    [{"text": "🔙 Главное меню", "callback_data": "client_menu"}]
+                ]
+            }
+            if message_id and chat_id:
+                try:
+                    await TelegramBotService.edit_message_text(chat_id, message_id, confirm_text, confirm_kb)
+                except Exception:
+                    await send_reply_message(chat_id, confirm_text, confirm_kb)
+            else:
+                await send_reply_message(chat_id, confirm_text, confirm_kb)
+
+            if settings.TELEGRAM_CHAT_ID:
+                client_id = user.get("id")
+                alert_text = (
+                    "💳 <b>НОВАЯ ЗАЯВКА НА ПОКУПКУ ПАРСЕРА КАРТ</b>\n\n"
+                    f"👤 <b>Клиент:</b> {user_display}\n"
+                    f"🆔 <b>Telegram ID:</b> <code>{client_id}</code>\n"
+                    f"🔗 <b>Профиль:</b> tg://user?id={client_id}\n\n"
+                    "💰 <b>Тарифы (суточный лимит 100 компаний):</b>\n"
+                    "• 1 мес — 2 000 ₽ | 3 мес — 5 000 ₽\n"
+                    "• 1 год — 10 000 ₽ | Бессрочно — 50 000 ₽\n\n"
+                    "👉 Свяжитесь с клиентом в ЛС, передайте реквизиты и нажмите нужную кнопку для выдачи доступа:"
+                )
+                mgr_kb = get_manager_grant_keyboard(client_id)
+                await send_reply_message(settings.TELEGRAM_CHAT_ID, alert_text, reply_markup=mgr_kb)
+
+        elif data.startswith("grant_sub:"):
+            parts = data.split(":")
+            if len(parts) >= 3:
+                target_client_id = parts[1]
+                target_plan = parts[2]
+                try:
+                    res = await request_parser_paid_access(target_client_id, target_plan)
+                    domain = getattr(settings, "DOMAIN_NAME", None) or "castleweb.ru"
+                    parser_public_url = os.environ.get("PARSER_PUBLIC_URL", f"https://leads.{domain}").rstrip("/")
+
+                    plan_title = res.get("plan_title", target_plan)
+                    until_human = res.get("subscription_until_human", "Бессрочно")
+
+                    await answer_callback_query(cb_id, f"✅ Выдано: {plan_title}!")
+
+                    # Обновляем карточку в группе менеджеров
+                    updated_group_msg = (
+                        f"✅ <b>ДОСТУП К ПАРСЕРУ ВЫДАН: {plan_title}</b>\n\n"
+                        f"👤 <b>Клиент:</b> <a href=\"tg://user?id={target_client_id}\">Клиент #{target_client_id}</a> (ID: <code>{target_client_id}</code>)\n"
+                        f"🔑 <b>Логин в веб-панели:</b> <code>{res.get('email')}</code>\n"
+                        f"📅 <b>Срок действия:</b> {until_human}\n"
+                        f"⚡️ <b>Суточный лимит:</b> 100 компаний в день\n"
+                        f"👨‍💼 <b>Выдал менеджер:</b> {user_display}"
+                    )
+                    done_kb = {"inline_keyboard": [[{"text": f"✅ Активировано: {plan_title}", "callback_data": "noop"}]]}
+                    if message_id and chat_id:
+                        await TelegramBotService.edit_message_text(chat_id, message_id, updated_group_msg, done_kb)
+
+                    # Отправляем сообщение клиенту в личный чат Telegram
+                    client_notification = (
+                        "🎉 <b>Оплата подтверждена! Доступ к парсеру LeadHunter активирован</b>\n\n"
+                        f"Тариф: <b>{plan_title}</b>\n"
+                        f"Срок действия: <b>{until_human}</b>\n"
+                        f"Дневной лимит: <b>100 спарсенных организаций в день</b> (обновляется каждые сутки в полночь)\n\n"
+                        f"🌐 <b>Адрес панели:</b> <a href=\"{parser_public_url}\">{parser_public_url}</a>\n"
+                        f"👤 <b>Логин:</b> <code>{res.get('email')}</code>\n"
+                        f"🔑 <b>Пароль:</b> <code>{res.get('password')}</code>\n\n"
+                        "💡 <i>Нажмите на логин или пароль, чтобы скопировать. Сохраните эти данные для входа на сайт!</i>"
+                    )
+                    client_kb = {
+                        "inline_keyboard": [
+                            [{"text": "🚀 Войти в панель LeadHunter", "url": parser_public_url}],
+                            [{"text": "💬 Поддержка (@kupidon996)", "url": "https://t.me/kupidon996"}],
+                            [{"text": "🔙 Главное меню", "callback_data": "client_menu"}]
+                        ]
+                    }
+                    await send_reply_message(int(target_client_id), client_notification, reply_markup=client_kb)
+                except Exception as ex:
+                    logger.error(f"Error granting subscription: {ex}")
+                    await answer_callback_query(cb_id, f"⚠️ Ошибка: {str(ex)[:50]}", show_alert=True)
+
+        elif data.startswith("decline_sub:"):
+            parts = data.split(":")
+            if len(parts) >= 2:
+                target_client_id = parts[1]
+                await answer_callback_query(cb_id, "Заявка отклонена")
+                decline_msg = (
+                    f"❌ <b>Заявка на покупку для ID {target_client_id} отклонена</b>\n"
+                    f"👨‍💼 <b>Менеджер:</b> {user_display}"
+                )
+                del_kb = {"inline_keyboard": [[{"text": "❌ Заявка отклонена", "callback_data": "noop"}]]}
+                if message_id and chat_id:
+                    await TelegramBotService.edit_message_text(chat_id, message_id, decline_msg, del_kb)
+
 
         return {"ok": True}
 

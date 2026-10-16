@@ -309,6 +309,12 @@ class User(Base):
     last_search_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     tg_user_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
 
+    # Paid subscription limits and daily quotas (100 companies/day)
+    subscription_plan: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # '1m', '3m', '1y', 'lifetime'
+    subscription_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    daily_companies_parsed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    daily_reset_date: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)  # 'YYYY-MM-DD'
+
 
 # ====================================================================
 # AI SDR & Outreach Models (CastleWeb)

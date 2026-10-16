@@ -6,7 +6,7 @@ from sqlalchemy import select, update
 
 from app.config import HEADLESS
 from app.db.database import async_session_factory
-from app.db.models import SearchCampaign, Organization, AuditResult, utc_now
+from app.db.models import SearchCampaign, Organization, AuditResult, User, utc_now
 from app.services.scrapers.base import ScrapedOrgItem
 from app.services.scrapers.yandex_scraper import YandexScraper
 from app.services.scrapers.twogis_scraper import TwoGisScraper
@@ -54,11 +54,11 @@ class TaskManager:
             return True
         return False
 
-    def start_campaign(self, campaign_id: int, niche: str, city: str, source: str, limit: int):
+    def start_campaign(self, campaign_id: int, niche: str, city: str, source: str, limit: int, user_id: Optional[int] = None):
         ctx = TaskContext(campaign_id)
         self._tasks[campaign_id] = ctx
         ctx.task = asyncio.create_task(
-            self._run_campaign_worker(ctx, niche, city, source, limit)
+            self._run_campaign_worker(ctx, niche, city, source, limit, user_id=user_id)
         )
         return ctx.task
 
@@ -68,7 +68,8 @@ class TaskManager:
         niche: str,
         city: str,
         source: str,
-        limit: int
+        limit: int,
+        user_id: Optional[int] = None
     ):
         campaign_id = ctx.campaign_id
         auditor = SiteAuditor()
@@ -253,6 +254,18 @@ class TaskManager:
 
             # Отправляем события в WebSocket при успешном сохранении
             if saved_successfully:
+                if user_id:
+                    try:
+                        async with async_session_factory() as u_db:
+                            await u_db.execute(
+                                update(User)
+                                .where(User.id == user_id)
+                                .values(daily_companies_parsed=User.daily_companies_parsed + 1)
+                            )
+                            await u_db.commit()
+                    except Exception as u_err:
+                        logger.error(f"Error updating user daily_companies_parsed: {u_err}")
+
                 percent = int((collected_count / limit) * 100) if limit > 0 else 100
                 percent = min(percent, 100)
 

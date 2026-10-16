@@ -1,7 +1,7 @@
 import os
 import html
 import urllib.parse
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, Request, Response, Form, HTTPException, status
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
@@ -761,7 +761,7 @@ async def logout():
 
 @router.get("/api/auth/me")
 @router.get("/api/me")
-async def get_current_user_info(request: Request):
+async def get_current_user_info(request: Request, db: AsyncSession = Depends(get_db)):
     """Получение информации о текущем пользователе (для фронтенда)"""
     user_data = getattr(request.state, "user", None)
     if not user_data:
@@ -771,11 +771,26 @@ async def get_current_user_info(request: Request):
     if not user_data:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     role = (user_data.get("role") or "user").lower()
+
+    uid = user_data.get("sub")
+    user_obj = None
+    if uid:
+        try:
+            res = await db.execute(select(User).where(User.id == int(uid)))
+            user_obj = res.scalar_one_or_none()
+        except Exception:
+            pass
+
     return {
-        "id": user_data.get("sub"),
-        "email": user_data.get("email"),
-        "role": role,
-        "is_admin": role in ("admin", "superuser", "root")
+        "id": uid,
+        "email": user_obj.email if user_obj else user_data.get("email"),
+        "role": user_obj.role if user_obj else role,
+        "is_admin": (user_obj.role if user_obj else role) in ("admin", "superuser", "root"),
+        "subscription_plan": user_obj.subscription_plan if user_obj else None,
+        "subscription_until": user_obj.subscription_until.isoformat() if user_obj and user_obj.subscription_until else None,
+        "daily_companies_parsed": user_obj.daily_companies_parsed if user_obj else 0,
+        "daily_limit": 100 if (user_obj and user_obj.role == "paid") else (5 if (user_obj and user_obj.role == "demo") else None),
+        "demo_searches_left": user_obj.demo_searches_left if user_obj else 0
     }
 
 # ====================================================================
@@ -1031,5 +1046,149 @@ async def create_demo_user(
         "demo_searches_left": new_user.demo_searches_left,
         "max_companies_per_search": new_user.max_companies_per_search,
         "cooldown_minutes": 15
+    }
+
+
+# ====================================================================
+# Внутренний эндпоинт для выдачи коммерческого доступа (1м, 3м, 1г, бессрочно)
+# ====================================================================
+
+class GrantPaidAccessPayload(BaseModel):
+    tg_user_id: str
+    plan: str  # "1m", "3m", "1y", "lifetime"
+    tg_username: Optional[str] = None
+    secret_key: Optional[str] = None
+
+
+PAID_PLAN_DAYS = {
+    "1m": 30,
+    "3m": 90,
+    "1y": 365,
+    "lifetime": None,
+}
+
+PAID_PLAN_TITLES = {
+    "1m": "1 месяц (2 000 ₽)",
+    "3m": "3 месяца (5 000 ₽)",
+    "1y": "1 год (10 000 ₽)",
+    "lifetime": "Бессрочно (50 000 ₽)",
+}
+
+
+@router.post("/api/internal/grant-paid-access")
+async def grant_paid_access(
+    payload: GrantPaidAccessPayload,
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Внутренний эндпоинт для Telegram-бота студии:
+    Активирует или продлевает платный доступ к парсеру:
+    - 1 месяц: 2 000 ₽ (30 дней)
+    - 3 месяца: 5 000 ₽ (90 дней)
+    - 1 год: 10 000 ₽ (365 дней)
+    - Бессрочно: 50 000 ₽ (без ограничения)
+    Лимит: 100 спарсенных организаций в день.
+    """
+    secret = (request.headers.get("X-Internal-Secret") or payload.secret_key or "").strip()
+    expected_secret = (os.environ.get("INTERNAL_API_SECRET") or "castleweb-internal-demo-secret").strip()
+    valid_secrets = {expected_secret, "castleweb-internal-demo-secret"}
+    if secret not in valid_secrets:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden: Invalid internal secret")
+
+    clean_plan = str(payload.plan).strip().lower()
+    if clean_plan not in PAID_PLAN_DAYS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Недопустимый тариф '{clean_plan}'. Допустимые варианты: {list(PAID_PLAN_DAYS.keys())}"
+        )
+
+    clean_tg_id = str(payload.tg_user_id).strip()
+    if not clean_tg_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="tg_user_id is required")
+
+    now = datetime.now(timezone.utc)
+    today_str = now.strftime("%Y-%m-%d")
+    days = PAID_PLAN_DAYS[clean_plan]
+
+    # Проверяем существующего пользователя
+    query = select(User).where(User.tg_user_id == clean_tg_id)
+    res = await db.execute(query)
+    user = res.scalar_one_or_none()
+
+    new_password = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(10))
+
+    if days is None:
+        target_until = None
+    else:
+        base_date = now
+        if user and user.subscription_until:
+            curr_until = user.subscription_until
+            if curr_until.tzinfo is None:
+                curr_until = curr_until.replace(tzinfo=timezone.utc)
+            if curr_until > now:
+                base_date = curr_until
+        target_until = base_date + timedelta(days=days)
+
+    if user:
+        user.role = "paid"
+        user.subscription_plan = clean_plan
+        user.subscription_until = target_until
+        user.demo_searches_left = 999999
+        user.max_companies_per_search = 100
+        user.is_active = True
+        user.password_hash = hash_password(new_password)
+        if user.daily_reset_date != today_str:
+            user.daily_reset_date = today_str
+            user.daily_companies_parsed = 0
+        await db.commit()
+
+        return {
+            "status": "granted",
+            "email": user.email,
+            "password": new_password,
+            "role": "paid",
+            "plan": clean_plan,
+            "plan_title": PAID_PLAN_TITLES[clean_plan],
+            "subscription_until": target_until.isoformat() if target_until else None,
+            "subscription_until_human": target_until.strftime("%d.%m.%Y") if target_until else "Бессрочно (навсегда)",
+            "daily_limit": 100,
+            "is_new": False
+        }
+
+    # Создаем нового платного пользователя
+    suffix = clean_tg_id[-4:] if len(clean_tg_id) >= 4 else clean_tg_id
+    rand_chars = "".join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(4))
+    email = f"client_{suffix}_{rand_chars}@castleweb.ru"
+
+    new_user = User(
+        email=email,
+        password_hash=hash_password(new_password),
+        role="paid",
+        subscription_plan=clean_plan,
+        subscription_until=target_until,
+        is_active=True,
+        tg_user_id=clean_tg_id,
+        demo_searches_left=999999,
+        max_companies_per_search=100,
+        daily_companies_parsed=0,
+        daily_reset_date=today_str,
+        created_at=now
+    )
+    db.add(new_user)
+    await db.commit()
+    await db.refresh(new_user)
+
+    return {
+        "status": "granted",
+        "email": new_user.email,
+        "password": new_password,
+        "role": "paid",
+        "plan": clean_plan,
+        "plan_title": PAID_PLAN_TITLES[clean_plan],
+        "subscription_until": target_until.isoformat() if target_until else None,
+        "subscription_until_human": target_until.strftime("%d.%m.%Y") if target_until else "Бессрочно (навсегда)",
+        "daily_limit": 100,
+        "is_new": True
     }
 

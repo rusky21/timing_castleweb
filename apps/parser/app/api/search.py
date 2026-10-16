@@ -44,48 +44,86 @@ async def start_search(
         except (ValueError, TypeError):
             pass
 
-    # Для администраторов действует выбранный лимит, для тестов — строго не более 10
+    # Базовый лимит: для админа - полный, для гостей - до 10
     effective_limit = req.limit if is_admin else min(req.limit, 10)
 
-    # Проверка демо-пользователя и его лимитов
+    # Проверка роли и лимитов пользователя
     if uid:
         try:
             u_res = await db.execute(select(User).where(User.id == uid))
             current_user = u_res.scalar_one_or_none()
-            if current_user and current_user.role == "demo":
-                # 1. Проверка оставшихся попыток
-                if current_user.demo_searches_left <= 0:
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="Лимит демо-доступа исчерпан (0 из 5 запросов). Для получения полного доступа свяжитесь со студией CASTLEWEB."
-                    )
-
-                # 2. Проверка интервала 15 минут между поисками
-                if current_user.last_search_at:
-                    now = datetime.now(timezone.utc)
-                    last_at = current_user.last_search_at
-                    if last_at.tzinfo is None:
-                        last_at = last_at.replace(tzinfo=timezone.utc)
-                    elapsed = (now - last_at).total_seconds()
-                    cooldown = 15 * 60  # 15 минут в секундах
-                    if elapsed < cooldown:
-                        rem_min = int((cooldown - elapsed + 59) // 60)
+            if current_user:
+                if current_user.role == "demo":
+                    # 1. Проверка оставшихся попыток
+                    if current_user.demo_searches_left <= 0:
                         raise HTTPException(
-                            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                            detail=f"В демо-режиме действует интервал 15 минут между поисками. Подождите еще {rem_min} мин."
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Лимит демо-доступа исчерпан (0 из 5 запросов). Для приобретения платного доступа свяжитесь со студией CASTLEWEB."
                         )
 
-                # 3. Ограничение: максимум 5 компаний за один запуск
-                effective_limit = min(effective_limit, current_user.max_companies_per_search or 5)
+                    # 2. Проверка интервала 15 минут между поисками
+                    if current_user.last_search_at:
+                        now = datetime.now(timezone.utc)
+                        last_at = current_user.last_search_at
+                        if last_at.tzinfo is None:
+                            last_at = last_at.replace(tzinfo=timezone.utc)
+                        elapsed = (now - last_at).total_seconds()
+                        cooldown = 15 * 60  # 15 минут в секундах
+                        if elapsed < cooldown:
+                            rem_min = int((cooldown - elapsed + 59) // 60)
+                            raise HTTPException(
+                                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                                detail=f"В демо-режиме действует интервал 15 минут между поисками. Подождите еще {rem_min} мин."
+                            )
 
-                # 4. Списание попытки и фиксация времени
-                current_user.demo_searches_left -= 1
-                current_user.last_search_at = datetime.now(timezone.utc)
-                await db.commit()
+                    # 3. Ограничение: максимум 5 компаний за один запуск
+                    effective_limit = min(req.limit, current_user.max_companies_per_search or 5)
+
+                    # 4. Списание попытки и фиксация времени
+                    current_user.demo_searches_left -= 1
+                    current_user.last_search_at = datetime.now(timezone.utc)
+                    await db.commit()
+
+                elif current_user.role == "paid":
+                    now = datetime.now(timezone.utc)
+                    # 1. Проверка срока действия подписки
+                    if current_user.subscription_until:
+                        sub_until = current_user.subscription_until
+                        if sub_until.tzinfo is None:
+                            sub_until = sub_until.replace(tzinfo=timezone.utc)
+                        if now > sub_until:
+                            raise HTTPException(
+                                status_code=status.HTTP_403_FORBIDDEN,
+                                detail=f"Срок действия вашей подписки истек ({sub_until.strftime('%d.%m.%Y')}). Для продления обратитесь к менеджеру в Telegram."
+                            )
+
+                    # 2. Проверка и сброс суточного лимита
+                    today_str = now.strftime("%Y-%m-%d")
+                    if current_user.daily_reset_date != today_str:
+                        current_user.daily_reset_date = today_str
+                        current_user.daily_companies_parsed = 0
+                        await db.commit()
+
+                    # 3. Суточный лимит: 100 компаний в день
+                    daily_limit = 100
+                    already_parsed = current_user.daily_companies_parsed or 0
+                    if already_parsed >= daily_limit:
+                        raise HTTPException(
+                            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                            detail="Дневной лимит (100 компаний в день) исчерпан. Лимит автоматически обновится завтра в 00:00 UTC."
+                        )
+
+                    remaining_today = daily_limit - already_parsed
+                    effective_limit = min(req.limit, remaining_today)
+                    current_user.last_search_at = now
+                    await db.commit()
+
+                elif current_user.role in ("admin", "superuser", "root"):
+                    effective_limit = req.limit
         except HTTPException:
             raise
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Error checking user limits: {e}")
 
     # Создаем запись кампании с привязкой к пользователю
     campaign = SearchCampaign(
@@ -108,7 +146,8 @@ async def start_search(
         niche=campaign.niche,
         city=campaign.city,
         source=campaign.source,
-        limit=campaign.target_limit
+        limit=campaign.target_limit,
+        user_id=uid
     )
 
     return SearchStartResponse(
