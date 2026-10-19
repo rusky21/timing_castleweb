@@ -163,6 +163,48 @@ async def get_report_detail(campaign_id: int, request: Request, db: AsyncSession
         leads=leads
     )
 
+@router.delete("", summary="Очистить историю поисковых кампаний")
+async def clear_reports_history(
+    request: Request,
+    all: bool = False,
+    user_id: int | None = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Очищает историю поисковых кампаний (с каскадным удалением организаций и результатов аудита):
+    - Для обычного / платного пользователя: удаляет все кампании, где user_id == uid.
+    - Для администратора: удаляет свои кампании, либо при all=True — всю историю студии, либо при user_id=X — историю конкретного пользователя.
+    """
+    is_admin, uid = get_user_access(request)
+
+    stmt = select(SearchCampaign)
+    if is_admin:
+        if all:
+            pass
+        elif user_id is not None:
+            stmt = stmt.where(SearchCampaign.user_id == user_id)
+        elif uid:
+            stmt = stmt.where(SearchCampaign.user_id == uid)
+    else:
+        if uid:
+            stmt = stmt.where(SearchCampaign.user_id == uid)
+        else:
+            stmt = stmt.where(SearchCampaign.user_id == -1)
+
+    res = await db.execute(stmt)
+    campaigns = res.scalars().all()
+    count = len(campaigns)
+
+    for c in campaigns:
+        await db.delete(c)
+    await db.commit()
+
+    return {
+        "success": True,
+        "deleted_count": count,
+        "message": f"Удалено кампаний: {count}"
+    }
+
 @router.delete("/{campaign_id}", summary="Удалить кампанию и связанные лиды")
 async def delete_report(campaign_id: int, request: Request, db: AsyncSession = Depends(get_db)):
     stmt = select(SearchCampaign).where(SearchCampaign.id == campaign_id)

@@ -40,6 +40,7 @@ class BaseScraper(ABC):
         on_status: Callable[[str], Awaitable[None]],
         on_captcha: Callable[[str], Awaitable[None]],
         is_cancelled: Callable[[], bool],
+        only_without_website: bool = False,
     ) -> List[ScrapedOrgItem]:
         """
         Запуск скрейпинга геосервиса (Яндекс Карты / 2ГИС)

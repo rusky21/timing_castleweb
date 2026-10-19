@@ -7,7 +7,8 @@ class SearchStartRequest(BaseModel):
     city: str = Field(..., min_length=2, description="Город или список городов через запятую (например, 'Казань', 'Москва, Санкт-Петербург')")
     cities: Optional[list[str]] = Field(default=None, description="Опциональный массив городов для мультигородского сбора")
     source: Literal["yandex", "2gis", "all"] = Field(default="yandex", description="Источник сбора карт (по умолчанию Яндекс.Карты)")
-    limit: int = Field(default=50, ge=1, le=500, description="Лимит количества собираемых лидов")
+    limit: int = Field(default=100, ge=1, le=500, description="Лимит количества собираемых лидов")
+    only_without_website: bool = Field(default=False, description="Искать только организации без официального сайта")
 
 class SearchStartResponse(BaseModel):
     """Ответ на запуск задачи сбора"""

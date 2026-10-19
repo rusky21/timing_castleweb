@@ -477,6 +477,42 @@ async def request_parser_reset_password(tg_user_id: str | int) -> dict:
     raise RuntimeError(f"Parser API unavailable: {last_error}")
 
 
+async def request_parser_clear_history(tg_user_id: str | int, clear_all: bool = False) -> dict:
+    """
+    Запрашивает очистку истории поисковых кампаний и лидов в LeadHunter.
+    """
+    configured_url = (getattr(settings, "PARSER_INTERNAL_URL", "") or os.environ.get("PARSER_INTERNAL_URL", "")).strip()
+    raw_urls = [
+        "http://leadhunter:8000",
+        configured_url,
+        "http://127.0.0.1:8080",
+        "http://localhost:8080",
+    ]
+    internal_urls = []
+    for u in raw_urls:
+        if u and u.rstrip("/") not in internal_urls:
+            internal_urls.append(u.rstrip("/"))
+
+    configured_secret = (getattr(settings, "INTERNAL_API_SECRET", "") or os.environ.get("INTERNAL_API_SECRET", "")).strip()
+    secrets_to_try = [s for s in dict.fromkeys([configured_secret, "castleweb-internal-demo-secret"]) if s]
+
+    last_error = None
+    for secret in secrets_to_try:
+        payload = {"tg_user_id": str(tg_user_id), "clear_all": clear_all}
+        for base_url in internal_urls:
+            url = f"{base_url}/api/internal/clear-user-history"
+            try:
+                async with httpx.AsyncClient(timeout=8.0) as client:
+                    resp = await client.post(url, json=payload, headers={"X-Internal-Secret": secret})
+                    if resp.status_code == 200:
+                        return resp.json()
+                    last_error = f"HTTP {resp.status_code}: {resp.text}"
+            except Exception as e:
+                last_error = str(e)
+
+    raise RuntimeError(f"Parser API unavailable: {last_error}")
+
+
 def format_user_cabinet(res: dict, parser_public_url: str, new_pass: str | None = None) -> tuple[str, dict]:
     """
     Формирует красивый интерфейс Личного Кабинета подписчика LeadHunter в Telegram:
@@ -548,9 +584,10 @@ def format_user_cabinet(res: dict, parser_public_url: str, new_pass: str | None 
         "inline_keyboard": [
             [{"text": "🚀 Войти в веб-панель LeadHunter", "url": parser_public_url}],
             [
-                {"text": "🔄 Обновить данные лимита", "callback_data": "client_cabinet"},
+                {"text": "🔄 Обновить данные", "callback_data": "client_cabinet"},
                 {"text": "🔑 Сбросить пароль", "callback_data": "cabinet_reset_password"}
             ],
+            [{"text": "🗑 Очистить историю поисков", "callback_data": "cabinet_clear_history"}],
             [{"text": "💳 Продлить / Сменить тариф", "callback_data": "buy_parser_menu"}],
             [{"text": "💬 Поддержка менеджера (@kupidon996)", "url": "https://t.me/kupidon996"}],
             [{"text": "🔙 Главное меню", "callback_data": "client_menu"}]
@@ -954,6 +991,47 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
             except Exception as e:
                 logger.error(f"Error resetting password: {e}")
                 await answer_callback_query(cb_id, "⚠️ Ошибка сброса пароля", show_alert=True)
+
+        elif data == "cabinet_clear_history":
+            confirm_text = (
+                "⚠️ <b>Очистить историю поисков?</b>\n\n"
+                "Все ваши поисковые кампании, собранные контакты компаний и результаты аудитов "
+                "будут удалены из веб-панели LeadHunter.\n\n"
+                "Вы уверены, что хотите продолжить?"
+            )
+            confirm_kb = {
+                "inline_keyboard": [
+                    [{"text": "✅ Да, очистить историю", "callback_data": "confirm_clear_history"}],
+                    [{"text": "❌ Отмена", "callback_data": "client_cabinet"}]
+                ]
+            }
+            if message_id and chat_id:
+                try:
+                    await TelegramBotService.edit_message_text(chat_id, message_id, confirm_text, confirm_kb)
+                except Exception:
+                    await send_reply_message(chat_id, confirm_text, confirm_kb)
+            else:
+                await send_reply_message(chat_id, confirm_text, confirm_kb)
+
+        elif data == "confirm_clear_history":
+            await answer_callback_query(cb_id, "Очищаем историю...")
+            try:
+                res = await request_parser_clear_history(user.get("id", ""))
+                del_count = res.get("deleted_count", 0)
+                await answer_callback_query(cb_id, f"✅ История очищена! Удалено: {del_count} кампаний", show_alert=True)
+
+                domain = getattr(settings, "DOMAIN_NAME", None) or "castleweb.ru"
+                parser_public_url = os.environ.get("PARSER_PUBLIC_URL", f"https://leads.{domain}").rstrip("/")
+                cab_res = await request_parser_user_cabinet(user.get("id", ""))
+                cab_text, cab_kb = format_user_cabinet(cab_res, parser_public_url)
+                if message_id and chat_id:
+                    try:
+                        await TelegramBotService.edit_message_text(chat_id, message_id, cab_text, cab_kb)
+                    except Exception:
+                        await send_reply_message(chat_id, cab_text, cab_kb)
+            except Exception as e:
+                logger.error(f"Error confirming clear history: {e}")
+                await answer_callback_query(cb_id, "⚠️ Ошибка при очистке истории", show_alert=True)
 
         elif data == "get_demo_access":
             await answer_callback_query(cb_id, "Проверяем доступ к парсеру...")
@@ -1565,6 +1643,7 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 f"• /server (или /sys) — состояние сервера (CPU, RAM, диск, аптайм)\n"
                 f"• /admin — админ-панель и вход в LeadHunter\n"
                 f"• /lk — Личный кабинет LeadHunter (тариф, лимиты, сброс пароля)\n"
+                f"• /clear_history — очистить историю своих поисков в LeadHunter\n"
                 f"• /cases — портфолио и кейсы студии\n"
                 f"• /id — узнать свой Telegram ID и права"
             )
@@ -1572,7 +1651,25 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
             return {"ok": True}
 
 
-        # Б. Интерактивные команды для всех типов чатов (/lk, /demo, /start, /menu)
+        # Б. Интерактивные команды для всех типов чатов (/lk, /clear_history, /demo, /start, /menu)
+        # Команда очистки истории поиска (/clear_history или /clear)
+        if text.startswith("/clear_history") or text.startswith("/clear"):
+            parts = text.split()
+            clear_all = len(parts) > 1 and parts[1].lower() in ("all", "global", "все")
+            try:
+                res = await request_parser_clear_history(from_id, clear_all=clear_all)
+                del_count = res.get("deleted_count", 0)
+                await send_reply_message(
+                    chat_id,
+                    f"🗑 <b>История поисков очищена!</b>\n\n"
+                    f"Успешно удалено кампаний и отчетов: <b>{del_count}</b>.\n"
+                    f"Веб-панель LeadHunter теперь чистая."
+                )
+            except Exception as e:
+                logger.error(f"Error clearing history via command: {e}")
+                await send_reply_message(chat_id, "⚠️ Не удалось очистить историю. Убедитесь, что у вас есть зарегистрированный аккаунт в LeadHunter.")
+            return {"ok": True}
+
         # 0. Личный кабинет подписчика / пользователя LeadHunter (/lk, /cabinet, /profile)
         if text.startswith("/lk") or text.startswith("/cabinet") or text.startswith("/profile"):
             domain = getattr(settings, "DOMAIN_NAME", None) or "castleweb.ru"

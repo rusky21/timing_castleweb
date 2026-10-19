@@ -54,11 +54,11 @@ class TaskManager:
             return True
         return False
 
-    def start_campaign(self, campaign_id: int, niche: str, city: str, source: str, limit: int, user_id: Optional[int] = None, cities: Optional[list[str]] = None):
+    def start_campaign(self, campaign_id: int, niche: str, city: str, source: str, limit: int, user_id: Optional[int] = None, cities: Optional[list[str]] = None, only_without_website: bool = False):
         ctx = TaskContext(campaign_id)
         self._tasks[campaign_id] = ctx
         ctx.task = asyncio.create_task(
-            self._run_campaign_worker(ctx, niche, city, source, limit, user_id=user_id, cities=cities)
+            self._run_campaign_worker(ctx, niche, city, source, limit, user_id=user_id, cities=cities, only_without_website=only_without_website)
         )
         return ctx.task
 
@@ -70,7 +70,8 @@ class TaskManager:
         source: str,
         limit: int,
         user_id: Optional[int] = None,
-        cities: Optional[list[str]] = None
+        cities: Optional[list[str]] = None,
+        only_without_website: bool = False
     ):
         campaign_id = ctx.campaign_id
         auditor = SiteAuditor()
@@ -124,6 +125,8 @@ class TaskManager:
         async def on_item_scraped(item: ScrapedOrgItem):
             nonlocal collected_count
             if ctx.is_cancelled or collected_count >= limit:
+                return
+            if only_without_website and item.website:
                 return
 
             domain_name = item.website or "без сайта"
@@ -304,7 +307,8 @@ class TaskManager:
                 on_item_scraped=on_item_scraped,
                 on_status=on_status,
                 on_captcha=on_captcha,
-                is_cancelled=lambda: ctx.is_cancelled or collected_count >= limit
+                is_cancelled=lambda: ctx.is_cancelled or collected_count >= limit,
+                only_without_website=only_without_website
             )
 
             final_status = "STOPPED" if ctx.is_cancelled else "COMPLETED"

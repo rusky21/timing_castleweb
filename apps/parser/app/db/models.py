@@ -18,7 +18,8 @@ class SearchCampaign(Base):
     niche: Mapped[str] = mapped_column(String(255), nullable=False)
     city: Mapped[str] = mapped_column(String(255), nullable=False)
     source: Mapped[str] = mapped_column(String(50), default="all")  # 'yandex', '2gis', 'all'
-    target_limit: Mapped[int] = mapped_column(Integer, default=50)
+    target_limit: Mapped[int] = mapped_column(Integer, default=100)
+    only_without_website: Mapped[bool] = mapped_column(Boolean, default=False)
     found_count: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(50), default="PENDING")  # PENDING, RUNNING, PAUSED_CAPTCHA, COMPLETED, STOPPED, FAILED
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

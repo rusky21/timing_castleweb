@@ -211,6 +211,7 @@ class YandexScraper(BaseScraper):
         on_status: Callable[[str], Awaitable[None]],
         on_captcha: Callable[[str], Awaitable[None]],
         is_cancelled: Callable[[], bool],
+        only_without_website: bool = False,
     ) -> List[ScrapedOrgItem]:
         results: List[ScrapedOrgItem] = []
         seen_ids: Set[str] = set()
@@ -269,6 +270,8 @@ class YandexScraper(BaseScraper):
                                             break
                                         item = self._parse_business_item(raw_it, city=current_city_context["city"])
                                         if item and item.external_id not in seen_ids:
+                                            if only_without_website and item.website:
+                                                continue
                                             seen_ids.add(item.external_id)
                                             results.append(item)
                                             t = asyncio.create_task(on_item_scraped(item))
@@ -329,6 +332,8 @@ class YandexScraper(BaseScraper):
                                     break
                                 item = self._parse_business_item(raw_it, city=current_city)
                                 if item and item.external_id not in seen_ids:
+                                    if only_without_website and item.website:
+                                        continue
                                     seen_ids.add(item.external_id)
                                     results.append(item)
                                     await on_item_scraped(item)

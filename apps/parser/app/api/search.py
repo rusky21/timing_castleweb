@@ -155,6 +155,7 @@ async def start_search(
         city=clean_city_str,
         source=req.source,
         target_limit=effective_limit,
+        only_without_website=req.only_without_website,
         status="RUNNING",
         user_id=uid
     )
@@ -172,7 +173,8 @@ async def start_search(
         source=campaign.source,
         limit=campaign.target_limit,
         user_id=uid,
-        cities=cities_list
+        cities=cities_list,
+        only_without_website=req.only_without_website
     )
 
     cities_display = f"в городах: {clean_city_str}" if len(cities_list) > 1 else f"в г. {clean_city_str}"

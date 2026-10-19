@@ -1321,3 +1321,52 @@ async def reset_password_internal(
         "new_password": new_password
     }
 
+
+class ClearHistoryPayload(BaseModel):
+    tg_user_id: str
+    clear_all: bool = False
+
+
+@router.post("/api/internal/clear-user-history")
+async def clear_user_history_internal(
+    payload: ClearHistoryPayload,
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Внутренний эндпоинт для Telegram-бота студии:
+    Очищает историю поисковых кампаний и лидов пользователя по его tg_user_id.
+    Если clear_all=True и пользователь админ — очищает историю всех пользователей.
+    """
+    verify_internal_secret(request)
+    clean_tg_id = str(payload.tg_user_id).strip()
+    if not clean_tg_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="tg_user_id is required")
+
+    result = await db.execute(select(User).where(User.tg_user_id == clean_tg_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Пользователь не найден")
+
+    from app.db.models import SearchCampaign
+    stmt = select(SearchCampaign)
+    if payload.clear_all and user.role in ("admin", "superuser", "root"):
+        pass
+    else:
+        stmt = stmt.where(SearchCampaign.user_id == user.id)
+
+    res = await db.execute(stmt)
+    campaigns = res.scalars().all()
+    count = len(campaigns)
+
+    for c in campaigns:
+        await db.delete(c)
+    await db.commit()
+
+    return {
+        "status": "ok",
+        "email": user.email,
+        "deleted_count": count,
+        "message": f"Очищено {count} поисковых кампаний"
+    }
+
