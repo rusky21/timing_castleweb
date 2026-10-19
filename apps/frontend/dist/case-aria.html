@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Кейс ARIA (AI Supporter) — Castleweb Studio</title>
+  <meta name="description" content="Разбор кейса ARIA: локальная станция сетевого аудита и управления оборудованием с автономным ИИ-ассистентом на C# / .NET 10 и React.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;450;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #ffffff;
+      --bg-subtle: #fbfbfc;
+      --surface: #ffffff;
+      --text-main: #0c0d0e;
+      --text-muted: #555963;
+      --text-subtle: #8a8f9c;
+      --border-line: rgba(12, 13, 14, 0.08);
+      --border-strong: rgba(12, 13, 14, 0.16);
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html {
+      scroll-behavior: smooth;
+      background: var(--bg);
+      color: var(--text-main);
+      font-family: var(--font);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    a { color: inherit; text-decoration: none; }
+
+    .site-nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-line);
+    }
+
+    .nav-container {
+      max-width: 1360px;
+      margin: 0 auto;
+      padding: 18px 5vw;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .nav-left-pack {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+      padding: 6px 14px;
+      border-radius: 9999px;
+      border: 1px solid var(--border-line);
+      background: #fafafb;
+      transition: all 0.2s ease;
+    }
+
+    .back-link:hover {
+      background: #0c0d0e;
+      color: #ffffff;
+      border-color: #0c0d0e;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-mark {
+      width: 20px;
+      height: 20px;
+      display: block;
+      color: var(--text-main);
+      flex-shrink: 0;
+    }
+
+    .brand-name {
+      font-size: 17.5px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .nav-cta {
+      background: #0c0d0e;
+      color: #ffffff;
+      font-size: 13.5px;
+      font-weight: 600;
+      padding: 9px 22px;
+      border-radius: 9999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: background-color 0.2s ease, transform 0.2s ease;
+    }
+
+    .nav-cta:hover {
+      background: #252830;
+      transform: translateY(-1px);
+    }
+
+    .study-hero {
+      padding: 68px 5vw 48px;
+      border-bottom: 1px solid var(--border-line);
+      background: radial-gradient(circle at 50% 0%, rgba(240, 243, 248, 0.7) 0%, rgba(255, 255, 255, 0) 70%);
+    }
+
+    .study-hero-container {
+      max-width: 1360px;
+      margin: 0 auto;
+    }
+
+    .study-badge-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 22px;
+      flex-wrap: wrap;
+    }
+
+    .badge-dark {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 5px 12px;
+      border-radius: 6px;
+      background: #0c0d0e;
+      color: #ffffff;
+    }
+
+    .badge-accent {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 6px;
+      background: rgba(2, 132, 199, 0.09);
+      color: #0284c7;
+    }
+
+    .badge-green {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 6px;
+      background: rgba(22, 163, 74, 0.09);
+      color: #16a34a;
+    }
+
+    .study-title {
+      font-size: clamp(36px, 4.2vw, 62px);
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      line-height: 1.08;
+      color: var(--text-main);
+      max-width: 1080px;
+      margin-bottom: 24px;
+    }
+
+    .study-subtitle {
+      font-size: clamp(17px, 1.3vw, 20px);
+      line-height: 1.55;
+      color: var(--text-muted);
+      letter-spacing: -0.015em;
+      max-width: 880px;
+      margin-bottom: 48px;
+      font-weight: 450;
+    }
+
+    .study-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 24px;
+      padding: 28px 0;
+      border-top: 1px solid var(--border-line);
+      border-bottom: 1px solid var(--border-line);
+    }
+
+    .meta-col {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .meta-label {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-subtle);
+    }
+
+    .meta-value {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-main);
+      letter-spacing: -0.015em;
+    }
+
+    .meta-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+
+    .study-main {
+      padding: 64px 5vw 120px;
+      max-width: 1360px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .showcase-stage {
+      background: #0d0f14;
+      border-radius: 24px;
+      padding: clamp(24px, 3.5vw, 44px);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.16);
+      margin-bottom: 72px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .showcase-glow {
+      position: absolute;
+      top: -20%;
+      right: 15%;
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(56, 189, 248, 0.15) 0%, rgba(99, 102, 241, 0.08) 50%, transparent 70%);
+      filter: blur(80px);
+      pointer-events: none;
+    }
+
+    .showcase-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      position: relative;
+      z-index: 2;
+    }
+
+    .showcase-tab-list {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .showcase-tab {
+      font-family: var(--font);
+      font-size: 13px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.7);
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 8px 16px;
+      border-radius: 9999px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .showcase-tab:hover,
+    .showcase-tab.is-active {
+      background: #ffffff;
+      color: #0c0d0e;
+      border-color: #ffffff;
+    }
+
+    .showcase-screen-wrap {
+      position: relative;
+      z-index: 2;
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: #141720;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+    }
+
+    .showcase-screen-wrap img {
+      width: 100%;
+      height: auto;
+      display: block;
+      transition: opacity 0.2s ease;
+    }
+
+    .study-grid {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: clamp(48px, 6vw, 96px);
+      align-items: start;
+      margin-bottom: 80px;
+    }
+
+    .sticky-panel {
+      position: -webkit-sticky;
+      position: sticky;
+      top: 110px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .panel-card {
+      background: #fafafb;
+      border: 1px solid var(--border-line);
+      border-radius: 18px;
+      padding: 24px;
+    }
+
+    .panel-title {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-subtle);
+      margin-bottom: 16px;
+    }
+
+    .panel-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .panel-row {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .panel-label {
+      font-size: 12px;
+      color: var(--text-subtle);
+    }
+
+    .panel-val {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .content-body {
+      display: flex;
+      flex-direction: column;
+      gap: 56px;
+    }
+
+    .article-section {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .sec-eyebrow {
+      font-size: 12.5px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #0284c7;
+    }
+
+    .sec-title {
+      font-size: clamp(26px, 2.4vw, 36px);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+      color: var(--text-main);
+    }
+
+    .sec-text {
+      font-size: 16.5px;
+      line-height: 1.65;
+      color: var(--text-muted);
+      letter-spacing: -0.015em;
+      font-weight: 450;
+    }
+
+    .pillars-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+      margin-top: 12px;
+    }
+
+    .pillar-card {
+      background: #fafafb;
+      border: 1px solid var(--border-line);
+      border-radius: 18px;
+      padding: 28px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .pillar-tag {
+      font-size: 11.5px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #0284c7;
+    }
+
+    .pillar-heading {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text-main);
+    }
+
+    .pillar-body {
+      font-size: 14.5px;
+      line-height: 1.55;
+      color: var(--text-muted);
+    }
+
+    .study-bottom-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 48px;
+      border-top: 1px solid var(--border-line);
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    .btn-return-cases {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14.5px;
+      font-weight: 600;
+      color: var(--text-main);
+      padding: 12px 24px;
+      border-radius: 9999px;
+      border: 1px solid var(--border-line);
+      transition: background-color 0.2s ease;
+    }
+
+    .btn-return-cases:hover {
+      background: #f4f5f8;
+    }
+
+    .btn-discuss-project {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: #0c0d0e;
+      color: #ffffff;
+      padding: 14px 30px;
+      border-radius: 9999px;
+      font-size: 14.5px;
+      font-weight: 600;
+      letter-spacing: -0.015em;
+      transition: background-color 0.2s ease, transform 0.2s ease;
+    }
+
+    .btn-discuss-project:hover {
+      background: #252830;
+      transform: translateY(-1px);
+    }
+
+    .maeve-footer {
+      background: #ffffff;
+      padding: 64px 5vw 36px;
+      border-top: 1px solid var(--border-line);
+      width: 100%;
+    }
+
+    .maeve-footer-container {
+      max-width: 1360px;
+      margin: 0 auto;
+    }
+
+    .maeve-footer-grid {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: start;
+      gap: clamp(32px, 5vw, 80px);
+      padding: 32px 0 36px;
+      border-top: 1px solid var(--border-line);
+      border-bottom: 1px solid var(--border-line);
+      margin-bottom: 28px;
+    }
+
+    .maeve-footer-col {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .maeve-col-label {
+      font-size: 11.5px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-subtle);
+      margin-bottom: 14px;
+    }
+
+    .maeve-footer-email {
+      font-size: clamp(17px, 1.4vw, 20px);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: var(--text-main);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 8px;
+      transition: color 0.15s ease;
+      width: fit-content;
+    }
+
+    .maeve-footer-email:hover { color: #2563eb; }
+
+    .maeve-social-list {
+      display: flex;
+      gap: 22px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .maeve-social-link {
+      font-size: 13.5px;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.15s ease;
+    }
+
+    .maeve-social-link:hover { color: var(--text-main); }
+
+    .maeve-footer-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12.5px;
+      color: var(--text-subtle);
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .nav-cta .nav-cta-short {
+      display: none;
+    }
+
+    @media (max-width: 960px) {
+      .study-meta-grid { grid-template-columns: repeat(2, 1fr); }
+      .study-grid { grid-template-columns: 1fr; }
+      .sticky-panel { position: static; }
+      .pillars-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 768px) {
+      .nav-container {
+        padding: 14px 5vw;
+        gap: 12px;
+      }
+      .study-hero {
+        padding: 44px 5vw 32px;
+      }
+      .study-title {
+        font-size: clamp(24px, 6.5vw, 38px);
+        line-height: 1.18;
+        word-break: break-word;
+        overflow-wrap: break-word;
+        margin-bottom: 16px;
+      }
+      .study-subtitle {
+        font-size: 15px;
+        line-height: 1.55;
+        margin-bottom: 28px;
+      }
+      .study-meta-grid {
+        grid-template-columns: 1fr;
+        gap: 14px;
+      }
+      .study-body {
+        padding: 36px 5vw 64px;
+      }
+      .showcase-stage {
+        padding: 16px;
+        border-radius: 18px;
+      }
+      .showcase-nav {
+        overflow-x: auto;
+        max-width: 100%;
+        -webkit-overflow-scrolling: touch;
+        gap: 6px;
+        padding-bottom: 4px;
+      }
+      .showcase-tab {
+        font-size: 12px;
+        padding: 6px 12px;
+        white-space: nowrap;
+      }
+      .maeve-footer {
+        padding: 56px 5vw 32px;
+      }
+      .maeve-footer-headline {
+        font-size: clamp(24px, 6.5vw, 36px);
+        line-height: 1.2;
+      }
+      .maeve-footer-grid {
+        grid-template-columns: 1fr;
+        gap: 28px;
+      }
+      .maeve-footer-bottom {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+      }
+      .study-bottom-nav {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+      }
+      .btn-return-cases, .btn-discuss-project {
+        justify-content: center;
+        width: 100%;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .nav-container {
+        padding: 12px 16px;
+      }
+      .brand-name {
+        display: none;
+      }
+      .nav-cta {
+        padding: 7px 14px;
+        font-size: 12.5px;
+      }
+      .nav-cta .nav-cta-full {
+        display: none;
+      }
+      .nav-cta .nav-cta-short {
+        display: inline;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="site-nav">
+    <div class="nav-container">
+      <div class="nav-left-pack">
+        <a href="cases.html" class="back-link">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+          </svg>
+          Все кейсы
+        </a>
+        <a href="index.html" class="brand" aria-label="Castleweb Главная">
+          <svg class="brand-mark" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <circle cx="12" cy="5" r="3" fill="currentColor" />
+            <circle cx="5" cy="18" r="3" fill="currentColor" />
+            <circle cx="19" cy="18" r="3" fill="currentColor" />
+            <path d="M12 8V14M7 16.5L10.5 14.5M17 16.5L13.5 14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+          <span class="brand-name">Castleweb</span>
+        </a>
+      </div>
+
+      <a href="index.html#contact" class="nav-cta">
+        <span class="nav-cta-full">Обсудить похожую задачу</span>
+        <span class="nav-cta-short">Обсудить</span>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="7" y1="17" x2="17" y2="7"></line>
+          <polyline points="7 7 17 7 17 17"></polyline>
+        </svg>
+      </a>
+    </div>
+  </header>
+
+  <main>
+    <section class="study-hero">
+      <div class="study-hero-container">
+        <div class="study-badge-row">
+          <span class="badge-dark">Кейс №1 • Флагманский проект</span>
+          <span class="badge-accent">Инженерные системы & AI</span>
+          <span class="badge-green">100% Air-Gapped Ready</span>
+        </div>
+
+        <h1 class="study-title">
+          ARIA (AI Supporter) — Локальная станция сетевого аудита и управления оборудованием с ИИ
+        </h1>
+
+        <p class="study-subtitle">
+          Программно-аппаратный комплекс для операторов изолированных сетей и инженеров автоматизации. Захватывает сырой трафик, сканирует периметр на наличие устройств, выводит потоки камер и предоставляет голосовое и текстовое управление через локальную нейросеть с прямым доступом к сетевым утилитам.
+        </p>
+
+        <div class="study-meta-grid">
+          <div class="meta-col">
+            <span class="meta-label">Роль авторов</span>
+            <span class="meta-value">Олег Судаков & Эмиль Герасимов</span>
+            <span class="meta-desc">Архитектура ядра, DSP, протоколы и дизайн UI</span>
+          </div>
+          <div class="meta-col">
+            <span class="meta-label">Технологический стек</span>
+            <span class="meta-value">C# / .NET 10 & React 18</span>
+            <span class="meta-desc">WebSocket, Ollama, Whisper C++, Piper, ONVIF</span>
+          </div>
+          <div class="meta-col">
+            <span class="meta-label">Режим работы</span>
+            <span class="meta-value">Изолированный контур</span>
+            <span class="meta-desc">Zero external cloud, 100% локальное исполнение</span>
+          </div>
+          <div class="meta-col">
+            <span class="meta-label">Клиентский рендеринг</span>
+            <span class="meta-value">60 FPS без лагов</span>
+            <span class="meta-desc">Виртуализированный hex-дамп и видеопотоки</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="study-main">
+
+      <!-- Interactive Showcase -->
+      <section class="showcase-stage">
+        <div class="showcase-glow"></div>
+
+        <div class="showcase-controls">
+          <div class="showcase-tab-list">
+            <button class="showcase-tab is-active" data-shot="assets/cases/aria/dashboard.png">Общий дашборд узлов</button>
+            <button class="showcase-tab" data-shot="assets/cases/aria/network.png">Сетевой сниффер пакетов</button>
+            <button class="showcase-tab" data-shot="assets/cases/aria/devices.png">Обнаружение устройств</button>
+            <button class="showcase-tab" data-shot="assets/cases/aria/cameras.png">ONVIF-камеры</button>
+            <button class="showcase-tab" data-shot="assets/cases/aria/chat.png">ИИ-ассистент (Ollama)</button>
+            <button class="showcase-tab" data-shot="assets/cases/aria/system-monitor.png">Монитор ресурсов</button>
+          </div>
+        </div>
+
+        <div class="showcase-screen-wrap">
+          <img id="study-main-shot" src="/assets/dashboard-ElEX12Fs.png" alt="Скриншот интерфейса ARIA">
+        </div>
+      </section>
+
+      <!-- Detailed Breakdown Grid -->
+      <div class="study-grid">
+
+        <aside class="sticky-panel">
+          <div class="panel-card">
+            <h4 class="panel-title">Паспорт проекта</h4>
+            <div class="panel-list">
+              <div class="panel-row">
+                <span class="panel-label">Тип продукта</span>
+                <span class="panel-val">Операторская станция (Web + Backend)</span>
+              </div>
+              <div class="panel-row">
+                <span class="panel-label">Серверная платформа</span>
+                <span class="panel-val">C# / .NET 10 Core</span>
+              </div>
+              <div class="panel-row">
+                <span class="panel-label">Интерфейс</span>
+                <span class="panel-val">React 18, TypeScript, Vite</span>
+              </div>
+              <div class="panel-row">
+                <span class="panel-label">Речевой пайплайн</span>
+                <span class="panel-val">Whisper.cpp (STT) + Piper (TTS)</span>
+              </div>
+              <div class="panel-row">
+                <span class="panel-label">Сетевые протоколы</span>
+                <span class="panel-val">ICMP, SSDP, ONVIF/RTSP, Art-Net, OSC</span>
+              </div>
+              <div class="panel-row">
+                <span class="panel-label">Транспорт телеметрии</span>
+                <span class="panel-val">WebSocket & Server-Sent Events</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel-card">
+            <h4 class="panel-title">Инженерный фокус</h4>
+            <div class="panel-list">
+              <div class="panel-row">
+                <span class="panel-label">Безопасность</span>
+                <span class="panel-val">Учетные данные в оперативной памяти сессий без записи в логи и URL</span>
+              </div>
+              <div class="panel-row">
+                <span class="panel-label">Отказоустойчивость</span>
+                <span class="panel-val">Кольцевой буфер и нулевые потери пакетов при пиковом трафике</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <div class="content-body">
+
+          <section class="article-section">
+            <span class="sec-eyebrow">Проблема и контекст</span>
+            <h2 class="sec-title">Зачем это было создано</h2>
+            <p class="sec-text">
+              На сложных объектах — в закрытых сегментах сетей, диспетчерских, на автоматизированных площадках и умных производствах — инженерам обычно приходится держать открытыми десяток окон: Wireshark для сетевых дампов, консоли сканеров, веб-панели камер, утилиты для отправки специфических протоколов (Art-Net, OSC) и дашборды железа.
+            </p>
+            <p class="sec-text">
+              Мы разработали ARIA как единую операторскую станцию, которая объединяет телеметрию сети, обнаружение оборудования и автономного ИИ-ассистента, способного диагностировать проблемы и выполнять команды прямо в физической инфраструктуре.
+            </p>
+          </section>
+
+          <section class="article-section">
+            <span class="sec-eyebrow">Архитектурный фундамент</span>
+            <h2 class="sec-title">Четыре главных инженерных решения</h2>
+
+            <div class="pillars-grid">
+              <div class="pillar-card">
+                <span class="pillar-tag">Автономность</span>
+                <h3 class="pillar-heading">Полная изоляция (Air-Gapped Ready)</h3>
+                <p class="pillar-body">
+                  Система проектировалась для объектов, где выход в интернет строго запрещён политиками безопасности. Распознавание голоса (Whisper C++), синтез речи (Piper) и нейросетевые модели (Ollama) разворачиваются полностью внутри периметра. При этом архитектура гибридная: если контур открыт, за пару кликов подключаются внешние облачные API без перезапуска служб.
+                </p>
+              </div>
+
+              <div class="pillar-card">
+                <span class="pillar-tag">Бэкенд</span>
+                <h3 class="pillar-heading">Производительное ядро на .NET 10</h3>
+                <p class="pillar-body">
+                  Захват сетевого трафика в реальном времени, кольцевой буфер пакетов, автоматический поиск аномалий, ICMP/SSDP/ONVIF-сканирование узлов и обслуживание протоколов автоматизации (Art-Net, OSC). Бэкенд держит непрерывный поток телеметрии вне зависимости от клиентских сессий.
+                </p>
+              </div>
+
+              <div class="pillar-card">
+                <span class="pillar-tag">ИИ-пайплайн</span>
+                <h3 class="pillar-heading">ИИ как оператор инструментов (MCP)</h3>
+                <p class="pillar-body">
+                  Модель не просто отвечает текстом: через протокол вызова инструментов (Function Calling / MCP) она подключена к реальным утилитам. По голосовой или текстовой команде ИИ пингует сегмент, запрашивает и визуально анализирует кадр с промышленной камеры, изолирует подозрительный трафик или отправляет DMX/Art-Net пакет на контроллер.
+                </p>
+              </div>
+
+              <div class="pillar-card">
+                <span class="pillar-tag">Фронтенд</span>
+                <h3 class="pillar-heading">Нулевая вычислительная нагрузка на клиент</h3>
+                <p class="pillar-body">
+                  Интерфейс на React 18 и TypeScript работает исключительно как транспортный терминал через WebSocket и SSE. Никаких «тяжёлых» вычислений в браузере: интерфейс сохраняет стабильные 60 кадров в секунду даже при непрерывном потоке сетевых пакетов, виртуализированных hex-дампах и плавающих окнах с видеопотоками.
+                </p>
+              </div>
+            </div>
+          </section>
+
+        </div>
+
+      </div>
+
+      <div class="study-bottom-nav">
+        <a href="cases.html" class="btn-return-cases">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+          </svg>
+          Вернуться ко всем кейсам
+        </a>
+
+        <a href="index.html#contact" class="btn-discuss-project">
+          Обсудить архитектуру вашего проекта
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="7" y1="17" x2="17" y2="7"></line>
+            <polyline points="7 7 17 7 17 17"></polyline>
+          </svg>
+        </a>
+      </div>
+
+    </div>
+  </main>
+
+  <footer class="maeve-footer">
+    <div class="maeve-footer-container">
+      <div class="maeve-footer-grid">
+        <div class="maeve-footer-col">
+          <span class="maeve-col-label">Прямой контакт</span>
+          <a href="mailto:hello@castleweb.ru" class="maeve-footer-email">
+            hello@castleweb.ru
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="7" y1="17" x2="17" y2="7"></line>
+              <polyline points="7 7 17 7 17 17"></polyline>
+            </svg>
+          </a>
+        </div>
+
+        <div class="maeve-footer-col">
+          <span class="maeve-col-label">Основатели</span>
+          <div class="maeve-social-list">
+            <a href="https://t.me/Ya_emildjan" class="maeve-social-link" target="_blank" rel="noopener">Олег Судаков (Архитектура) ↗</a>
+            <a href="https://t.me/kupidon996" class="maeve-social-link" target="_blank" rel="noopener">Эмиль Герасимов (Дизайн) ↗</a>
+            <a href="cases.html" class="maeve-social-link">Все кейсы</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="maeve-footer-bottom">
+        <span>© 2026 Castleweb Studio. Все права защищены.</span>
+        <div class="maeve-social-list">
+          <a href="index.html" class="maeve-social-link">Главная</a>
+          <a href="cases.html" class="maeve-social-link">Портфолио</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function() {
+      const tabs = document.querySelectorAll('.showcase-tab');
+      const shot = document.getElementById('study-main-shot');
+      if (!shot || tabs.length === 0) return;
+
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          tabs.forEach(t => t.classList.remove('is-active'));
+          tab.classList.add('is-active');
+          const target = tab.getAttribute('data-shot');
+          if (target) {
+            shot.style.opacity = '0.4';
+            setTimeout(() => {
+              shot.src = target;
+              shot.style.opacity = '1';
+            }, 120);
+          }
+        });
+      });
+    })();
+  </script>
+
+</body>
+</html>

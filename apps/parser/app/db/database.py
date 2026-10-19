@@ -75,7 +75,9 @@ async def init_db():
             "ALTER TABLE users ADD COLUMN daily_companies_parsed INTEGER DEFAULT 0",
             "ALTER TABLE users ADD COLUMN daily_reset_date VARCHAR(10)",
             "ALTER TABLE search_campaigns ADD COLUMN user_id INTEGER",
+            "ALTER TABLE search_campaigns ADD COLUMN only_without_website BOOLEAN DEFAULT 0",
         ]
+
         for mig in migrations:
             try:
                 await conn.execute(text(mig))
