@@ -159,6 +159,7 @@ class TelegramBotService:
                     if data.get("ok"):
                         message_id = data["result"]["message_id"]
                         logger.info(f"📢 Telegram message sent for Lead #{lead.id}, message_id: {message_id}")
+                        await TelegramBotService.pin_message(current_chat_id, message_id)
                         return message_id
                     else:
                         err_desc = data.get('description', '')
@@ -176,6 +177,7 @@ class TelegramBotService:
                             if retry_data.get("ok"):
                                 msg_id = retry_data["result"]["message_id"]
                                 logger.info(f"📢 Telegram message sent to supergroup {migrate_to} for Lead #{lead.id}, message_id: {msg_id}")
+                                await TelegramBotService.pin_message(migrate_to, msg_id)
                                 return msg_id
 
                         # Telegram Flood Control: respect retry_after parameter
@@ -218,6 +220,7 @@ class TelegramBotService:
                             if retry_data.get("ok"):
                                 msg_id = retry_data["result"]["message_id"]
                                 logger.info(f"📢 Plain-text fallback sent for Lead #{lead.id}, message_id: {msg_id}")
+                                await TelegramBotService.pin_message(current_chat_id, msg_id)
                                 return msg_id
                             else:
                                 logger.warning(f"Plain-text fallback also failed: {retry_data.get('description')}")
@@ -421,5 +424,35 @@ class TelegramBotService:
                 return bool(resp.json().get("ok"))
         except Exception as e:
             logger.warning(f"Failed to send document to Telegram chat {clean_chat}: {e}")
+            return False
+
+    @staticmethod
+    async def pin_message(chat_id: str | int, message_id: int, disable_notification: bool = False) -> bool:
+        """
+        Закрепляет сообщение заявки в Telegram-чате (pinChatMessage).
+        """
+        bot_token = (getattr(settings, "TELEGRAM_BOT_TOKEN", "") or "").strip()
+        clean_chat = (str(chat_id) or "").strip()
+        if not bot_token or not clean_chat or clean_chat in ("your_team_chat_id_here", ""):
+            return False
+
+        url = build_telegram_api_url("pinChatMessage")
+        payload = {
+            "chat_id": clean_chat,
+            "message_id": message_id,
+            "disable_notification": disable_notification
+        }
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                resp = await client.post(url, json=payload)
+                data = resp.json()
+                if data.get("ok"):
+                    logger.info(f"📌 Заявка (сообщение #{message_id}) успешно закреплена в чате {clean_chat}")
+                    return True
+                else:
+                    logger.warning(f"Не удалось закрепить сообщение #{message_id}: {data.get('description')}")
+                    return False
+        except Exception as e:
+            logger.warning(f"Ошибка при закреплении сообщения #{message_id} в Telegram: {e}")
             return False
 

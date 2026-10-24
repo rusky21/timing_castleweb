@@ -35,6 +35,7 @@ from app.services.orchestrator import orchestrator
 from app.services.telegram.bot_service import tg_bot_service
 from app.services.telegram.outreach_bot_service import outreach_bot_service
 from app.services.outreach import session_manager, followup_worker
+from app.services.cleanup_service import cleanup_service
 
 logging.basicConfig(
     level=logging.INFO,
@@ -60,6 +61,7 @@ async def lifespan(app: FastAPI):
     # Запуск фонового парсера FL.ru и мультиплатформенного комбайна
     fl_worker.start()
     await orchestrator.start()
+    cleanup_service.start()
 
     # Запуск основного Telegram-бота (Парсинг, FL.ru, уведомления по картам)
     await tg_bot_service.start()
@@ -83,6 +85,7 @@ async def lifespan(app: FastAPI):
         await session_manager.disconnect_all()
     except Exception:
         pass
+    cleanup_service.stop()
     fl_worker.stop()
     await orchestrator.stop()
     await outreach_bot_service.stop()

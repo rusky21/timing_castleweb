@@ -8,6 +8,7 @@ from sqlalchemy import select
 from app.db.database import get_db
 from app.db.models import TelegramUser, TelegramUserSettings
 from app.services.telegram.bot_service import tg_bot_service
+from app.services.cleanup_service import cleanup_service
 
 logger = logging.getLogger("settings_api")
 router = APIRouter(prefix="/api/settings", tags=["Настройки и фильтрация"])
@@ -152,3 +153,14 @@ async def get_bot_status(db: AsyncSession = Depends(get_db)):
         "active_users_count": len(users),
         "users": [{"chat_id": u.chat_id, "username": u.username, "full_name": u.full_name} for u in users]
     }
+
+
+@router.get("/cleanup", summary="Получить статус службы 24-часовой очистки БД и размер хранилища")
+async def get_cleanup_status():
+    return cleanup_service.get_status()
+
+
+@router.post("/cleanup", summary="Запустить немедленную очистку базы данных и освобождение диска")
+async def trigger_cleanup():
+    stats = await cleanup_service.run_cleanup()
+    return stats

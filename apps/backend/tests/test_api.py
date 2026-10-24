@@ -18,7 +18,11 @@ from httpx import AsyncClient, ASGITransport
 from unittest.mock import patch, AsyncMock
 from app.main import app
 from app.presentation.middlewares.rate_limit import _in_memory_store
+from app.infrastructure.telegram.bot_service import TelegramBotService
 
+
+_original_send_lead_notification = TelegramBotService.send_lead_notification
+_original_pin_message = TelegramBotService.pin_message
 
 @pytest.fixture(autouse=True)
 def mock_external_network_calls():
@@ -32,6 +36,7 @@ def mock_external_network_calls():
          patch("app.infrastructure.telegram.bot_service.TelegramBotService.edit_message_reply_markup", new_callable=AsyncMock) as mock_markup, \
          patch("app.infrastructure.telegram.bot_service.TelegramBotService.delete_message", new_callable=AsyncMock) as mock_del, \
          patch("app.infrastructure.telegram.bot_service.TelegramBotService.send_raw_message", new_callable=AsyncMock) as mock_raw, \
+         patch("app.infrastructure.telegram.bot_service.TelegramBotService.pin_message", new_callable=AsyncMock) as mock_pin, \
          patch("app.infrastructure.queue.worker.enrich_geoip", new_callable=AsyncMock) as mock_geo:
         mock_send.return_value = 12345
         mock_upd.return_value = True
@@ -39,6 +44,7 @@ def mock_external_network_calls():
         mock_markup.return_value = True
         mock_del.return_value = True
         mock_raw.return_value = True
+        mock_pin.return_value = True
         mock_geo.return_value = {"country": "Localhost", "city": "Test City", "isp": "Test ISP"}
         yield
 
@@ -397,6 +403,65 @@ async def test_deduplication_and_webhook_secret():
             assert res_good_token.json().get("ok") is True
         finally:
             settings.TELEGRAM_WEBHOOK_SECRET = orig_secret
+
+
+
+@pytest.mark.asyncio
+async def test_lead_auto_pinning():
+    """
+    Проверяет, что при отправке заявки в Telegram-чат инженеров
+    бот автоматически вызывает pinChatMessage и закрепляет заявку.
+    """
+    from app.core.config import get_settings
+    from app.infrastructure.telegram.bot_service import TelegramBotService
+    from app.infrastructure.db.models import Lead
+    from app.domain.entities import LeadStatus
+    from unittest.mock import MagicMock
+
+    current_settings = get_settings()
+
+    lead = Lead(
+        id=999,
+        name="Иван Тестов",
+        contact="@ivan_test",
+        task_description="Разработка Telegram-бота",
+        budget="50 000 ₽",
+        status=LeadStatus.PENDING
+    )
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        send_resp = MagicMock()
+        send_resp.status_code = 200
+        send_resp.json.return_value = {"ok": True, "result": {"message_id": 888777}}
+        mock_post.return_value = send_resp
+
+        orig_token = current_settings.TELEGRAM_BOT_TOKEN
+        orig_chat = current_settings.TELEGRAM_CHAT_ID
+        try:
+            current_settings.TELEGRAM_BOT_TOKEN = "123456:TEST_TOKEN"
+            current_settings.TELEGRAM_CHAT_ID = "-100123456789"
+
+            # 1. Проверяем, что send_lead_notification вызывает pin_message
+            msg_id = await _original_send_lead_notification(lead)
+            assert msg_id == 888777
+            TelegramBotService.pin_message.assert_called_with("-100123456789", 888777)
+
+            # 2. Проверяем реализацию pin_message с сетевым вызовом pinChatMessage
+            pin_resp = MagicMock()
+            pin_resp.status_code = 200
+            pin_resp.json.return_value = {"ok": True, "result": True}
+            mock_post.return_value = pin_resp
+
+            pin_result = await _original_pin_message("-100123456789", 888777)
+            assert pin_result is True
+
+            call_args = mock_post.call_args
+            assert "pinChatMessage" in call_args[0][0]
+            assert call_args[1]["json"]["message_id"] == 888777
+            assert call_args[1]["json"]["chat_id"] == "-100123456789"
+        finally:
+            current_settings.TELEGRAM_BOT_TOKEN = orig_token
+            current_settings.TELEGRAM_CHAT_ID = orig_chat
 
 
 if __name__ == "__main__":

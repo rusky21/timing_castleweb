@@ -88,3 +88,9 @@ imported_cases/scratch/
 imported_cases/.agents/
 
 
+
+# Local temporary screenshots & archives
+scratch_*.png
+generate_perfect_screens.py
+скрины.rar
+скрины/

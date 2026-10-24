@@ -513,6 +513,42 @@ async def request_parser_clear_history(tg_user_id: str | int, clear_all: bool = 
     raise RuntimeError(f"Parser API unavailable: {last_error}")
 
 
+
+async def request_parser_cleanup_db() -> dict:
+    """
+    Запрашивает очистку базы данных SQLite, сброс WAL и VACUUM в LeadHunter.
+    """
+    configured_url = (getattr(settings, "PARSER_INTERNAL_URL", "") or os.environ.get("PARSER_INTERNAL_URL", "")).strip()
+    raw_urls = [
+        "http://leadhunter:8000",
+        configured_url,
+        "http://127.0.0.1:8080",
+        "http://localhost:8080",
+    ]
+    internal_urls = []
+    for u in raw_urls:
+        if u and u.rstrip("/") not in internal_urls:
+            internal_urls.append(u.rstrip("/"))
+
+    configured_secret = (getattr(settings, "INTERNAL_API_SECRET", "") or os.environ.get("INTERNAL_API_SECRET", "")).strip()
+    secrets_to_try = [s for s in dict.fromkeys([configured_secret, "castleweb-internal-demo-secret"]) if s]
+
+    last_error = None
+    for secret in secrets_to_try:
+        for base_url in internal_urls:
+            url = f"{base_url}/api/settings/cleanup"
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    resp = await client.post(url, headers={"X-Internal-Secret": secret})
+                    if resp.status_code == 200:
+                        return resp.json()
+                    last_error = f"HTTP {resp.status_code}: {resp.text}"
+            except Exception as e:
+                last_error = str(e)
+
+    raise RuntimeError(f"Parser API unavailable: {last_error}")
+
+
 def format_user_cabinet(res: dict, parser_public_url: str, new_pass: str | None = None) -> tuple[str, dict]:
     """
     Формирует красивый интерфейс Личного Кабинета подписчика LeadHunter в Telegram:
@@ -1643,7 +1679,7 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 f"• /server (или /sys) — состояние сервера (CPU, RAM, диск, аптайм)\n"
                 f"• /admin — админ-панель и вход в LeadHunter\n"
                 f"• /lk — Личный кабинет LeadHunter (тариф, лимиты, сброс пароля)\n"
-                f"• /clear_history — очистить историю своих поисков в LeadHunter\n"
+                f"• /clear_history — очистить историю своих поисков в LeadHunter\n                • /cleanup_db (или /vacuum) — освободить память и сжать SQLite БД\n"
                 f"• /cases — портфолио и кейсы студии\n"
                 f"• /id — узнать свой Telegram ID и права"
             )
@@ -1668,6 +1704,35 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
             except Exception as e:
                 logger.error(f"Error clearing history via command: {e}")
                 await send_reply_message(chat_id, "⚠️ Не удалось очистить историю. Убедитесь, что у вас есть зарегистрированный аккаунт в LeadHunter.")
+            return {"ok": True}
+
+        # Команда очистки БД парсера и дискового пространства (/cleanup_db или /vacuum)
+        if text.startswith("/cleanup_db") or text.startswith("/vacuum"):
+            if not is_admin:
+                await send_reply_message(chat_id, "🚫 Команда доступна только администраторам студии.")
+                return {"ok": True}
+            await send_reply_message(chat_id, "🧹 Запуск оптимизации SQLite, сброса WAL и очистки диска LeadHunter...")
+            try:
+                res = await request_parser_cleanup_db()
+                freed = res.get("freed_mb", 0.0)
+                orders_del = res.get("orders_deleted", 0)
+                camps_del = res.get("campaigns_deleted", 0)
+                files_del = res.get("screenshots_deleted", 0) + res.get("exports_deleted", 0)
+                dur = res.get("duration_sec", 0)
+                msg = (
+                    f"✅ <b>Очистка базы данных LeadHunter завершена!</b>\n\n"
+                    f"• Удалено старых заказов: <b>{orders_del}</b>\n"
+                    f"• Удалено старых кампаний: <b>{camps_del}</b>\n"
+                    f"• Удалено временных файлов: <b>{files_del}</b>\n"
+                    f"• Размер БД до: <b>{res.get('db_size_before_mb', 0)} MB</b>\n"
+                    f"• Размер БД после: <b>{res.get('db_size_after_mb', 0)} MB</b>\n"
+                    f"• <b>Освобождено памяти на диске: {freed} MB</b>\n"
+                    f"• Время выполнения: <i>{dur}с</i>"
+                )
+                await send_reply_message(chat_id, msg)
+            except Exception as e:
+                logger.error(f"Error in /cleanup_db: {e}")
+                await send_reply_message(chat_id, f"⚠️ Ошибка очистки БД: {e}")
             return {"ok": True}
 
         # 0. Личный кабинет подписчика / пользователя LeadHunter (/lk, /cabinet, /profile)
