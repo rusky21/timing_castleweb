@@ -127,9 +127,31 @@ class TelegramBotService:
                     logger.info(f"Холодный старт Cloudflare ({e}), повторная попытка {get_me_attempt}/3 через {2.0 * get_me_attempt}с...")
                     await asyncio.sleep(2.0 * get_me_attempt)
 
+            # Проверяем, включен ли поллинг входящих сообщений
+            polling_enabled = os.environ.get("TELEGRAM_POLLING_ENABLED", "true").strip().lower() in ("1", "true", "yes")
+
+            if not polling_enabled:
+                logger.info(f"ℹ️ Поллинг Telegram-бота @{me.username} отключен (TELEGRAM_POLLING_ENABLED=false). Бот работает в режиме отправки уведомлений.")
+            else:
+                try:
+                    webhook_info = await asyncio.wait_for(self.bot.get_webhook_info(), timeout=10.0)
+                    if webhook_info and webhook_info.url:
+                        logger.warning(
+                            f"ℹ️ Для бота @{me.username} обнаружен активный Webhook ({webhook_info.url}).\n"
+                            f"   Telegram API запрещает параллельный polling (getUpdates) при активном Webhook.\n"
+                            f"   Поллинг входящих сообщений LeadHunter отключен во избежание конфликта (TelegramConflictError).\n"
+                            f"   Бот работает в режиме отправки уведомлений (outbound alerts)."
+                        )
+                        polling_enabled = False
+                except Exception as e:
+                    logger.debug(f"Не удалось проверить get_webhook_info: {e}")
+
             self._is_running = True
-            self._polling_task = asyncio.create_task(self._run_polling())
-            logger.info(f"✅ Telegram-бот успешно запущен: @{me.username} ({me.full_name})")
+            if polling_enabled:
+                self._polling_task = asyncio.create_task(self._run_polling())
+                logger.info(f"✅ Telegram-бот успешно запущен в режиме polling: @{me.username} ({me.full_name})")
+            else:
+                logger.info(f"✅ Telegram-бот успешно инициализирован (режим отправки уведомлений): @{me.username} ({me.full_name})")
 
         except (asyncio.TimeoutError, Exception) as e:
             err_str = str(e) or type(e).__name__
@@ -150,6 +172,12 @@ class TelegramBotService:
                 break
             except Exception as e:
                 if not self._is_running:
+                    break
+                err_msg = str(e).lower()
+                if "webhook is active" in err_msg or "conflict" in err_msg:
+                    logger.warning(
+                        f"ℹ️ Для бота активен Webhook. Поллинг входящих команд остановлен во избежание конфликта. Бот продолжает отправку уведомлений."
+                    )
                     break
                 logger.error(f"Сетевой сбой в цикле опроса Telegram ({e}). Перезапуск polling через 2с...", exc_info=True)
                 await asyncio.sleep(2)
