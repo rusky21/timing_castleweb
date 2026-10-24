@@ -1293,9 +1293,15 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
         text = msg.get("text", "") or msg.get("caption", "")
         text = text.strip()
 
-        # Регистрация администраторов студии для персональных уведомлений
+        # Определение прав администратора студии и регистрация чатов
         clean_user = (username or "").lower().lstrip("@")
-        if clean_user in ("kupidon996", "ya_emildjan", "castleweb_admin", "admin") or str(from_id) == "1878543896":
+        admin_ids = [str(x) for x in getattr(settings, "TELEGRAM_ADMIN_IDS", [])] if hasattr(settings, "TELEGRAM_ADMIN_IDS") else []
+        is_admin = (
+            clean_user in ("kupidon996", "ya_emildjan", "castleweb_admin", "admin")
+            or str(from_id) in ("1878543896", str(settings.TELEGRAM_CHAT_ID), *admin_ids)
+            or str(chat_id) == str(settings.TELEGRAM_CHAT_ID)
+        )
+        if is_admin:
             if from_id:
                 KNOWN_ADMIN_CHATS.add(str(from_id))
             if chat_id and chat_type == "private":
@@ -1627,13 +1633,7 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
             return {"ok": True}
 
         elif text.startswith("/admin"):
-            clean_user = (username or "").lower().lstrip("@")
-            is_adm = (
-                clean_user in ("kupidon996", "ya_emildjan", "castleweb_admin", "admin")
-                or str(from_id) in ("1878543896", str(settings.TELEGRAM_CHAT_ID))
-                or str(chat_id) == str(settings.TELEGRAM_CHAT_ID)
-            )
-            if not is_adm:
+            if not is_admin:
                 await send_reply_message(chat_id, "⛔️ Доступ ограничен. Команда доступна только администраторам студии.")
                 return {"ok": True}
 
