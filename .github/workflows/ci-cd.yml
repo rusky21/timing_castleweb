@@ -42,6 +42,9 @@ jobs:
     needs: test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
+    # На уровне job: env самого шага в его if ещё не доступен, и шаг всегда пропускался
+    env:
+      HAS_SSH_SECRETS: ${{ secrets.PROD_HOST != '' }}
 
     steps:
       - name: 📥 Checkout repository
@@ -50,8 +53,6 @@ jobs:
       - name: 🔑 Deploy to VPS via SSH
         uses: appleboy/ssh-action@v1.0.3
         if: env.HAS_SSH_SECRETS == 'true'
-        env:
-          HAS_SSH_SECRETS: ${{ secrets.PROD_HOST != '' }}
         with:
           host: ${{ secrets.PROD_HOST }}
           username: ${{ secrets.PROD_USER }}
