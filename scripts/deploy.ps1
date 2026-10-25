@@ -229,11 +229,12 @@ server {
 
     client_max_body_size 50M;
 
-    # Frontend SPA static
+    # Frontend static pages
     location / {
         root /var/www/castleweb/frontend;
         index index.html;
-        try_files `$uri `$uri/ /index.html;
+        try_files `$uri `$uri.html `$uri/ =404;
+        error_page 404 /404.html;
     }
 
     # Hashed assets

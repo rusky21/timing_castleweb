@@ -121,10 +121,13 @@ if FRONTEND_DIST.exists() and (FRONTEND_DIST / "index.html").exists():
         target = (FRONTEND_DIST / full_path).resolve()
         if full_path and target.is_relative_to(FRONTEND_DIST) and target.is_file():
             return FileResponse(target)
-        # Multi-page fallback: /cases -> cases.html, /brief -> brief.html
+        # Multi-page fallback: /cases -> cases.html, /cases/aria -> cases/aria.html
         html_target = (FRONTEND_DIST / f"{full_path}.html").resolve()
         if html_target.is_relative_to(FRONTEND_DIST) and html_target.is_file():
             return FileResponse(html_target)
+        not_found = FRONTEND_DIST / "404.html"
+        if not_found.is_file():
+            return FileResponse(not_found, status_code=404)
         return FileResponse(FRONTEND_DIST / "index.html")
 else:
     @app.get("/", summary="Root Index")

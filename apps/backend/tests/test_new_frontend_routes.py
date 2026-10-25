@@ -24,16 +24,18 @@ async def test_frontend_routes():
         assert "cases" in r_cases.text.lower()
         print("Route /cases: OK (200)")
 
-        # 3. /case-aria
-        r_aria = await ac.get("/case-aria")
+        # 3. /cases/aria (nested case page)
+        r_aria = await ac.get("/cases/aria")
         assert r_aria.status_code == 200
         assert "ARIA" in r_aria.text
-        print("Route /case-aria: OK (200)")
+        print("Route /cases/aria: OK (200)")
 
-        # 4. /assets/lenis.min.js
-        r_lenis = await ac.get("/assets/lenis.min.js")
-        assert r_lenis.status_code == 200
-        print("Asset /assets/lenis.min.js: OK (200)")
+        # 4. Static files from public/ and unknown pages
+        r_robots = await ac.get("/robots.txt")
+        assert r_robots.status_code == 200
+        r_missing = await ac.get("/no-such-page")
+        assert r_missing.status_code == 404
+        print("Static /robots.txt: OK (200), unknown page: 404")
 
         # 5. Lead form submission
         lead_payload = {

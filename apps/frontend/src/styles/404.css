@@ -1,0 +1,71 @@
+/* Страница 404: картина-мозаика на весь экран, поверх — карточка с текстом */
+.nf {
+  min-height: 100vh;
+  min-height: 100svh;
+  background: #1C222E;
+  color: var(--paper);
+  overflow: hidden;
+}
+.nf__art { position: fixed; inset: 0; }
+.nf__art canvas { width: 100%; height: 100%; cursor: crosshair; }
+.nf__art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 22% 70%, rgba(10, 13, 22, 0.78), rgba(10, 13, 22, 0) 60%);
+  pointer-events: none;
+}
+
+.nf__top {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px var(--gutter);
+  pointer-events: none;
+}
+.nf__top a { pointer-events: auto; }
+.logo { display: inline-flex; align-items: center; gap: 10px; font-size: 1.0625rem; font-weight: 700; letter-spacing: -0.03em; }
+.nf__hint { font-size: var(--fs-s); color: rgba(255, 255, 255, 0.7); }
+@media (hover: none), (max-width: 599.98px) { .nf__hint { display: none; } }
+
+.nf__card {
+  position: absolute;
+  z-index: 2;
+  left: var(--gutter);
+  bottom: clamp(24px, 8vh, 96px);
+  display: grid;
+  justify-items: start;
+  gap: 18px;
+  max-width: min(560px, calc(100vw - 2 * var(--gutter)));
+  pointer-events: none;
+}
+.nf__card a { pointer-events: auto; }
+.nf__code {
+  font-size: clamp(6rem, 3rem + 14vw, 15rem);
+  font-weight: 300;
+  line-height: 0.8;
+  letter-spacing: -0.08em;
+  text-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+}
+.nf__code span { color: #F2C67F; }
+.nf__title { font-size: clamp(1.75rem, 1.1rem + 2.4vw, 3rem); line-height: 1.05; letter-spacing: -0.05em; }
+.nf__text { color: rgba(245, 245, 243, 0.78); max-width: 44ch; }
+.nf__actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+.nf__ghost { background: rgba(255, 255, 255, 0.12); color: var(--paper); }
+.nf__ghost:hover { color: var(--white); }
+.nf__path { font-family: var(--mono); font-size: 0.75rem; color: rgba(245, 245, 243, 0.5); word-break: break-all; }
+.nf :focus-visible { outline-color: #8FA6FF; }
+
+/* «0» мерцает, как огонь в окне башни */
+@media (prefers-reduced-motion: no-preference) {
+  .nf__code span { animation: flicker 3.2s infinite; }
+}
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  42% { opacity: 1; }
+  45% { opacity: 0.55; }
+  48% { opacity: 1; }
+  70% { opacity: 0.85; }
+}

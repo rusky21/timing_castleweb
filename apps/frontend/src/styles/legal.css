@@ -1,0 +1,112 @@
+/* Юридические страницы: та же типографика сайта, спокойная читаемая вёрстка */
+
+.lheader {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(245, 245, 243, 0.86);
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.3s;
+}
+@supports (backdrop-filter: blur(1px)) {
+  .lheader { background: rgba(245, 245, 243, 0.72); backdrop-filter: saturate(1.6) blur(16px); }
+}
+.lheader.is-scrolled { border-bottom-color: var(--line); }
+.lheader__inner { display: flex; align-items: center; justify-content: space-between; height: var(--header); }
+.lheader .btn { min-height: 42px; padding: 8px 20px; }
+.logo { display: inline-flex; align-items: center; gap: 10px; font-size: 1.0625rem; font-weight: 700; letter-spacing: -0.03em; }
+
+.legal { padding-bottom: var(--section); }
+.legal__hero {
+  display: grid;
+  justify-items: start;
+  gap: 20px;
+  padding-block: clamp(48px, 8vw, 120px) clamp(48px, 6vw, 88px);
+}
+.legal__back { font-size: var(--fs-s); font-weight: 600; color: var(--muted); transition: color 0.2s; }
+.legal__back:hover { color: var(--sea); }
+.legal__title {
+  max-width: 16ch;
+  font-size: clamp(2.4rem, 1.2rem + 4.4vw, 5.5rem);
+  font-weight: 500;
+  line-height: 0.98;
+  letter-spacing: -0.06em;
+  text-wrap: balance;
+}
+.legal__lead { max-width: 56ch; font-size: clamp(1rem, 0.95rem + 0.3vw, 1.1875rem); color: var(--muted); }
+.legal__date {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--white);
+  font-size: var(--fs-s);
+  font-weight: 600;
+}
+
+.legal__grid { display: grid; gap: 48px; }
+@media (min-width: 1000px) {
+  .legal__grid { grid-template-columns: minmax(0, 1fr) minmax(0, 2.2fr); gap: clamp(48px, 7vw, 128px); }
+  .legal__aside { position: sticky; top: calc(var(--header) + 32px); align-self: start; }
+}
+
+.legal__aside { display: grid; gap: 36px; align-content: start; }
+.toc__label { margin-bottom: 12px; font-size: var(--fs-s); color: var(--muted); }
+.toc ol, .docs ul { display: grid; gap: 2px; }
+.toc a, .docs a {
+  display: flex;
+  gap: 12px;
+  padding: 7px 12px;
+  margin-left: -12px;
+  border-radius: 10px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--muted);
+  transition: background-color 0.2s, color 0.2s;
+}
+.toc a span { min-width: 22px; font-size: var(--fs-s); font-variant-numeric: tabular-nums; opacity: 0.7; }
+.toc a:hover, .docs a:hover { color: var(--ink); background: var(--soft); }
+.toc a.is-active { color: var(--ink); background: var(--white); }
+.docs a[aria-current="page"] { color: var(--sea); }
+@media (max-width: 999.98px) {
+  .toc { display: none; }
+}
+
+.legal__body { display: grid; gap: clamp(40px, 5vw, 64px); }
+.clause { scroll-margin-top: calc(var(--header) + 24px); }
+.clause h2 {
+  display: flex;
+  gap: 16px;
+  align-items: baseline;
+  margin-bottom: 20px;
+  font-size: clamp(1.5rem, 1.1rem + 1.2vw, 2.25rem);
+  font-weight: 500;
+  line-height: 1.1;
+  letter-spacing: -0.045em;
+}
+.clause h2 span { font-size: var(--fs-s); font-weight: 700; letter-spacing: 0; color: var(--sea); font-variant-numeric: tabular-nums; }
+.clause__text { display: grid; gap: 14px; max-width: 68ch; font-size: 1.0625rem; line-height: 1.65; }
+.clause__text ul { display: grid; gap: 8px; }
+.clause__text li { display: flex; gap: 12px; }
+.clause__text li::before { content: ""; flex: none; width: 6px; height: 6px; margin-top: 0.7em; border-radius: 50%; background: var(--sea); }
+.clause__text a { color: var(--sea); text-decoration: underline; text-underline-offset: 3px; }
+.clause__text b { font-weight: 700; }
+
+/* Поля, которые нужно заполнить реквизитами */
+mark.fill {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: #FFF0C2;
+  color: #6B5A10;
+}
+
+.lfooter { background: var(--night); color: var(--night-muted); }
+.lfooter__inner {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px 32px;
+  padding-block: 28px;
+  font-size: var(--fs-s);
+}
+.lfooter nav { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+.lfooter a { transition: color 0.2s; }
+.lfooter a:hover { color: var(--paper); }

@@ -1,0 +1,36 @@
+:root {
+  /* Цвет */
+  --paper: #F5F5F3;
+  --ink: #141414;
+  --muted: #6A6A67;
+  --line: #DCDCD8;
+  --soft: #EAEAE6;
+  --sea: #2747C9;
+  --sea-soft: #DCE3FA;
+  --night: #121212;
+  --night-line: #2C2C2C;
+  --night-muted: #A2A29E;
+  --white: #FFFFFF;
+
+  /* Шрифт: Manrope переменной насыщенности 200–800 */
+  --sans: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+  /* Шкала */
+  --fs-display: clamp(2.6rem, 1rem + 6.4vw, 7.5rem);
+  --fs-h2: clamp(2.1rem, 1.2rem + 3.4vw, 4.5rem);
+  --fs-h3: clamp(1.375rem, 1.1rem + 1vw, 2rem);
+  --fs-body: 1rem;
+  --fs-s: 0.875rem;
+
+  /* Ритм */
+  --gutter: clamp(16px, 4vw, 56px);
+  --gap: clamp(16px, 2vw, 32px);
+  --max: 1600px;
+  --section: clamp(112px, 13vw, 200px);
+  --radius: clamp(12px, 1.2vw, 20px);
+  --header: 72px;
+
+  --ease: cubic-bezier(0.22, 0.8, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}

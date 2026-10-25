@@ -1,33 +1,38 @@
 import { defineConfig } from 'vite';
-import { resolve } from 'path';
+import { resolve } from 'node:path';
+
+const page = (name) => resolve(import.meta.dirname, name);
 
 export default defineConfig({
+  // Папка проекта лежит в OneDrive: нативные события файловой системы теряются, поэтому polling
+  // /api проксируется на локальный FastAPI (uvicorn на :8000), как и на проде через nginx
   server: {
     port: 5173,
-    host: true,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:8000',
-        changeOrigin: true,
-      },
-    },
+    strictPort: true,
+    watch: { usePolling: true, interval: 300 },
+    proxy: { '/api': { target: 'http://127.0.0.1:8000', changeOrigin: true } },
+  },
+  preview: {
+    port: 4173,
+    strictPort: true,
+    proxy: { '/api': { target: 'http://127.0.0.1:8000', changeOrigin: true } },
   },
   build: {
-    outDir: 'dist',
-    emptyOutDir: true,
     rollupOptions: {
       input: {
-        main: resolve(__dirname, 'index.html'),
-        cases: resolve(__dirname, 'cases.html'),
-        case_alex_vance: resolve(__dirname, 'case-alex-vance.html'),
-        case_apex: resolve(__dirname, 'case-apex.html'),
-        case_aria: resolve(__dirname, 'case-aria.html'),
-        case_hytte: resolve(__dirname, 'case-hytte.html'),
-        case_onyx: resolve(__dirname, 'case-onyx.html'),
-        case_sport_m: resolve(__dirname, 'case-sport-m.html'),
-        case_vegas: resolve(__dirname, 'case-vegas.html'),
-        privacy: resolve(__dirname, 'privacy.html'),
-        terms: resolve(__dirname, 'terms.html'),
+        main: page('index.html'),
+        privacy: page('privacy.html'),
+        terms: page('terms.html'),
+        consent: page('consent.html'),
+        cookies: page('cookies.html'),
+        cases: page('cases.html'),
+        aria: page('cases/aria.html'),
+        onyx: page('cases/onyx.html'),
+        hytte: page('cases/hytte.html'),
+        sport: page('cases/sport.html'),
+        photo: page('cases/photo.html'),
+        vegas: page('cases/vegas.html'),
+        notFound: page('404.html'),
       },
     },
   },

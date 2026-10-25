@@ -1,809 +1,173 @@
-<!DOCTYPE html>
-<html lang="ru" data-theme="dark">
+<!doctype html>
+<html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Условия сервиса — Castleweb Studio</title>
-  <meta name="description" content="Условия сервиса, порядок оказания услуг и правила взаимодействия с клиентами Castleweb Studio.">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <style>
-    /* --------------------------------------------------
-       RESET & BASE TOKENS (Строго по DESIGN_RULES.md)
-       -------------------------------------------------- */
-    *, *::before, *::after {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    :root {
-      /* Dark theme tokens */
-      --canvas-bg: #0C0C0E;
-      --text-primary: #FFFFFF;
-      --text-muted: #8E8E93;
-      --nav-link: #8E8E93;
-      --nav-link-hover: #FFFFFF;
-      --nav-pill-bg: #222225;
-      --nav-pill-text: #FFFFFF;
-      --nav-pill-hover: #2C2C30;
-      --btn-bg: #FFFFFF;
-      --btn-text: #000000;
-      --btn-hover: #E5E5EA;
-      --dropdown-bg: #161618;
-      --dropdown-hover: #222226;
-      --tape-orange: #E85934;
-      --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
-      --font-mono: 'JetBrains Mono', monospace;
-
-      /* Контрастный подвал: в темной теме сайта подвал светлый */
-      --footer-bg: #FFFFFF;
-      --footer-text: #000000;
-      --footer-muted: #71717A;
-      --footer-col-heading: #8E8E93;
-      --footer-link: #52525B;
-      --footer-link-hover: #000000;
-      --footer-giant-brand: #18181B;
-      --footer-icon-color: #52525B;
-    }
-
-    [data-theme="light"] {
-      /* Light theme tokens */
-      --canvas-bg: #FFFFFF;
-      --text-primary: #000000;
-      --text-muted: #666666;
-      --nav-link: #71717A;
-      --nav-link-hover: #111111;
-      --nav-pill-bg: #F0F0F2;
-      --nav-pill-text: #111111;
-      --nav-pill-hover: #E5E5E8;
-      --btn-bg: #000000;
-      --btn-text: #FFFFFF;
-      --btn-hover: #1F1F1F;
-      --dropdown-bg: #F5F5F7;
-      --dropdown-hover: #EBEBEF;
-
-      /* Контрастный подвал: в светлой теме сайта подвал темный */
-      --footer-bg: #0C0C0E;
-      --footer-text: #FFFFFF;
-      --footer-muted: #8E8E93;
-      --footer-col-heading: #71717A;
-      --footer-link: #A1A1A6;
-      --footer-link-hover: #FFFFFF;
-      --footer-giant-brand: #9E9EA6;
-      --footer-icon-color: #8E8E93;
-    }
-
-    html {
-      scroll-behavior: smooth;
-    }
-
-    body {
-      background-color: var(--canvas-bg);
-      color: var(--text-primary);
-      font-family: var(--font-family);
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      overflow-x: hidden;
-      transition: background-color 0.25s ease, color 0.25s ease;
-    }
-
-    /* --------------------------------------------------
-       TOP NAVIGATION BAR
-       -------------------------------------------------- */
-    .site-header {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 76px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 40px;
-      z-index: 100;
-      background-color: transparent;
-      pointer-events: none;
-    }
-
-    .header-left,
-    .header-nav,
-    .header-right {
-      pointer-events: auto;
-    }
-
-    .header-left {
-      display: flex;
-      align-items: center;
-      min-width: 180px;
-    }
-
-    .brand-logo {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      text-decoration: none;
-      color: var(--text-primary);
-    }
-
-    .logo-mark {
-      width: 24px;
-      height: 24px;
-      display: block;
-    }
-
-    .brand-name {
-      font-size: 15px;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      color: var(--text-primary);
-    }
-
-    .header-nav {
-      display: flex;
-      align-items: center;
-      gap: 22px;
-    }
-
-    .nav-link {
-      font-size: 13.5px;
-      font-weight: 500;
-      color: var(--nav-link);
-      text-decoration: none;
-      letter-spacing: -0.01em;
-      transition: color 0.18s ease;
-      display: inline-flex;
-      align-items: center;
-      padding: 8px 12px;
-      background: none;
-      border: none;
-      cursor: pointer;
-      font-family: inherit;
-    }
-
-    .nav-link:hover {
-      color: var(--nav-link-hover);
-    }
-
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      min-width: 180px;
-      justify-content: flex-end;
-    }
-
-    .header-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      background-color: var(--btn-bg);
-      color: var(--btn-text);
-      font-size: 13px;
-      font-weight: 500;
-      padding: 9px 18px;
-      border-radius: 9999px;
-      text-decoration: none;
-      border: none;
-      cursor: pointer;
-      transition: background-color 0.18s ease, transform 0.15s ease;
-    }
-
-    .header-btn:hover {
-      background-color: var(--btn-hover);
-    }
-
-    .theme-toggle-btn {
-      background: none;
-      border: none;
-      color: var(--nav-link);
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 32px;
-      height: 32px;
-      border-radius: 9999px;
-      transition: color 0.18s ease, background-color 0.18s ease;
-    }
-
-    .theme-toggle-btn:hover {
-      color: var(--nav-link-hover);
-      background-color: var(--nav-pill-bg);
-    }
-
-    /* --------------------------------------------------
-       LEGAL ARTICLE CONTENT (EDITORIAL OPEN AIR)
-       -------------------------------------------------- */
-    .legal-main {
-      flex: 1;
-      width: 100%;
-      max-width: 960px;
-      margin: 0 auto;
-      padding: clamp(120px, 11vw, 160px) clamp(24px, 4.5vw, 60px) clamp(60px, 8vw, 100px);
-    }
-
-    .legal-back-nav {
-      margin-bottom: 32px;
-    }
-
-    .back-link-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--nav-link);
-      text-decoration: none;
-      background-color: var(--nav-pill-bg);
-      padding: 7px 16px;
-      border-radius: 9999px;
-      transition: background-color 0.18s ease, color 0.18s ease;
-    }
-
-    .back-link-pill:hover {
-      background-color: var(--nav-pill-hover);
-      color: var(--nav-link-hover);
-    }
-
-    .legal-badge {
-      display: inline-block;
-      font-family: var(--font-mono);
-      font-size: 11px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--tape-orange);
-      font-weight: 600;
-      margin-bottom: 14px;
-    }
-
-    .legal-title {
-      font-size: clamp(34px, 4.2vw, 54px);
-      font-weight: 800;
-      line-height: 1.1;
-      letter-spacing: -0.035em;
-      color: var(--text-primary);
-      margin-bottom: 18px;
-    }
-
-    .legal-meta {
-      font-size: 14px;
-      color: var(--text-muted);
-      line-height: 1.5;
-      margin-bottom: 48px;
-    }
-
-    .legal-meta span {
-      display: inline-block;
-      margin-right: 16px;
-    }
-
-    /* Section Styling */
-    .legal-section {
-      margin-bottom: 44px;
-    }
-
-    .legal-section-number {
-      font-family: var(--font-mono);
-      font-size: 12px;
-      color: var(--text-muted);
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      font-weight: 600;
-      margin-bottom: 6px;
-    }
-
-    .legal-section-title {
-      font-size: clamp(20px, 2.2vw, 26px);
-      font-weight: 700;
-      letter-spacing: -0.025em;
-      line-height: 1.25;
-      color: var(--text-primary);
-      margin-bottom: 14px;
-    }
-
-    .legal-p {
-      font-size: 15.5px;
-      line-height: 1.68;
-      color: var(--text-muted);
-      margin-bottom: 14px;
-      font-weight: 400;
-      letter-spacing: -0.01em;
-    }
-
-    .legal-p strong {
-      color: var(--text-primary);
-      font-weight: 600;
-    }
-
-    .legal-list {
-      list-style: none;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      margin: 14px 0 18px 0;
-    }
-
-    .legal-list-item {
-      font-size: 15px;
-      line-height: 1.6;
-      color: var(--text-muted);
-      display: flex;
-      align-items: baseline;
-      gap: 10px;
-    }
-
-    .legal-list-item::before {
-      content: "—";
-      color: var(--tape-orange);
-      font-weight: 600;
-      flex-shrink: 0;
-    }
-
-    .legal-link {
-      color: var(--text-primary);
-      text-decoration: underline;
-      text-underline-offset: 3px;
-      transition: opacity 0.18s ease;
-    }
-
-    .legal-link:hover {
-      opacity: 0.75;
-    }
-
-    /* --------------------------------------------------
-       CONTRAST SITE FOOTER (COSMOS MINIMALIST STYLE)
-       -------------------------------------------------- */
-    .site-footer {
-      width: 100%;
-      background-color: var(--footer-bg);
-      color: var(--footer-text);
-      padding: clamp(64px, 6vw, 100px) clamp(24px, 4.5vw, 72px) clamp(48px, 5vw, 80px);
-      transition: background-color 0.25s ease, color 0.25s ease;
-      position: relative;
-      overflow: hidden;
-      margin-top: 60px;
-    }
-
-    .footer-container {
-      max-width: 1600px;
-      margin: 0 auto;
-      width: 100%;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .footer-top-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: clamp(40px, 6vw, 120px);
-      width: 100%;
-    }
-
-    .footer-brand-col {
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-      max-width: 440px;
-    }
-
-    .footer-symbol {
-      display: inline-flex;
-      align-items: center;
-      color: var(--footer-icon-color);
-      transition: color 0.2s ease;
-    }
-
-    .footer-constellation-icon {
-      display: block;
-      width: 22px;
-      height: 22px;
-      transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), color 0.2s ease;
-    }
-
-    .footer-symbol:hover .footer-constellation-icon {
-      transform: rotate(45deg);
-      color: var(--footer-text);
-    }
-
-    .footer-tagline {
-      font-family: var(--font-family);
-      font-size: clamp(15px, 1.25vw, 18px);
-      line-height: 1.45;
-      font-weight: 450;
-      color: var(--footer-text);
-      letter-spacing: -0.015em;
-    }
-
-    .footer-nav-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(110px, auto));
-      gap: clamp(36px, 5.5vw, 96px);
-      align-items: flex-start;
-    }
-
-    .footer-nav-col {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .footer-col-heading {
-      font-family: var(--font-family);
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--footer-col-heading);
-      user-select: none;
-    }
-
-    .footer-link-list {
-      list-style: none;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 11px;
-    }
-
-    .footer-link {
-      font-family: var(--font-family);
-      font-size: 14px;
-      font-weight: 450;
-      color: var(--footer-link);
-      text-decoration: none;
-      letter-spacing: -0.01em;
-      transition: color 0.18s ease, transform 0.18s ease;
-      display: inline-block;
-    }
-
-    .footer-link:hover {
-      color: var(--footer-link-hover);
-      transform: translateX(3px);
-    }
-
-    .footer-bottom-stage {
-      width: 100%;
-      margin-top: clamp(48px, 5.5vw, 84px);
-      padding: 0;
-      overflow: hidden;
-      user-select: none;
-      display: flex;
-      justify-content: flex-start;
-      align-items: baseline;
-    }
-
-    .footer-giant-title {
-      display: inline-flex;
-      align-items: baseline;
-      gap: clamp(8px, 1.2vw, 20px);
-      line-height: 1;
-      margin: 0;
-      width: 100%;
-    }
-
-    .footer-giant-letters {
-      font-family: var(--font-family);
-      font-size: clamp(36px, 8.2vw, 130px);
-      font-weight: 800;
-      letter-spacing: -0.035em;
-      text-transform: uppercase;
-      color: var(--footer-giant-brand);
-      display: inline-block;
-      white-space: nowrap;
-      line-height: 1;
-      transition: color 0.25s ease;
-    }
-
-    .footer-giant-copy {
-      font-family: var(--font-family);
-      font-size: clamp(14px, 2.2vw, 36px);
-      font-weight: 700;
-      color: var(--footer-giant-brand);
-      line-height: 1;
-      transform: translateY(-0.12em);
-      margin: 0;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      transition: color 0.25s ease;
-    }
-
-    /* Responsive Queries */
-    @media (max-width: 900px) {
-      .site-header {
-        padding: 0 20px;
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Пользовательское соглашение — Castleweb</title>
+  <meta name="description" content="Условия использования сайта castleweb.ru. Пользуясь сайтом, вы принимаете эти условия в соответствии со ст. 438 Гражданского кодекса РФ." />
+  <meta name="theme-color" content="#F5F5F3" />
+  <!-- seo -->
+  <link rel="canonical" href="https://castleweb.ru/terms.html" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="icon" href="/icon-32.png" sizes="32x32" type="image/png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Castleweb" />
+  <meta property="og:locale" content="ru_RU" />
+  <meta property="og:url" content="https://castleweb.ru/terms.html" />
+  <meta property="og:title" content="Пользовательское соглашение — Castleweb" />
+  <meta property="og:description" content="Условия использования сайта castleweb.ru. Пользуясь сайтом, вы принимаете эти условия в соответствии со ст. 438 Гражданского кодекса РФ." />
+  <meta property="og:image" content="https://castleweb.ru/og/default.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Главная",
+            "item": "https://castleweb.ru/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Соглашение",
+            "item": "https://castleweb.ru/terms.html"
+          }
+        ]
       }
-      .header-nav {
-        display: none;
-      }
-      .footer-top-row {
-        flex-direction: column;
-        gap: 44px;
-      }
-      .footer-brand-col {
-        max-width: 100%;
-      }
-      .footer-nav-grid {
-        grid-template-columns: repeat(3, 1fr);
-        gap: 24px;
-        width: 100%;
-      }
-      .footer-bottom-stage {
-        margin-top: 44px;
-      }
-    }
-
-    @media (max-width: 580px) {
-      .footer-nav-grid {
-        grid-template-columns: 1fr 1fr;
-        gap: 32px 18px;
-      }
-      .footer-giant-letters {
-        font-size: clamp(32px, 9vw, 56px);
-      }
-    }
-  </style>
+    ]
+  }
+  </script>
+  <!-- /seo -->
+  <link rel="preload" href="/fonts/manrope-cyrillic.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="/src/styles/fonts.css" />
+  <link rel="stylesheet" href="/src/styles/tokens.css" />
+  <link rel="stylesheet" href="/src/styles/base.css" />
+  <link rel="stylesheet" href="/src/styles/legal.css" />
 </head>
 <body>
+  <a class="skip-link" href="#doc">Перейти к тексту</a>
 
-  <!-- ВЕРХНЯЯ НАВИГАЦИЯ -->
-  <header class="site-header">
-    <div class="header-left">
-      <a href="index.html" class="brand-logo" aria-label="Castleweb Studio Главная">
-        <svg class="logo-mark" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="12" cy="5" r="3" fill="currentColor"/>
-          <circle cx="5" cy="18" r="3" fill="currentColor"/>
-          <circle cx="19" cy="18" r="3" fill="currentColor"/>
-          <path d="M12 8V14M7 16.5L10.5 14.5M17 16.5L13.5 14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-        <span class="brand-name">Castleweb</span>
+  <header class="lheader">
+    <div class="wrap lheader__inner">
+      <a class="logo" href="/" aria-label="Castleweb, на главную">
+        <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M2 18V7h3v3h2V4h2v2h2V4h2v6h2V7h3v11h-6v-4a2 2 0 0 0-4 0v4z" fill="currentColor"/></svg>
+        Castleweb
       </a>
-    </div>
-
-    <nav class="header-nav" aria-label="Навигация">
-      <a href="index.html#projects" class="nav-link">Проекты</a>
-      <a href="index.html#overview" class="nav-link">Стек</a>
-      <a href="index.html#manifesto" class="nav-link">Манифест</a>
-      <a href="index.html#contacts" class="nav-link">Контакты</a>
-    </nav>
-
-    <div class="header-right">
-      <button class="theme-toggle-btn" id="theme-toggle" aria-label="Переключить тему" title="Переключить тему">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="5"></circle>
-          <line x1="12" y1="1" x2="12" y2="3"></line>
-          <line x1="12" y1="21" x2="12" y2="23"></line>
-          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-          <line x1="1" y1="12" x2="3" y2="12"></line>
-          <line x1="21" y1="12" x2="23" y2="12"></line>
-          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-        </svg>
-      </button>
-      <a href="index.html#contacts" class="header-btn">Обсудить проект</a>
+      <a class="btn btn--ghost" href="/#contact">Обсудить проект</a>
     </div>
   </header>
 
-  <!-- ОСНОВНОЙ КОНТЕНТ УСЛОВИЙ -->
-  <main class="legal-main" id="main-content">
-    
-    <div class="legal-back-nav">
-      <a href="index.html" class="back-link-pill">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="19" y1="12" x2="5" y2="12"></line>
-          <polyline points="12 19 5 12 12 5"></polyline>
-        </svg>
-        <span>На главную</span>
-      </a>
+  <main class="legal wrap" id="doc">
+    <div class="legal__hero">
+      <a class="legal__back" href="/">На главную</a>
+      <h1 class="legal__title">Пользовательское соглашение</h1>
+      <p class="legal__lead">Условия использования сайта castleweb.ru. Пользуясь сайтом, вы принимаете эти условия в соответствии со ст. 438 Гражданского кодекса РФ.</p>
+      <p class="legal__date">Редакция от 25 октября 2026 г.</p>
     </div>
 
-    <span class="legal-badge">[ ПРАВИЛА СОТРУДНИЧЕСТВА · CASTLEWEB STUDIO ]</span>
-    <h1 class="legal-title">Условия сервиса</h1>
-    <div class="legal-meta">
-      <span>Редакция от 13 октября 2026 г.</span>
-      <span>Действует для клиентов и партнеров Castleweb</span>
+    <div class="legal__grid">
+      <aside class="legal__aside">
+        <nav class="toc" aria-label="Содержание документа">
+          <p class="toc__label">Содержание</p>
+          <ol>
+            <li><a href="#s1"><span>01</span>Общие положения</a></li>
+            <li><a href="#s2"><span>02</span>Назначение сайта</a></li>
+            <li><a href="#s3"><span>03</span>Права и обязанности пользователя</a></li>
+            <li><a href="#s4"><span>04</span>Интеллектуальная собственность</a></li>
+            <li><a href="#s5"><span>05</span>Ответственность</a></li>
+            <li><a href="#s6"><span>06</span>Персональные данные</a></li>
+            <li><a href="#s7"><span>07</span>Заключительные положения</a></li>
+          </ol>
+        </nav>
+        <nav class="docs" aria-label="Другие документы">
+          <p class="toc__label">Документы</p>
+          <ul>
+            <li><a href="/privacy.html">Политика конфиденциальности</a></li>
+            <li><a href="/consent.html">Согласие на обработку данных</a></li>
+            <li><a href="/terms.html" aria-current="page">Пользовательское соглашение</a></li>
+            <li><a href="/cookies.html">Политика cookie</a></li>
+          </ul>
+        </nav>
+      </aside>
+
+      <article class="legal__body">
+        <section class="clause" id="s1" aria-labelledby="s1-t">
+          <h2 id="s1-t"><span>01</span>Общие положения</h2>
+          <div class="clause__text">
+<p>1.1. Настоящее Соглашение регулирует отношения между Герасимов Эмиль <mark class="fill">[отчество]</mark>, ИНН <mark class="fill">[ИНН]</mark>, плательщик налога на профессиональный доход (самозанятый), г. Москва (далее — Администрация), и любым лицом, использующим сайт <a href="https://castleweb.ru/">castleweb.ru</a> (далее — Пользователь, Сайт).</p>
+<p>1.2. Использование Сайта означает согласие Пользователя с Соглашением. Если Пользователь не согласен с его условиями, он должен прекратить использование Сайта.</p>
+          </div>
+        </section>
+        <section class="clause" id="s2" aria-labelledby="s2-t">
+          <h2 id="s2-t"><span>02</span>Назначение сайта</h2>
+          <div class="clause__text">
+<p>2.1. Сайт носит информационный характер: на нём представлены сведения о студии Castleweb, её услугах, выполненных проектах и способах связи.</p>
+<p>2.2. Информация о стоимости и сроках, в том числе результат калькулятора на Сайте, является ориентировочной и не является публичной офертой (ст. 437 ГК РФ). Точные условия работ определяются в договоре.</p>
+          </div>
+        </section>
+        <section class="clause" id="s3" aria-labelledby="s3-t">
+          <h2 id="s3-t"><span>03</span>Права и обязанности пользователя</h2>
+          <div class="clause__text">
+<p>Пользователь вправе свободно просматривать Сайт и отправлять заявки. Пользователь обязуется:</p>
+<ul><li>указывать в заявке достоверные сведения;</li><li>не предпринимать действий, нарушающих работу Сайта, в том числе не проводить атаки, не использовать автоматизированные средства сбора данных без согласия Администрации;</li><li>не использовать Сайт для распространения информации, запрещённой законодательством РФ.</li></ul>
+          </div>
+        </section>
+        <section class="clause" id="s4" aria-labelledby="s4-t">
+          <h2 id="s4-t"><span>04</span>Интеллектуальная собственность</h2>
+          <div class="clause__text">
+<p>4.1. Дизайн, тексты, иллюстрации, программный код и иные материалы Сайта являются объектами интеллектуальной собственности Администрации либо используются ею на законных основаниях (часть 4 ГК РФ).</p>
+<p>4.2. Скриншоты проектов размещены на Сайте с согласия заказчиков в качестве портфолио. Права на эти проекты принадлежат их правообладателям.</p>
+<p>4.3. Копирование, распространение и иное использование материалов Сайта без письменного согласия Администрации не допускается, за исключением случаев, прямо предусмотренных законом.</p>
+          </div>
+        </section>
+        <section class="clause" id="s5" aria-labelledby="s5-t">
+          <h2 id="s5-t"><span>05</span>Ответственность</h2>
+          <div class="clause__text">
+<p>5.1. Сайт предоставляется «как есть». Администрация прилагает усилия для бесперебойной работы Сайта, но не гарантирует отсутствие ошибок и перерывов в работе.</p>
+<p>5.2. Администрация не несёт ответственности за содержание сторонних ресурсов, ссылки на которые размещены на Сайте, в том числе Telegram.</p>
+          </div>
+        </section>
+        <section class="clause" id="s6" aria-labelledby="s6-t">
+          <h2 id="s6-t"><span>06</span>Персональные данные</h2>
+          <div class="clause__text">
+<p>Обработка персональных данных Пользователей осуществляется в соответствии с <a href="/privacy.html">Политикой обработки персональных данных</a> и на основании <a href="/consent.html">Согласия на обработку персональных данных</a>.</p>
+          </div>
+        </section>
+        <section class="clause" id="s7" aria-labelledby="s7-t">
+          <h2 id="s7-t"><span>07</span>Заключительные положения</h2>
+          <div class="clause__text">
+<p>7.1. К Соглашению и отношениям, возникающим в связи с использованием Сайта, применяется право Российской Федерации.</p>
+<p>7.2. Споры разрешаются путём переговоров, а при недостижении согласия — в суде по месту нахождения Администрации, если иное не установлено законом, в том числе законодательством о защите прав потребителей.</p>
+<p>7.3. Администрация вправе изменять Соглашение. Новая редакция действует с момента публикации на Сайте.</p>
+<p>7.4. Контакты: <a href="mailto:castleweb032@gmail.com">hello@castleweb.ru</a>.</p>
+          </div>
+        </section>
+      </article>
     </div>
-
-    <!-- 01 -->
-    <section class="legal-section">
-      <div class="legal-section-number">01</div>
-      <h2 class="legal-section-title">Предмет и сфера применения</h2>
-      <p class="legal-p">
-        Настоящие Условия сервиса (далее — «Условия») определяют порядок использования веб-сайта <strong>castleweb.ru</strong>, подачи заявок, предварительного технического консультирования и общие принципы оказания услуг цифровой разработки студией <strong>Castleweb Studio</strong> (далее — «Студия»).
-      </p>
-      <p class="legal-p">
-        Студия специализируется на проектировании отказоустойчивой бэкенд-инфраструктуры, разработке высоконагруженных API, создании интерактивных фронтенд-интерфейсов, интеграции AI-агентов и UI/UX проектировании для амбициозных технологических продуктов.
-      </p>
-    </section>
-
-    <!-- 02 -->
-    <section class="legal-section">
-      <div class="legal-section-number">02</div>
-      <h2 class="legal-section-title">Порядок подачи заявок и оценка проектов</h2>
-      <p class="legal-p">
-        Отправка заявки через форму на сайте или прямое обращение в Telegram не является заключением коммерческого договора и не влечет возникновения финансовых обязательств до момента согласования Технического задания (ТЗ) и подписания двустороннего соглашения.
-      </p>
-      <p class="legal-p">
-        Ведущие разработчики Студии (Олег Судаков и Эмиль Герасимов) лично анализируют входящие требования, проводят предварительный архитектурный аудит и формируют сметно-техническое предложение с точными этапами и сроками реализации.
-      </p>
-    </section>
-
-    <!-- 03 -->
-    <section class="legal-section">
-      <div class="legal-section-number">03</div>
-      <h2 class="legal-section-title">Принцип прямого контакта и ответственность сторон</h2>
-      <p class="legal-p">
-        В основе подхода Castleweb лежит исключение посредников: Заказчик общается напрямую с инженерами, которые лично проектируют базу данных и пишут код интерфейса. Это гарантирует предельную скорость разработки и исключает искажение бизнес-логики.
-      </p>
-      <ul class="legal-list">
-        <li class="legal-list-item"><strong>Обязательства Студии:</strong> Предоставлять архитектурно выверенные решения, чистый масштабируемый код без скрытых уязвимостей, соблюдать согласованные спринты и регулярно демонстрировать рабочие сборки;</li>
-        <li class="legal-list-item"><strong>Обязательства Заказчика:</strong> Предоставлять актуальные вводные требования, оперативно согласовывать контрольные точки проекта и предоставлять необходимые доступы к серверам или сторонним API.</li>
-      </ul>
-    </section>
-
-    <!-- 04 -->
-    <section class="legal-section">
-      <div class="legal-section-number">04</div>
-      <h2 class="legal-section-title">Интеллектуальная собственность (IP Rights)</h2>
-      <p class="legal-p">
-        <strong>Права на заказные продукты:</strong> Все исключительные имущественные права на разработанный программный код, дизайн-макеты, компоненты интерфейса и базы данных передаются Заказчику в полном объеме после окончательной приемки результатов работ и завершения взаимных расчетов.
-      </p>
-      <p class="legal-p">
-        <strong>Права на сайт Castleweb:</strong> Все материалы, дизайн-система, логотип, шрифтовые композиции и кейсы, размещенные на сайте <em>castleweb.ru</em>, являются объектами исключительных авторских прав Castleweb Studio и охраняются законодательством РФ.
-      </p>
-      <p class="legal-p">
-        Студия оставляет за собой право демонстрировать выполненный проект (или его визуальные фрагменты) в портфолио, если иное не ограничено отдельным соглашением о неразглашении (NDA).
-      </p>
-    </section>
-
-    <!-- 05 -->
-    <section class="legal-section">
-      <div class="legal-section-number">05</div>
-      <h2 class="legal-section-title">Конфиденциальность и защита коммерческой тайны (NDA)</h2>
-      <p class="legal-p">
-        Студия признает абсолютную конфиденциальность сведений о бизнес-процессах, исходном коде, клиентских базах и финансовой модели Заказчика.
-      </p>
-      <p class="legal-p">
-        По запросу Заказчика до передачи чувствительных технических данных подписывается отдельное соглашение о неразглашении (Non-Disclosure Agreement / NDA). Студия гарантирует использование полученной информации исключительно в интересах реализации проекта Заказчика.
-      </p>
-    </section>
-
-    <!-- 06 -->
-    <section class="legal-section">
-      <div class="legal-section-number">06</div>
-      <h2 class="legal-section-title">Стандарты качества и гарантийное обслуживание</h2>
-      <p class="legal-p">
-        Разработка ведется с бескомпромиссным вниманием к деталям: строгая типизация, модульная архитектура, микросервисная или монолитная изоляция по ТЗ, валидация входных данных и тестирование критических сценариев.
-      </p>
-      <p class="legal-p">
-        После сдачи проекта Студия предоставляет гарантийный период (стандартно — от 30 до 90 календарных дней) на бесплатное устранение скрытых дефектов или программных сбоев, выявленных в рамках утвержденного технического задания.
-      </p>
-    </section>
-
-    <!-- 07 -->
-    <section class="legal-section">
-      <div class="legal-section-number">07</div>
-      <h2 class="legal-section-title">Ограничение ответственности</h2>
-      <p class="legal-p">
-        Студия не несет ответственности за перебои в функционировании созданного ПО, вызванные:
-      </p>
-      <ul class="legal-list">
-        <li class="legal-list-item">Действиями или авариями на стороне внешних хостинг-провайдеров, облачных платформ и каналов связи;</li>
-        <li class="legal-list-item">Сбоями или изменениями API сторонних сервисов (платежные шлюзы, внешние LLM-провайдеры, государственные реестры);</li>
-        <li class="legal-list-item">Внесением изменений в исходный код программного продукта сторонними лицами без ведома Студии.</li>
-      </ul>
-    </section>
-
-    <!-- 08 -->
-    <section class="legal-section">
-      <div class="legal-section-number">08</div>
-      <h2 class="legal-section-title">Применимое право и контакты</h2>
-      <p class="legal-p">
-        К отношениям сторон применяется действующее законодательство Российской Федерации. Любые споры и разногласия разрешаются путем прямых конструктивных переговоров с претензионным сроком ответа до 15 календарных дней.
-      </p>
-      <p class="legal-p">
-        Порядок обработки персональных данных регулируется нашей <a href="privacy.html" class="legal-link">Политикой конфиденциальности</a>.
-      </p>
-      <p class="legal-p">
-        Для обсуждения проекта или уточнения условий:
-      </p>
-      <ul class="legal-list">
-        <li class="legal-list-item">Email: <a href="mailto:hello@castleweb.ru" class="legal-link">hello@castleweb.ru</a></li>
-        <li class="legal-list-item">Telegram: <a href="https://t.me/kupidon996" target="_blank" rel="noopener noreferrer" class="legal-link">@kupidon996</a></li>
-      </ul>
-    </section>
-
   </main>
 
-  <!-- КОНТРАСТНЫЙ ПОДВАЛ -->
-  <footer class="site-footer" id="site-footer" aria-label="Подвал сайта">
-    <div class="footer-container">
-      <div class="footer-top-row">
-        <div class="footer-brand-col">
-          <div class="footer-symbol" aria-hidden="true" title="Castleweb">
-            <svg class="footer-constellation-icon" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
-              <circle cx="12" cy="3.5" r="1.4" />
-              <circle cx="18.01" cy="5.99" r="1.4" />
-              <circle cx="20.5" cy="12" r="1.4" />
-              <circle cx="18.01" cy="18.01" r="1.4" />
-              <circle cx="12" cy="20.5" r="1.4" />
-              <circle cx="5.99" cy="18.01" r="1.4" />
-              <circle cx="3.5" cy="12" r="1.4" />
-              <circle cx="5.99" cy="5.99" r="1.4" />
-            </svg>
-          </div>
-          <p class="footer-tagline">
-            Castleweb — студия разработки,<br>
-            которую вы искали.
-          </p>
-        </div>
-
-        <nav class="footer-nav-grid" aria-label="Навигация в подвале">
-          <div class="footer-nav-col">
-            <span class="footer-col-heading">USEFUL</span>
-            <ul class="footer-link-list">
-              <li><a href="index.html#projects" class="footer-link">Проекты</a></li>
-              <li><a href="index.html#overview" class="footer-link">Стек & Решения</a></li>
-              <li><a href="index.html#manifesto" class="footer-link">Манифест</a></li>
-              <li><a href="index.html#contacts" class="footer-link">Обсудить проект</a></li>
-            </ul>
-          </div>
-
-          <div class="footer-nav-col">
-            <span class="footer-col-heading">LEGAL</span>
-            <ul class="footer-link-list">
-              <li><a href="privacy.html" class="footer-link">Конфиденциальность</a></li>
-              <li><a href="terms.html" class="footer-link">Условия сервиса</a></li>
-            </ul>
-          </div>
-
-          <div class="footer-nav-col">
-            <span class="footer-col-heading">UPDATES</span>
-            <ul class="footer-link-list">
-              <li><a href="https://t.me/kupidon996" target="_blank" rel="noopener noreferrer" class="footer-link">Telegram</a></li>
-              <li><a href="mailto:hello@castleweb.ru" class="footer-link">hello@castleweb.ru</a></li>
-            </ul>
-          </div>
-        </nav>
-      </div>
-
-      <div class="footer-bottom-stage">
-        <div class="footer-giant-title">
-          <span class="footer-giant-letters">CASTLEWEB</span>
-          <span class="footer-giant-copy">©</span>
-        </div>
-      </div>
+  <footer class="lfooter">
+    <div class="wrap lfooter__inner">
+      <p>© 2026 Castleweb Studio</p>
+      <nav aria-label="Документы">
+        <a href="/privacy.html">Политика конфиденциальности</a>
+        <a href="/consent.html">Согласие на обработку данных</a>
+        <a href="/terms.html">Пользовательское соглашение</a>
+        <a href="/cookies.html">Политика cookie</a>
+      </nav>
     </div>
   </footer>
 
-  <script>
-    // Синхронизация темы (светлая / темная)
-    const toggleBtn = document.getElementById('theme-toggle');
-    const htmlEl = document.documentElement;
-
-    const savedTheme = localStorage.getItem('castleweb-theme');
-    if (savedTheme) {
-      htmlEl.setAttribute('data-theme', savedTheme);
-    }
-
-    if (toggleBtn) {
-      toggleBtn.addEventListener('click', () => {
-        const current = htmlEl.getAttribute('data-theme');
-        const next = current === 'dark' ? 'light' : 'dark';
-        htmlEl.setAttribute('data-theme', next);
-        localStorage.setItem('castleweb-theme', next);
-      });
-    }
-  </script>
-
+  <script type="module" src="/src/js/legal.js"></script>
 </body>
 </html>

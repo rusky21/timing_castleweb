@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ARIA: станция сетевого аудита с локальным ИИ без интернета — кейс Castleweb</title>
+  <meta name="description" content="Как мы сделали ARIA для крупной IT-компании: операторская станция с локальной LLM, захватом трафика на .NET 10, камерами RTSP и управлением Art-Net и OSC. Работает в закрытом контуре." />
+  <meta name="theme-color" content="#0E0F12" />
+  <!-- seo -->
+  <link rel="canonical" href="https://castleweb.ru/cases/aria.html" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="icon" href="/icon-32.png" sizes="32x32" type="image/png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="Castleweb" />
+  <meta property="og:locale" content="ru_RU" />
+  <meta property="og:url" content="https://castleweb.ru/cases/aria.html" />
+  <meta property="og:title" content="ARIA: станция сетевого аудита с локальным ИИ без интернета — кейс Castleweb" />
+  <meta property="og:description" content="Как мы сделали ARIA для крупной IT-компании: операторская станция с локальной LLM, захватом трафика на .NET 10, камерами RTSP и управлением Art-Net и OSC. Работает в закрытом контуре." />
+  <meta property="og:image" content="https://castleweb.ru/og/aria.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "SoftwareApplication",
+        "name": "ARIA",
+        "alternateName": "AI Supporter",
+        "applicationCategory": "NetworkingApplication",
+        "operatingSystem": "Windows",
+        "description": "Локальная станция сетевого аудита и управления оборудованием с ИИ-ассистентом. Работает без интернета.",
+        "image": "https://castleweb.ru/og/aria.jpg",
+        "url": "https://castleweb.ru/cases/aria.html",
+        "creator": {
+          "@id": "https://castleweb.ru/#org"
+        }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Главная",
+            "item": "https://castleweb.ru/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Кейсы",
+            "item": "https://castleweb.ru/cases.html"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "ARIA",
+            "item": "https://castleweb.ru/cases/aria.html"
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+  <!-- /seo -->
+  <link rel="preload" href="/fonts/manrope-cyrillic.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="/src/styles/fonts.css" />
+  <link rel="stylesheet" href="/src/styles/tokens.css" />
+  <link rel="stylesheet" href="/src/styles/base.css" />
+  <link rel="stylesheet" href="/src/styles/case.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Перейти к содержанию</a>
+
+  <header class="lheader">
+    <div class="wrap lheader__inner">
+      <a class="logo" href="/" aria-label="Castleweb, на главную">
+        <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M2 18V7h3v3h2V4h2v2h2V4h2v6h2V7h3v11h-6v-4a2 2 0 0 0-4 0v4z" fill="currentColor"/></svg>
+        Castleweb
+      </a>
+      <nav class="lheader__nav" aria-label="Основная навигация">
+        <a href="/cases.html">Кейсы</a>
+        <a href="/#services">Услуги</a>
+        <a href="/#pricing">Цены</a>
+        <a class="btn btn--ghost" href="/#contact">Обсудить проект</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="ahero" aria-labelledby="k-title">
+      <div class="wrap ahero__inner">
+        <div class="khero">
+          <a class="back" href="/cases.html">Все кейсы</a>
+          <h1 class="ctitle" id="k-title">ARIA</h1>
+          <div class="kmeta"><span class="tag tag--real">Реальный проект</span><span>Крупная IT-компания, NDA</span></div>
+          <p class="clead" style="color:#D9D9D5">Локальная станция сетевого аудита и управления оборудованием с ИИ-ассистентом. Работает внутри закрытого контура, без интернета.</p>
+        </div>
+        <figure class="kshot"><img src="/assets/aria.png" width="1920" height="1080" alt="Интерфейс ARIA: панели сетевой телеметрии, список устройств и окно ИИ-ассистента" fetchpriority="high" /></figure>
+        <dl class="afacts">
+          <div><dt>Роль студии</dt><dd>Архитектура, бэкенд, ИИ-пайплайн и интерфейс. Программа передана команде заказчика.</dd></div>
+          <div><dt>Формат</dt><dd>Программно-аппаратный комплекс для операторов сетей и инженеров автоматизации.</dd></div>
+          <div><dt>Стек</dt><dd>C#, .NET 10, React 18, TypeScript, Vite, Ollama, Whisper, Piper, ONVIF, RTSP, Art-Net, OSC</dd></div>
+        </dl>
+      </div>
+    </section>
+
+    <div class="wrap">
+      <section class="kblock" aria-labelledby="k-problem">
+        <h2 class="kblock__label" id="k-problem">Проблема</h2>
+        <div class="kblock__text">
+          <p>В закрытых сегментах сетей, диспетчерских и на умных производствах инженер держит открытыми десяток окон. Каждое решает свою маленькую задачу, и ни одно не видит картину целиком.</p>
+          <ul class="windows" aria-label="Инструменты, которые заменяет ARIA">
+            <li>Wireshark</li><li>консоль сканера</li><li>веб-панели камер</li><li>утилита Art-Net</li><li>утилита OSC</li><li>дашборды железа</li>
+          </ul>
+          <p class="windows__into">ARIA: одна операторская станция</p>
+        </div>
+      </section>
+
+      <section class="kblock" aria-labelledby="k-done">
+        <h2 class="kblock__label" id="k-done">Что сделали</h2>
+        <div class="kblock__text">
+          <p>Единую операторскую станцию. Она захватывает и анализирует сырой трафик, находит устройства в периметре, выводит потоки с камер и даёт голосовое и текстовое управление через локальную языковую модель.</p>
+          <p>Модель не просто отвечает в чате, а сама вызывает сетевые утилиты: пингует сегмент, смотрит кадр с камеры, проверяет подозрительный трафик.</p>
+        </div>
+      </section>
+
+      <section class="kblock" aria-labelledby="k-decisions" style="grid-template-columns:1fr">
+        <h2 class="kblock__label" id="k-decisions">Четыре инженерных решения</h2>
+        <div class="decisions">
+          <article class="decision">
+            <p class="decision__num">01</p>
+            <h3>Работа без интернета</h3>
+            <p>Распознавание голоса, синтез речи и сама нейросеть разворачиваются внутри периметра. Если контур открыт, облачные API подключаются за пару кликов без перезапуска служб.</p>
+            <p class="decision__spec">Whisper, Piper, Ollama, air-gapped</p>
+          </article>
+          <article class="decision">
+            <p class="decision__num">02</p>
+            <h3>Бэкенд на .NET 10 для потоковой телеметрии</h3>
+            <p>Захват трафика в реальном времени, кольцевой буфер пакетов, поиск аномалий, сканирование узлов и протоколы автоматизации. Поток держится независимо от клиента.</p>
+            <p class="decision__spec">ICMP, SSDP, ONVIF, Art-Net, OSC</p>
+          </article>
+          <article class="decision">
+            <p class="decision__num">03</p>
+            <h3>ИИ, который вызывает инструменты</h3>
+            <p>Через вызов функций модель подключена к реальным возможностям системы: может пропинговать сегмент, проанализировать кадр с камеры или отправить пакет на контроллер.</p>
+            <p class="decision__spec">Function Calling, MCP</p>
+          </article>
+          <article class="decision">
+            <p class="decision__num">04</p>
+            <h3>Лёгкий фронтенд</h3>
+            <p>Интерфейс работает как терминал: никаких тяжёлых расчётов на клиенте. Он остаётся отзывчивым даже при непрерывном потоке пакетов, hex-дампах и окнах с видео.</p>
+            <p class="decision__spec">React, TypeScript, WebSocket, SSE</p>
+          </article>
+        </div>
+
+        <figure class="arch">
+          <svg viewBox="0 0 960 300" role="img" aria-labelledby="arch-t">
+            <title id="arch-t">Схема ARIA: оборудование и сеть передают данные в бэкенд на .NET 10, он связан с локальной моделью и отдаёт поток в интерфейс по WebSocket и SSE</title>
+            <g font-family="Manrope, sans-serif" font-size="14" fill="#F5F5F3">
+              <g fill="none" stroke="#3A3B42" stroke-width="1.5">
+                <rect x="20" y="40" width="200" height="220" rx="12"/>
+                <rect x="380" y="40" width="200" height="140" rx="12" stroke="#F5A524"/>
+                <rect x="380" y="200" width="200" height="60" rx="12"/>
+                <rect x="740" y="40" width="200" height="220" rx="12"/>
+              </g>
+              <g stroke="#A2A29E" stroke-width="1.5" marker-end="url(#ah)">
+                <line x1="222" y1="110" x2="372" y2="110"/>
+                <line x1="582" y1="110" x2="732" y2="110"/>
+                <line x1="480" y1="182" x2="480" y2="194"/>
+              </g>
+              <defs><marker id="ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 8 4 0 8z" fill="#A2A29E"/></marker></defs>
+              <text x="40" y="72" font-weight="700">Периметр</text>
+              <g fill="#A2A29E"><text x="40" y="104">Сеть и трафик</text><text x="40" y="130">IP-камеры, RTSP</text><text x="40" y="156">Контроллеры</text><text x="40" y="182">Art-Net, OSC</text><text x="40" y="208">Микрофон оператора</text></g>
+              <text x="400" y="72" font-weight="700" fill="#F5A524">Бэкенд .NET 10</text>
+              <g fill="#A2A29E"><text x="400" y="104">Захват пакетов</text><text x="400" y="130">Поиск аномалий</text><text x="400" y="156">Шина событий</text></g>
+              <text x="400" y="236" font-weight="700">Локальная LLM</text>
+              <text x="760" y="72" font-weight="700">Интерфейс</text>
+              <g fill="#A2A29E"><text x="760" y="104">Телеметрия</text><text x="760" y="130">Hex-дампы</text><text x="760" y="156">Видеопотоки</text><text x="760" y="182">Голос и чат с ИИ</text></g>
+              <text x="250" y="98" font-size="12" fill="#A2A29E">данные</text>
+              <text x="600" y="98" font-size="12" fill="#A2A29E">WebSocket, SSE</text>
+            </g>
+          </svg>
+          <figcaption>Схема архитектуры без данных заказчика</figcaption>
+        </figure>
+      </section>
+
+      <section class="kblock" aria-labelledby="k-use">
+        <h2 class="kblock__label" id="k-use">Где применяется</h2>
+        <ol class="points">
+          <li><span>01</span><b>Ситуационные центры</b><p>Сеть, камеры и оборудование на одном экране оператора.</p></li>
+          <li><span>02</span><b>Сценическая автоматизация</b><p>Управление светом и сценой через Art-Net и OSC голосом или командой.</p></li>
+          <li><span>03</span><b>Закрытые производственные контуры</b><p>Диагностика там, где выход в интернет запрещён службой безопасности.</p></li>
+        </ol>
+      </section>
+
+      <section class="kblock" aria-labelledby="k-team">
+        <h2 class="kblock__label" id="k-team">Кто что делал</h2>
+        <div class="roles">
+          <div><b>Олег Судаков</b><p>Архитектура системы, бэкенд на .NET 10, захват трафика, ИИ и голосовой пайплайн.</p></div>
+          <div><b>Эмиль Герасимов</b><p>Интерфейс операторской станции: телеметрия, окна с видео, hex-дампы, чат и голос.</p></div>
+        </div>
+      </section>
+
+      <section class="kblock" aria-labelledby="k-sec">
+        <h2 class="kblock__label" id="k-sec">Безопасность</h2>
+        <div class="kblock__text">
+          <p>Учётные данные устройств не попадают в логи. Данные не уходят в облако: и модель, и распознавание речи работают внутри контура заказчика.</p>
+        </div>
+      </section>
+    </div>
+
+    <section class="knext" aria-labelledby="k-next">
+      <div class="wrap knext__inner">
+        <h2 class="knext__title" id="k-next">Нужна похожая система?</h2>
+        <div class="knext__actions">
+          <a class="btn btn--light" href="/#contact">Обсудить проект</a>
+          <a class="knext__link" href="/cases/onyx.html">Следующий кейс<b>Onyx Racing</b></a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="lfooter">
+    <div class="wrap lfooter__inner">
+      <p>© 2026 Castleweb Studio</p>
+      <nav aria-label="Документы">
+        <a href="/privacy.html">Политика конфиденциальности</a>
+        <a href="/consent.html">Согласие на обработку данных</a>
+        <a href="/terms.html">Пользовательское соглашение</a>
+        <a href="/cookies.html">Политика cookie</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script type="module" src="/src/js/case.js"></script>
+</body>
+</html>

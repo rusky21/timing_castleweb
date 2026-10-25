@@ -52,11 +52,19 @@ server {
 
     client_max_body_size 50M;
 
-    # Frontend SPA static files
+    # Old case URLs (before the redesign) -> new pages
+    location = /cases/ { return 301 /cases.html; }
+    location ~ ^/case-(aria|hytte|onyx|vegas)(\.html)?$ { return 301 /cases/$1.html; }
+    location ~ ^/case-sport-m(\.html)?$ { return 301 /cases/sport.html; }
+    location ~ ^/case-alex-vance(\.html)?$ { return 301 /cases/photo.html; }
+    location ~ ^/case-apex(\.html)?$ { return 301 /cases.html; }
+
+    # Frontend static pages (multi-page Vite build, /cases -> cases.html)
     location / {
         root /var/www/castleweb/frontend;
         index index.html;
-        try_files $uri $uri.html $uri/ /index.html;
+        try_files $uri $uri.html $uri/ =404;
+        error_page 404 /404.html;
         sendfile off;
         tcp_nopush off;
         tcp_nodelay on;
