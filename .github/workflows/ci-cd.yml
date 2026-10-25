@@ -65,5 +65,7 @@ jobs:
               docker run --rm -v "$(pwd)/apps/frontend":/app -w /app node:22-alpine sh -c "npm ci && npm run build"
             fi
             docker compose -f docker-compose.prod.yml up -d --build
+            # nginx.conf.d смонтирован томом: без reload новый конфиг (редиректы, 404) не применится
+            docker compose -f docker-compose.prod.yml exec -T nginx nginx -s reload || true
             docker image prune -f
 

@@ -90,11 +90,12 @@ async def test_cases_endpoints_and_cache():
         for c in saas_res.json():
             assert c["category"] == "saas"
 
-        # Detail case
-        detail_res = await client.get("/api/v1/cases/lead-hunter-saas")
+        # Detail case (slug из выдачи, чтобы тест не зависел от содержимого data/cases.json)
+        slug = cases[0]["slug"]
+        detail_res = await client.get(f"/api/v1/cases/{slug}")
         assert detail_res.status_code == 200
         detail_data = detail_res.json()
-        assert detail_data["slug"] == "lead-hunter-saas"
+        assert detail_data["slug"] == slug
         assert "solution_fe" in detail_data
         assert "solution_be" in detail_data
 
