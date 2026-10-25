@@ -610,7 +610,7 @@ launch_and_post_install() {
     BACKEND_HEALTHY=false
     for _ in $(seq 1 30); do
         if curl -sf http://127.0.0.1:8000/api/v1/health >/dev/null 2>&1 || \
-           docker compose -f "$DOCKER_COMPOSE_FILE" exec -T backend curl -sf http://localhost:8000/api/v1/health >/dev/null 2>&1; then
+           docker compose -f "$DOCKER_COMPOSE_FILE" exec -T backend python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')" >/dev/null 2>&1; then
             BACKEND_HEALTHY=true
             break
         fi
