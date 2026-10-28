@@ -56,7 +56,7 @@ sudo ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub -E sha256
 
 ## 3. GitHub Environment, Secrets и Variables
 
-В репозитории откройте **Settings → Environments**, создайте environment `production`, затем добавьте secrets:
+В репозитории откройте **Settings → Environments** и используйте environment `prod`, затем добавьте secrets:
 
 | Secret | Значение |
 |---|---|
@@ -74,7 +74,7 @@ sudo ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub -E sha256
 | `PROD_URL` | URL сайта для ссылки в GitHub Deployments, например `https://castleweb.ru` |
 | `PROD_HEALTH_URL` | Публичная проверка после деплоя, например `https://castleweb.ru/api/v1/health` |
 
-Для `production` при желании включите required reviewers. GitHub применит правила environment до выдачи job доступа к production secrets.
+Для `prod` при желании включите required reviewers. GitHub применит правила environment до выдачи job доступа к production secrets.
 
 ## 4. Что делает безопасный deploy-скрипт
 
