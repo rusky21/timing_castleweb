@@ -94,3 +94,6 @@ scratch_*.png
 generate_perfect_screens.py
 скрины.rar
 скрины/
+
+# Server-side deployment releases
+.deploy/

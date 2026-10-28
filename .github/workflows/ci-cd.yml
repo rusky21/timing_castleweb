@@ -1,32 +1,46 @@
-name: 🏰 CASTLEWEB Backend CI/CD
+name: CASTLEWEB CI/CD
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "22"
 
 jobs:
-  test:
-    name: 🧪 Run Linters & Pytest
+  backend-tests:
+    name: Backend tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
-      - name: 📥 Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: 🐍 Set up Python 3.12
-        uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.12"
-          cache: "pip"
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: apps/backend/requirements.txt
 
-      - name: 📦 Install dependencies
+      - name: Install backend dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r apps/backend/requirements.txt
+          python -m pip install -r apps/backend/requirements.txt
 
-      - name: 🧪 Run Pytest Suite
+      - name: Check Python syntax
+        run: python -m compileall -q apps/backend/app apps/parser/app
+
+      - name: Run backend tests
+        working-directory: apps/backend
         env:
           APP_ENV: testing
           DATABASE_URL: sqlite+aiosqlite:///./test_castleweb.db
@@ -34,39 +48,98 @@ jobs:
           TELEGRAM_BOT_TOKEN: ""
           CLOUDFLARE_TURNSTILE_ENABLED: "False"
         run: |
-          cd apps/backend
+          alembic upgrade head
           pytest -v
 
-  deploy:
-    name: 🚀 Production Auto-Deploy
-    needs: test
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+  frontend-build:
+    name: Frontend build
     runs-on: ubuntu-latest
-    # На уровне job: env самого шага в его if ещё не доступен, и шаг всегда пропускался
-    env:
-      HAS_SSH_SECRETS: ${{ secrets.PROD_HOST != '' }}
+    timeout-minutes: 10
 
     steps:
-      - name: 📥 Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: 🔑 Deploy to VPS via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        if: env.HAS_SSH_SECRETS == 'true'
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: apps/frontend
+        run: npm ci --no-audit --no-fund
+
+      - name: Build frontend
+        working-directory: apps/frontend
+        run: npm run build
+
+  deployment-config:
+    name: Validate deployment configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate shell scripts
+        run: bash -n scripts/deploy.sh scripts/auto-deploy.sh scripts/server_monitor.sh
+
+      - name: Validate production Compose file
+        run: |
+          cp apps/backend/.env.example apps/backend/.env
+          cp apps/parser/.env.example apps/parser/.env
+          docker compose --env-file apps/backend/.env -f docker-compose.prod.yml config --quiet
+
+  deploy:
+    name: Deploy production
+    needs: [backend-tests, frontend-build, deployment-config]
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: production
+      url: ${{ vars.PROD_URL }}
+    concurrency:
+      group: castleweb-production
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate production secrets
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_HOST_FINGERPRINT: ${{ secrets.PROD_HOST_FINGERPRINT }}
+        run: |
+          missing=()
+          for name in PROD_HOST PROD_USER PROD_SSH_KEY PROD_HOST_FINGERPRINT; do
+            if [ -z "${!name:-}" ]; then
+              missing+=("$name")
+            fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "Missing required production secrets: ${missing[*]}" >&2
+            exit 1
+          fi
+
+      - name: Deploy exact commit over SSH
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        env:
+          DEPLOY_SHA: ${{ github.sha }}
+          DEPLOY_PATH: ${{ vars.PROD_PATH }}
+          PUBLIC_HEALTH_URL: ${{ vars.PROD_HEALTH_URL }}
         with:
           host: ${{ secrets.PROD_HOST }}
           username: ${{ secrets.PROD_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
-          port: ${{ secrets.PROD_PORT || 22 }}
-          script: |
-            cd ~/castleweb
-            git pull origin main
-            if [ -f "apps/frontend/package.json" ]; then
-              echo "🔨 Rebuilding frontend..."
-              docker run --rm -v "$(pwd)/apps/frontend":/app -w /app node:22-alpine sh -c "npm ci && npm run build"
-            fi
-            docker compose -f docker-compose.prod.yml up -d --build
-            # nginx.conf.d смонтирован томом: без reload новый конфиг (редиректы, 404) не применится
-            docker compose -f docker-compose.prod.yml exec -T nginx nginx -s reload || true
-            docker image prune -f
-
+          port: ${{ secrets.PROD_PORT || '22' }}
+          fingerprint: ${{ secrets.PROD_HOST_FINGERPRINT }}
+          command_timeout: 40m
+          envs: DEPLOY_SHA,DEPLOY_PATH,PUBLIC_HEALTH_URL
+          script_path: scripts/auto-deploy.sh

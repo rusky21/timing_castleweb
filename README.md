@@ -70,6 +70,18 @@ sudo ./scripts/deploy.sh
 5. Выпустит бесплатный SSL-сертификат Let's Encrypt и настроит автопродление по cron.
 6. Применит миграции базы данных через Alembic (`alembic upgrade head`).
 
+### Автодеплой из GitHub Actions
+
+После однократной настройки VDS каждый успешный push в `main` автоматически:
+
+1. Запускает тесты FastAPI, проверку синтаксиса Python и production-сборку Vite.
+2. Проверяет `docker-compose.prod.yml` и deploy-скрипты.
+3. Подключается к серверу по SSH с проверкой fingerprint хоста.
+4. Разворачивает точный commit SHA, используя серверные `.env` без передачи секретов в репозиторий.
+5. Проверяет backend, LeadHunter и публичный endpoint; при ошибке восстанавливает предыдущие frontend и Docker images.
+
+Полная инструкция по ключам, GitHub Secrets/Variables и подготовке deploy-пользователя: [docs/AUTO_DEPLOY.md](docs/AUTO_DEPLOY.md).
+
 ---
 
 ## 📁 Структура проекта
