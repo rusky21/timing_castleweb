@@ -115,10 +115,9 @@ jobs:
           PROD_HOST: ${{ secrets.PROD_HOST }}
           PROD_USER: ${{ secrets.PROD_USER }}
           PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
-          PROD_HOST_FINGERPRINT: ${{ secrets.PROD_HOST_FINGERPRINT }}
         run: |
           missing=()
-          for name in PROD_HOST PROD_USER PROD_SSH_KEY PROD_HOST_FINGERPRINT; do
+          for name in PROD_HOST PROD_USER PROD_SSH_KEY; do
             if [ -z "${!name:-}" ]; then
               missing+=("$name")
             fi
@@ -139,7 +138,7 @@ jobs:
           username: ${{ secrets.PROD_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
           port: ${{ secrets.PROD_PORT || '22' }}
-          fingerprint: ${{ secrets.PROD_HOST_FINGERPRINT }}
+          fingerprint: "SHA256:qrYO/l44mQJvtOOWa2O6wBnCpvMhMh9HAnq3FqsOBF0"
           command_timeout: 40m
           envs: DEPLOY_SHA,DEPLOY_PATH,PUBLIC_HEALTH_URL
           script_path: scripts/auto-deploy.sh

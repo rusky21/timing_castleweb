@@ -63,7 +63,6 @@ sudo ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub -E sha256
 | `PROD_HOST` | IP или hostname VDS |
 | `PROD_USER` | SSH-пользователь для деплоя |
 | `PROD_SSH_KEY` | Полный приватный SSH-ключ, включая строки BEGIN/END |
-| `PROD_HOST_FINGERPRINT` | SHA256 fingerprint SSH host key |
 | `PROD_PORT` | SSH-порт; необязательно, по умолчанию `22` |
 
 Добавьте environment variables:
@@ -74,7 +73,7 @@ sudo ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub -E sha256
 | `PROD_URL` | URL сайта для ссылки в GitHub Deployments, например `https://castleweb.ru` |
 | `PROD_HEALTH_URL` | Публичная проверка после деплоя, например `https://castleweb.ru/api/v1/health` |
 
-Для `prod` при желании включите required reviewers. GitHub применит правила environment до выдачи job доступа к production secrets.
+Проверенный SHA256 fingerprint текущего VDS закреплён прямо в workflow: это публичный идентификатор SSH host key, а не секрет. При замене сервера обновите значение `fingerprint` в `.github/workflows/ci-cd.yml`. Для `prod` при желании включите required reviewers. GitHub применит правила environment до выдачи job доступа к production secrets.
 
 ## 4. Что делает безопасный deploy-скрипт
 
