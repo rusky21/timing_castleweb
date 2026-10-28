@@ -226,6 +226,13 @@ if [ -n "${PUBLIC_HEALTH_URL:-}" ]; then
     wait_for_url "public endpoint" "$PUBLIC_HEALTH_URL" 30 || fail "Public health check failed"
 fi
 
+# Backend seeding can recreate this bind-mounted JSON file with an executable
+# mode. Normalize only its permissions so the next deploy still detects real
+# content changes instead of failing on harmless mode drift.
+if [ -f "${ROOT_DIR}/apps/backend/data/cases.json" ]; then
+    chmod 0644 "${ROOT_DIR}/apps/backend/data/cases.json"
+fi
+
 "${COMPOSE[@]}" ps
 docker image prune -f >/dev/null 2>&1 || true
 
