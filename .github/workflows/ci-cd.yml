@@ -138,7 +138,7 @@ jobs:
           username: ${{ secrets.PROD_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
           port: ${{ secrets.PROD_PORT || '22' }}
-          fingerprint: "SHA256:qrYO/l44mQJvtOOWa2O6wBnCpvMhMh9HAnq3FqsOBF0"
+          fingerprint: "SHA256:MWQH2Znn6MkuFV6lQTRR+QM6fyGFvNuNVcxj85cgVqc"
           command_timeout: 40m
           envs: DEPLOY_SHA,DEPLOY_PATH,PUBLIC_HEALTH_URL
           script_path: scripts/auto-deploy.sh

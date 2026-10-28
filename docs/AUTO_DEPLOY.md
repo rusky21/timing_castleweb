@@ -73,7 +73,7 @@ sudo ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub -E sha256
 | `PROD_URL` | URL сайта для ссылки в GitHub Deployments, например `https://castleweb.ru` |
 | `PROD_HEALTH_URL` | Публичная проверка после деплоя, например `https://castleweb.ru/api/v1/health` |
 
-Проверенный SHA256 fingerprint текущего VDS закреплён прямо в workflow: это публичный идентификатор SSH host key, а не секрет. При замене сервера обновите значение `fingerprint` в `.github/workflows/ci-cd.yml`. Для `prod` при желании включите required reviewers. GitHub применит правила environment до выдачи job доступа к production secrets.
+Проверенный SHA256 fingerprint ECDSA host key текущего VDS закреплён прямо в workflow: это публичный идентификатор SSH host key, а не секрет. `drone-ssh` согласовывает с этим сервером ECDSA, тогда как системный OpenSSH может показывать ED25519. При замене сервера обновите значение `fingerprint` в `.github/workflows/ci-cd.yml`. Для `prod` при желании включите required reviewers. GitHub применит правила environment до выдачи job доступа к production secrets.
 
 ## 4. Что делает безопасный deploy-скрипт
 
