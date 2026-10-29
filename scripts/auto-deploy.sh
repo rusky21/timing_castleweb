@@ -54,6 +54,7 @@ FRONTEND_SOURCE_DIR="${ROOT_DIR}/apps/frontend"
 DEPLOY_STATE_DIR="${ROOT_DIR}/.deploy"
 FRONTEND_RELEASE_DIR="${DEPLOY_STATE_DIR}/frontend"
 NGINX_CONFIG="${ROOT_DIR}/nginx/conf.d/default.conf"
+CASES_DATA_FILE="${ROOT_DIR}/apps/backend/data/cases.json"
 LOCK_FILE="${DEPLOY_LOCK_FILE:-/tmp/castleweb-deploy.lock}"
 
 for command_name in git docker curl flock mktemp tar; do
@@ -148,12 +149,23 @@ fi
 current_branch="$(git branch --show-current)"
 [ "$current_branch" = "main" ] || fail "Server checkout must be on the main branch (current: ${current_branch:-detached})"
 
+# Backend startup can recreate the bind-mounted seed file with executable mode.
+# Normalize only its permissions before the dirty-tree guard. Real content edits
+# remain protected and still stop the deployment.
+if [ -f "$CASES_DATA_FILE" ]; then
+    chmod 0644 "$CASES_DATA_FILE"
+fi
+
 # Generated frontend files and the server-rendered Nginx config may legitimately differ.
 # Any other tracked server-side edit is protected from being overwritten.
 if ! git diff --quiet -- . ':(exclude)apps/frontend/dist/**' ':(exclude)nginx/conf.d/default.conf'; then
+    printf '[deploy] Protected tracked changes:\n' >&2
+    git diff --name-status -- . ':(exclude)apps/frontend/dist/**' ':(exclude)nginx/conf.d/default.conf' >&2 || true
     fail "Tracked server-side changes detected outside generated deployment files"
 fi
 if ! git diff --cached --quiet -- . ':(exclude)apps/frontend/dist/**' ':(exclude)nginx/conf.d/default.conf'; then
+    printf '[deploy] Protected staged changes:\n' >&2
+    git diff --cached --name-status -- . ':(exclude)apps/frontend/dist/**' ':(exclude)nginx/conf.d/default.conf' >&2 || true
     fail "Staged server-side changes detected outside generated deployment files"
 fi
 
@@ -249,8 +261,8 @@ fi
 # Backend seeding can recreate this bind-mounted JSON file with an executable
 # mode. Normalize only its permissions so the next deploy still detects real
 # content changes instead of failing on harmless mode drift.
-if [ -f "${ROOT_DIR}/apps/backend/data/cases.json" ]; then
-    chmod 0644 "${ROOT_DIR}/apps/backend/data/cases.json"
+if [ -f "$CASES_DATA_FILE" ]; then
+    chmod 0644 "$CASES_DATA_FILE"
 fi
 
 "${COMPOSE[@]}" ps
