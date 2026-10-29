@@ -130,6 +130,12 @@ on_exit() {
         restore_previous_runtime
     fi
 
+    # The production Nginx file is server-specific. Restore its backup even when
+    # Git fetch/merge fails before the runtime rollback phase starts.
+    if [ -f "$BUILD_ROOT/previous-nginx.conf" ]; then
+        cp "$BUILD_ROOT/previous-nginx.conf" "$NGINX_CONFIG"
+    fi
+
     cleanup_temp
     exit "$status"
 }
@@ -151,6 +157,16 @@ if ! git diff --cached --quiet -- . ':(exclude)apps/frontend/dist/**' ':(exclude
     fail "Staged server-side changes detected outside generated deployment files"
 fi
 
+# A manual frontend build can change tracked dist files. They are generated again
+# below, so restore only this known path before the fast-forward. Preserve the
+# server-specific Nginx config from the backup made above and restore it after Git
+# reaches the requested commit.
+log "Normalizing generated files before updating the server checkout"
+git restore --source=HEAD --staged --worktree -- apps/frontend/dist
+if git ls-files --error-unmatch nginx/conf.d/default.conf >/dev/null 2>&1; then
+    git restore --source=HEAD --staged --worktree -- nginx/conf.d/default.conf
+fi
+
 log "Fetching main and verifying commit ${DEPLOY_SHA}"
 git fetch --no-tags origin main
 git cat-file -e "${DEPLOY_SHA}^{commit}" 2>/dev/null || fail "Requested commit is not available after fetch"
@@ -160,6 +176,10 @@ if [ "$(git rev-parse HEAD)" != "$DEPLOY_SHA" ]; then
     git merge --ff-only "$DEPLOY_SHA"
 fi
 [ "$(git rev-parse HEAD)" = "$DEPLOY_SHA" ] || fail "Server did not reach the requested commit"
+
+if [ -f "$BUILD_ROOT/previous-nginx.conf" ]; then
+    cp "$BUILD_ROOT/previous-nginx.conf" "$NGINX_CONFIG"
+fi
 
 [ -f "$COMPOSE_FILE" ] || fail "Missing $COMPOSE_FILE"
 [ -f "$BACKEND_ENV" ] || fail "Missing server secret file: $BACKEND_ENV"

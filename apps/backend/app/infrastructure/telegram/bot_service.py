@@ -430,6 +430,8 @@ class TelegramBotService:
     async def pin_message(chat_id: str | int, message_id: int, disable_notification: bool = False) -> bool:
         """
         Закрепляет сообщение заявки в Telegram-чате (pinChatMessage).
+        Повторяет временные сетевые ошибки, учитывает flood control и
+        автоматически подхватывает новый chat_id после миграции в supergroup.
         """
         bot_token = (getattr(settings, "TELEGRAM_BOT_TOKEN", "") or "").strip()
         clean_chat = (str(chat_id) or "").strip()
@@ -442,17 +444,79 @@ class TelegramBotService:
             "message_id": message_id,
             "disable_notification": disable_notification
         }
-        try:
-            async with httpx.AsyncClient(timeout=8.0) as client:
-                resp = await client.post(url, json=payload)
-                data = resp.json()
+        current_chat_id = clean_chat
+
+        for attempt in range(1, 4):
+            try:
+                async with httpx.AsyncClient(timeout=8.0) as client:
+                    resp = await client.post(url, json=payload)
+                    data = resp.json()
+
                 if data.get("ok"):
-                    logger.info(f"📌 Заявка (сообщение #{message_id}) успешно закреплена в чате {clean_chat}")
+                    logger.info(
+                        f"📌 Заявка (сообщение #{message_id}) успешно закреплена "
+                        f"в чате {current_chat_id}"
+                    )
                     return True
-                else:
-                    logger.warning(f"Не удалось закрепить сообщение #{message_id}: {data.get('description')}")
+
+                error_code = data.get("error_code") or resp.status_code
+                error_description = str(data.get("description") or "Unknown Telegram API error")
+                migrate_to = data.get("parameters", {}).get("migrate_to_chat_id")
+
+                if migrate_to:
+                    logger.info(
+                        f"🔄 Telegram-чат мигрировал из {current_chat_id} в {migrate_to}; "
+                        "повторяем закрепление"
+                    )
+                    if str(current_chat_id) == str(getattr(settings, "TELEGRAM_CHAT_ID", "")):
+                        settings.TELEGRAM_CHAT_ID = str(migrate_to)
+                    current_chat_id = str(migrate_to)
+                    payload["chat_id"] = migrate_to
+                    continue
+
+                if error_code == 429:
+                    retry_after = int(data.get("parameters", {}).get("retry_after", 2))
+                    logger.warning(
+                        f"⏳ Telegram ограничил закрепление сообщения #{message_id}; "
+                        f"повтор через {retry_after} сек. (попытка {attempt}/3)"
+                    )
+                    await asyncio.sleep(retry_after + 1)
+                    continue
+
+                error_lower = error_description.lower()
+                if any(marker in error_lower for marker in (
+                    "not enough rights",
+                    "need administrator rights",
+                    "chat_admin_required",
+                    "not an administrator",
+                )):
+                    logger.error(
+                        f"❌ Бот отправил заявку #{message_id}, но не может закрепить её: "
+                        "выдайте боту права администратора «Закрепление сообщений» "
+                        f"в Telegram-группе. Ответ Telegram: {error_description}"
+                    )
                     return False
-        except Exception as e:
-            logger.warning(f"Ошибка при закреплении сообщения #{message_id} в Telegram: {e}")
-            return False
+
+                if int(error_code) >= 500:
+                    logger.warning(
+                        f"Временная ошибка Telegram при закреплении сообщения #{message_id}: "
+                        f"{error_description} (попытка {attempt}/3)"
+                    )
+                else:
+                    logger.warning(
+                        f"Не удалось закрепить сообщение #{message_id}: {error_description} "
+                        f"(HTTP {resp.status_code})"
+                    )
+                    return False
+            except Exception as e:
+                logger.warning(
+                    f"Сетевая ошибка при закреплении сообщения #{message_id} "
+                    f"(попытка {attempt}/3): {e}"
+                )
+
+            if attempt < 3:
+                await asyncio.sleep(attempt * 2.0)
+
+        logger.error(f"❌ Не удалось закрепить сообщение #{message_id} после 3 попыток")
+        return False
 

@@ -460,6 +460,27 @@ async def test_lead_auto_pinning():
             assert "pinChatMessage" in call_args[0][0]
             assert call_args[1]["json"]["message_id"] == 888777
             assert call_args[1]["json"]["chat_id"] == "-100123456789"
+
+            # 3. После миграции обычной группы в supergroup закрепление
+            # автоматически повторяется с новым chat_id.
+            migrate_resp = MagicMock()
+            migrate_resp.status_code = 400
+            migrate_resp.json.return_value = {
+                "ok": False,
+                "error_code": 400,
+                "description": "Bad Request: group chat was upgraded to a supergroup chat",
+                "parameters": {"migrate_to_chat_id": -100987654321}
+            }
+            migrated_pin_resp = MagicMock()
+            migrated_pin_resp.status_code = 200
+            migrated_pin_resp.json.return_value = {"ok": True, "result": True}
+            mock_post.reset_mock()
+            mock_post.side_effect = [migrate_resp, migrated_pin_resp]
+
+            migrated_result = await _original_pin_message("-100123456789", 888777)
+            assert migrated_result is True
+            assert mock_post.call_count == 2
+            assert mock_post.call_args[1]["json"]["chat_id"] == -100987654321
         finally:
             current_settings.TELEGRAM_BOT_TOKEN = orig_token
             current_settings.TELEGRAM_CHAT_ID = orig_chat
