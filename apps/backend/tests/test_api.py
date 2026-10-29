@@ -23,6 +23,7 @@ from app.infrastructure.telegram.bot_service import TelegramBotService
 
 _original_send_lead_notification = TelegramBotService.send_lead_notification
 _original_pin_message = TelegramBotService.pin_message
+_original_unpin_message = TelegramBotService.unpin_message
 
 @pytest.fixture(autouse=True)
 def mock_external_network_calls():
@@ -37,6 +38,7 @@ def mock_external_network_calls():
          patch("app.infrastructure.telegram.bot_service.TelegramBotService.delete_message", new_callable=AsyncMock) as mock_del, \
          patch("app.infrastructure.telegram.bot_service.TelegramBotService.send_raw_message", new_callable=AsyncMock) as mock_raw, \
          patch("app.infrastructure.telegram.bot_service.TelegramBotService.pin_message", new_callable=AsyncMock) as mock_pin, \
+         patch("app.infrastructure.telegram.bot_service.TelegramBotService.unpin_message", new_callable=AsyncMock) as mock_unpin, \
          patch("app.infrastructure.queue.worker.enrich_geoip", new_callable=AsyncMock) as mock_geo:
         mock_send.return_value = 12345
         mock_upd.return_value = True
@@ -45,6 +47,7 @@ def mock_external_network_calls():
         mock_del.return_value = True
         mock_raw.return_value = True
         mock_pin.return_value = True
+        mock_unpin.return_value = True
         mock_geo.return_value = {"country": "Localhost", "city": "Test City", "isp": "Test ISP"}
         yield
 
@@ -219,6 +222,7 @@ async def test_telegram_crm_webhook():
         }
         res_cont = await client.post("/api/v1/telegram/webhook", json=contacted_callback)
         assert res_cont.status_code == 200
+        TelegramBotService.unpin_message.assert_awaited_with(-100987654321, 9999)
 
         # 3. Simulate Engineer clicking "Спам / В бан"
         test_attacker_ip = f"222.111.1.{int(asyncio.get_event_loop().time() * 1000) % 250}"
@@ -311,6 +315,7 @@ async def test_telegram_crm_webhook():
             }
         })
         assert confirm_res.status_code == 200
+        TelegramBotService.unpin_message.assert_any_await(-100987654321, 9997)
 
         # Unauthorized delete attempt is blocked (BOLA / IDOR protection)
         unauth_del = await client.delete(f"/api/v1/leads/{del_lead_id}")
@@ -481,6 +486,22 @@ async def test_lead_auto_pinning():
             assert migrated_result is True
             assert mock_post.call_count == 2
             assert mock_post.call_args[1]["json"]["chat_id"] == -100987654321
+
+            # 4. Завершённая/удалённая заявка снимается с закрепления.
+            unpin_resp = MagicMock()
+            unpin_resp.status_code = 200
+            unpin_resp.json.return_value = {"ok": True, "result": True}
+            mock_post.reset_mock()
+            mock_post.side_effect = None
+            mock_post.return_value = unpin_resp
+
+            unpin_result = await _original_unpin_message("-100987654321", 888777)
+            assert unpin_result is True
+            assert "unpinChatMessage" in mock_post.call_args[0][0]
+            assert mock_post.call_args[1]["json"] == {
+                "chat_id": "-100987654321",
+                "message_id": 888777
+            }
         finally:
             current_settings.TELEGRAM_BOT_TOKEN = orig_token
             current_settings.TELEGRAM_CHAT_ID = orig_chat

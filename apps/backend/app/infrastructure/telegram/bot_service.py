@@ -520,3 +520,92 @@ class TelegramBotService:
         logger.error(f"❌ Не удалось закрепить сообщение #{message_id} после 3 попыток")
         return False
 
+    @staticmethod
+    async def unpin_message(chat_id: str | int, message_id: int) -> bool:
+        """
+        Снимает закрепление с завершённой или удалённой заявки.
+        Операция идемпотентна: уже откреплённое сообщение считается успехом.
+        """
+        bot_token = (getattr(settings, "TELEGRAM_BOT_TOKEN", "") or "").strip()
+        clean_chat = (str(chat_id) or "").strip()
+        if not bot_token or not clean_chat or clean_chat in ("your_team_chat_id_here", ""):
+            return False
+
+        url = build_telegram_api_url("unpinChatMessage")
+        payload = {"chat_id": clean_chat, "message_id": message_id}
+        current_chat_id = clean_chat
+
+        for attempt in range(1, 4):
+            try:
+                async with httpx.AsyncClient(timeout=8.0) as client:
+                    resp = await client.post(url, json=payload)
+                    data = resp.json()
+
+                if data.get("ok"):
+                    logger.info(
+                        f"📍 Закрепление заявки (сообщение #{message_id}) снято "
+                        f"в чате {current_chat_id}"
+                    )
+                    return True
+
+                error_code = data.get("error_code") or resp.status_code
+                error_description = str(data.get("description") or "Unknown Telegram API error")
+                error_lower = error_description.lower()
+                migrate_to = data.get("parameters", {}).get("migrate_to_chat_id")
+
+                if migrate_to:
+                    if str(current_chat_id) == str(getattr(settings, "TELEGRAM_CHAT_ID", "")):
+                        settings.TELEGRAM_CHAT_ID = str(migrate_to)
+                    current_chat_id = str(migrate_to)
+                    payload["chat_id"] = migrate_to
+                    continue
+
+                if any(marker in error_lower for marker in (
+                    "not pinned",
+                    "message to unpin not found",
+                    "message is not modified",
+                )):
+                    logger.info(f"Сообщение #{message_id} уже не закреплено")
+                    return True
+
+                if error_code == 429:
+                    retry_after = int(data.get("parameters", {}).get("retry_after", 2))
+                    await asyncio.sleep(retry_after + 1)
+                    continue
+
+                if any(marker in error_lower for marker in (
+                    "not enough rights",
+                    "need administrator rights",
+                    "chat_admin_required",
+                    "not an administrator",
+                )):
+                    logger.error(
+                        f"❌ Бот не может снять закрепление сообщения #{message_id}: "
+                        "выдайте ему право администратора «Закрепление сообщений». "
+                        f"Ответ Telegram: {error_description}"
+                    )
+                    return False
+
+                if int(error_code) >= 500:
+                    logger.warning(
+                        f"Временная ошибка Telegram при откреплении сообщения #{message_id}: "
+                        f"{error_description} (попытка {attempt}/3)"
+                    )
+                else:
+                    logger.warning(
+                        f"Не удалось снять закрепление сообщения #{message_id}: "
+                        f"{error_description} (HTTP {resp.status_code})"
+                    )
+                    return False
+            except Exception as e:
+                logger.warning(
+                    f"Сетевая ошибка при откреплении сообщения #{message_id} "
+                    f"(попытка {attempt}/3): {e}"
+                )
+
+            if attempt < 3:
+                await asyncio.sleep(attempt * 2.0)
+
+        logger.error(f"❌ Не удалось снять закрепление сообщения #{message_id} после 3 попыток")
+        return False
+

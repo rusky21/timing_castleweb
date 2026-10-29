@@ -9,6 +9,7 @@ from app.domain.entities import LeadStatus
 from app.presentation.schemas.lead import LeadCreate, LeadResponse
 from app.presentation.middlewares.rate_limit import check_rate_limit
 from app.infrastructure.queue.lead_queue import push_lead_to_queue
+from app.infrastructure.telegram.bot_service import TelegramBotService
 
 router = APIRouter()
 
@@ -156,6 +157,13 @@ async def delete_lead(
             detail=f"Заявка #{lead_id} не найдена в базе данных"
         )
 
+    telegram_message_id = lead.telegram_message_id
+    telegram_chat_id = _settings.TELEGRAM_CHAT_ID
+
     await db.delete(lead)
     await db.commit()
+
+    if telegram_message_id and telegram_chat_id:
+        await TelegramBotService.unpin_message(telegram_chat_id, telegram_message_id)
+
     return {"ok": True, "message": f"Заявка #{lead_id} успешно удалена", "deleted_id": lead_id}

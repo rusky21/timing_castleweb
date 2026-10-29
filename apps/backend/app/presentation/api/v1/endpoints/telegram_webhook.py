@@ -869,6 +869,7 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 await answer_callback_query(cb_id, f"✅ Связались по #{lead.id}")
                 if message_id and chat_id:
                     await TelegramBotService.update_message(chat_id, message_id, lead)
+                    await TelegramBotService.unpin_message(chat_id, message_id)
 
         elif data.startswith("lead_spam:"):
             lead_id = int(data.split(":")[1])
@@ -945,6 +946,7 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 await answer_callback_query(cb_id, f"🗑 Заявка #{lead_id} удалена")
                 if message_id and chat_id:
                     await TelegramBotService.edit_message_text(chat_id, message_id, deleted_text, del_keyboard)
+                    await TelegramBotService.unpin_message(chat_id, message_id)
             else:
                 await answer_callback_query(cb_id, f"⚠️ Заявка #{lead_id} уже удалена")
 
@@ -1399,6 +1401,7 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                             card_text = f"🗑 <b>Заявка #{lead_id} удалена</b> (удалил {user_display})"
                             card_kb = {"inline_keyboard": [[{"text": "🗑 Удалено", "callback_data": "noop"}]]}
                             await TelegramBotService.edit_message_text(settings.TELEGRAM_CHAT_ID, msg_id_card, card_text, card_kb)
+                            await TelegramBotService.unpin_message(settings.TELEGRAM_CHAT_ID, msg_id_card)
                         except Exception:
                             pass
             else:
