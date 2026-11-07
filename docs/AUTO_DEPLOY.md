@@ -46,13 +46,13 @@ test -f apps/parser/.env
 
 Создайте отдельный ключ без интерактивного passphrase для CI и добавьте публичную часть в `~/.ssh/authorized_keys` deploy-пользователя. Приватную часть сохраните только в GitHub Secret `PROD_SSH_KEY`.
 
-Fingerprint сервера лучше получить непосредственно на VDS:
+Fingerprint ECDSA host key сервера получите непосредственно на VDS. Именно ECDSA согласовывает используемый в workflow SSH-клиент:
 
 ```bash
-sudo ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub -E sha256
+sudo ssh-keygen -lf /etc/ssh/ssh_host_ecdsa_key.pub -E sha256
 ```
 
-Скопируйте значение вида `SHA256:...` в Secret `PROD_HOST_FINGERPRINT`. Проверка fingerprint защищает SSH-деплой от подключения к подменённому хосту.
+Скопируйте значение вида `SHA256:...` в поле `fingerprint` шага SSH в `.github/workflows/ci-cd.yml`. Проверка fingerprint защищает деплой от подключения к подменённому хосту. Secret `PROD_HOST_FINGERPRINT` текущим workflow не используется.
 
 ## 3. GitHub Environment, Secrets и Variables
 

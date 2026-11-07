@@ -512,19 +512,19 @@ setup_ssl_and_cron() {
         # Удаляем самоподписанные заглушки перед запросом, чтобы Certbot не создал директорию ${DOMAIN_NAME}-0001
         rm -rf "${CERT_DIR}"
 
-        docker compose -f "$DOCKER_COMPOSE_FILE" run --rm certbot certonly \
+        docker compose -f "$DOCKER_COMPOSE_FILE" run --rm --entrypoint certbot certbot certonly \
             --webroot -w /var/www/certbot \
             --cert-name "${DOMAIN_NAME}" \
             -d "${DOMAIN_NAME}" \
             -d "leads.${DOMAIN_NAME}" \
             --email "${ADMIN_EMAIL}" \
-            --agree-tos --no-eff-email --keep-until-expiring || \
-        docker compose -f "$DOCKER_COMPOSE_FILE" run --rm certbot certonly \
+            --agree-tos --no-eff-email --non-interactive --keep-until-expiring || \
+        docker compose -f "$DOCKER_COMPOSE_FILE" run --rm --entrypoint certbot certbot certonly \
             --webroot -w /var/www/certbot \
             --cert-name "${DOMAIN_NAME}" \
             -d "${DOMAIN_NAME}" \
             --email "${ADMIN_EMAIL}" \
-            --agree-tos --no-eff-email --keep-until-expiring || {
+            --agree-tos --no-eff-email --non-interactive --keep-until-expiring || {
                 log_warn "DNS еще не обновился. Восстанавливаем временный сертификат (Cloudflare SSL активен)..."
                 mkdir -p "${CERT_DIR}"
                 openssl req -x509 -nodes -newkey rsa:2048 -days 30 \
@@ -536,13 +536,19 @@ setup_ssl_and_cron() {
     fi
 
     # Автоматический Cron для продления Let's Encrypt каждые 12 часов
-    CRON_CMD="0 */12 * * * docker compose -f ${DOCKER_COMPOSE_FILE} run --rm certbot renew --quiet && docker compose -f ${DOCKER_COMPOSE_FILE} exec -T nginx nginx -s reload"
-    (crontab -l 2>/dev/null | grep -v "certbot renew" ; echo "$CRON_CMD") | crontab -
+    CRON_CMD="0 */12 * * * docker compose -f ${DOCKER_COMPOSE_FILE} run --rm --entrypoint certbot certbot renew --quiet && docker compose -f ${DOCKER_COMPOSE_FILE} exec -T nginx nginx -s reload"
+    {
+        (crontab -l 2>/dev/null || true) | grep -v "certbot renew" || true
+        echo "$CRON_CMD"
+    } | crontab -
     log_success "Автопродление SSL добавлено в системный crontab."
 
     # Еженедельная очистка Docker (старые образы и слои сборки >7 дней каждое воскресенье в 03:00)
     CRON_CLEANUP="0 3 * * 0 docker image prune -af --filter \"until=168h\" >/dev/null 2>&1"
-    (crontab -l 2>/dev/null | grep -v "docker image prune" ; echo "$CRON_CLEANUP") | crontab -
+    {
+        (crontab -l 2>/dev/null || true) | grep -v "docker image prune" || true
+        echo "$CRON_CLEANUP"
+    } | crontab -
     log_success "Еженедельная автоочистка Docker добавлена в системный crontab."
 
     # Dead Man's Switch — health check every 5 minutes, alert to Telegram on failure
@@ -583,7 +589,10 @@ HEALTHEOF
         chmod +x "$HEALTH_SCRIPT"
 
         HEALTH_CRON="*/5 * * * * ${HEALTH_SCRIPT}"
-        (crontab -l 2>/dev/null | grep -v "healthcheck.sh" ; echo "$HEALTH_CRON") | crontab -
+        {
+            (crontab -l 2>/dev/null || true) | grep -v "healthcheck.sh" || true
+            echo "$HEALTH_CRON"
+        } | crontab -
         log_success "Dead Man's Switch: мониторинг здоровья каждые 5 минут → алерт в Telegram."
 
         # Установка CASTLEWEB Sentinel (полный мониторинг хоста, памяти, диска, контейнеров и дайджеста)
@@ -749,7 +758,7 @@ main() {
                 -d "www.${DOMAIN_NAME}" \
                 -d "leads.${DOMAIN_NAME}" \
                 --email "${ADMIN_EMAIL}" \
-                --agree-tos --no-eff-email \
+                --agree-tos --no-eff-email --non-interactive \
                 --force-renewal
             docker compose -f "$DOCKER_COMPOSE_FILE" exec -T nginx nginx -s reload
             log_success "SSL сертификат успешно обновлен и Nginx перезапущен!"
