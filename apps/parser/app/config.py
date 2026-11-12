@@ -54,6 +54,12 @@ DEEPSEEK_MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat").strip()
 TELEGRAM_BOT_TOKEN = (os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
 OUTREACH_BOT_TOKEN = (os.environ.get("OUTREACH_BOT_TOKEN") or "").strip()
 
+# Автоматические Telegram-уведомления о заказах с фриланс-бирж.
+# По умолчанию отключены: сбор заказов, заявки и остальные функции бота продолжают работать.
+FREELANCE_ORDER_NOTIFICATIONS_ENABLED = os.environ.get(
+    "FREELANCE_ORDER_NOTIFICATIONS_ENABLED", "false"
+).strip().lower() in ("1", "true", "yes", "on")
+
 # Telegram Admin & Manager Configuration
 
 def get_admin_ids() -> set[int]:

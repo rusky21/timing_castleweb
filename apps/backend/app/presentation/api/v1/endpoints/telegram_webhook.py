@@ -1910,6 +1910,10 @@ async def broadcast_fl_order(request: Request):
     Принимает свежий заказ от парсера FL.ru и мгновенно оповещает администраторов студии
     в закрытый командный чат и в личные сообщения.
     """
+    if not settings.FREELANCE_ORDER_NOTIFICATIONS_ENABLED:
+        logger.debug("broadcast_fl_order: Telegram-уведомления о фриланс-заказах отключены")
+        return {"ok": True, "skipped": "freelance_order_notifications_disabled"}
+
     try:
         order_data = await request.json()
     except Exception:

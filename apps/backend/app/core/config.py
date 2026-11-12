@@ -37,6 +37,8 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("TELEGRAM_API_BASE_URL", "TELEGRAM_PROXY_URL")
     )
     TELEGRAM_WEBHOOK_SECRET: str = ""
+    # Не влияет на заявки и команды бота; управляет только рассылкой заказов с бирж.
+    FREELANCE_ORDER_NOTIFICATIONS_ENABLED: bool = False
 
     @field_validator("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", mode="before")
     @classmethod

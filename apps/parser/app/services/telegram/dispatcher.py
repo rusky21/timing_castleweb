@@ -107,6 +107,12 @@ class TelegramDispatcher:
 
     async def dispatch_fl_order(self, order):
         """Отправка заказа с FL.ru всем подходящим подписчикам"""
+        from app.config import FREELANCE_ORDER_NOTIFICATIONS_ENABLED
+
+        if not FREELANCE_ORDER_NOTIFICATIONS_ENABLED:
+            logger.debug("Telegram-уведомления о фриланс-заказах отключены глобально")
+            return
+
         if not self.bot:
             logger.warning("dispatch_fl_order: Telegram-бот не инициализирован (проверьте TELEGRAM_BOT_TOKEN в .env)")
             return
