@@ -6,12 +6,12 @@ import logging
 import html
 import httpx
 import secrets
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Request, status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, text as sql_text
 from app.core.database import get_db
 from app.core.config import get_settings
-from app.core.security import get_required_internal_secret
+from app.core.security import get_required_internal_secret, get_required_webhook_secret, require_internal_request
 from app.core.redis import get_redis_client
 from app.infrastructure.db.models import Lead, Blacklist, Case, DemoGrant
 from app.domain.entities import LeadStatus
@@ -90,7 +90,7 @@ async def send_reply_message(chat_id: int | str, text: str, reply_markup: dict |
         logger.error(f"Failed to send reply to chat {chat_id}: {e}", exc_info=True)
 
 
-@router.api_route("/test", methods=["GET", "POST"], summary="Send Test Notification to Telegram")
+@router.api_route("/test", methods=["GET", "POST"], summary="Send Test Notification to Telegram", dependencies=[Depends(require_internal_request)])
 async def send_test_telegram():
     """
     Диагностический эндпоинт: отправляет тестовое сообщение в Telegram-чат с текущими настройками.
@@ -159,7 +159,7 @@ async def send_test_telegram():
         return {"ok": False, "chat_id": chat_id, "token_preview": masked_token, "error": str(e)}
 
 
-@router.api_route("/setup-webhook", methods=["GET", "POST"], summary="Register Webhook with Telegram")
+@router.api_route("/setup-webhook", methods=["GET", "POST"], summary="Register Webhook with Telegram", dependencies=[Depends(require_internal_request)])
 async def setup_webhook(drop_pending_updates: bool = False):
     """
     Регистрирует адрес https://{DOMAIN_NAME}/api/v1/telegram/webhook в Telegram Bot API.
@@ -176,8 +176,7 @@ async def setup_webhook(drop_pending_updates: bool = False):
             "drop_pending_updates": drop_pending_updates,
             "allowed_updates": ["message", "callback_query"]
         }
-        if settings.TELEGRAM_WEBHOOK_SECRET:
-            payload["secret_token"] = settings.TELEGRAM_WEBHOOK_SECRET
+        payload["secret_token"] = get_required_webhook_secret()
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.post(url, json=payload)
             data = resp.json()
@@ -191,7 +190,7 @@ async def setup_webhook(drop_pending_updates: bool = False):
         return {"ok": False, "error": str(e)}
 
 
-@router.get("/webhook-info", summary="Get Current Webhook Status from Telegram")
+@router.get("/webhook-info", summary="Get Current Webhook Status from Telegram", dependencies=[Depends(require_internal_request)])
 async def get_webhook_info():
     """
     Возвращает диагностическую информацию о текущем вебхуке из Telegram Bot API.
@@ -813,12 +812,13 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
     - Сообщения и документы от пользователей (автоответчик + пересылка инженерам)
     """
     # Verify secret token to prevent forged webhook updates
-    expected_secret = (settings.TELEGRAM_WEBHOOK_SECRET or "").strip().strip("'\"")
-    if expected_secret:
-        incoming_token = (request.headers.get("x-telegram-bot-api-secret-token", "") or "").strip().strip("'\"")
-        if not incoming_token or not secrets.compare_digest(incoming_token, expected_secret):
-            logger.warning(f"Webhook rejected: invalid or missing secret token from {request.client.host if request.client else 'unknown'}")
-            return {"ok": False}
+    try:
+        expected_secret = get_required_webhook_secret()
+    except RuntimeError:
+        raise HTTPException(status_code=503, detail="Webhook authentication is not configured")
+    incoming_token = request.headers.get("x-telegram-bot-api-secret-token", "")
+    if not incoming_token or not secrets.compare_digest(incoming_token.encode(), expected_secret.encode()):
+        raise HTTPException(status_code=403, detail="Forbidden")
 
     update = await request.json()
     logger.info(f"📩 Telegram webhook update received: keys={list(update.keys())}")
@@ -1888,7 +1888,7 @@ async def get_bot_info():
 
 _RECENT_BROADCAST_FL_ORDERS = set()
 
-@router.post("/fl-order", summary="Broadcast new FL.ru project to studio chat and admins")
+@router.post("/fl-order", summary="Broadcast new FL.ru project to studio chat and admins", dependencies=[Depends(require_internal_request)])
 async def broadcast_fl_order(request: Request):
     """
     Принимает свежий заказ от парсера FL.ru и мгновенно оповещает администраторов студии

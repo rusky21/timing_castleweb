@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 os.environ.setdefault("INTERNAL_API_SECRET", "test-internal-secret-value")
+os.environ.setdefault("TELEGRAM_WEBHOOK_SECRET", "test-webhook-secret-value")
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))

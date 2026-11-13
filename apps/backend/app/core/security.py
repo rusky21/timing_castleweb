@@ -1,6 +1,8 @@
 import httpx
 import logging
 import secrets
+import re
+from fastapi import HTTPException, Request
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -28,6 +30,18 @@ def is_valid_internal_secret(provided: str | None) -> bool:
         return False
     candidate = (provided or "").strip()
     return bool(candidate and secrets.compare_digest(candidate, configured))
+
+
+def get_required_webhook_secret() -> str:
+    secret = (settings.TELEGRAM_WEBHOOK_SECRET or "").strip()
+    if secret == "super-secret-telegram-webhook-token" or not re.fullmatch(r"[A-Za-z0-9_-]{1,256}", secret):
+        raise RuntimeError("TELEGRAM_WEBHOOK_SECRET must be explicitly configured with a unique value")
+    return secret
+
+
+def require_internal_request(request: Request):
+    if not is_valid_internal_secret(request.headers.get("x-internal-secret")):
+        raise HTTPException(status_code=403, detail="Forbidden")
 
 
 async def verify_turnstile_token(token: str, remote_ip: str | None = None) -> bool:

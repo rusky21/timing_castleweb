@@ -178,6 +178,10 @@ function Setup-AdminEnv {
     if (Test-Path $EnvFile) {
         $reconfig = Read-Host "Файл .env уже существует. Перезаписать? [y/N]"
         if ($reconfig -notmatch '^[yY]') {
+            $webhookSecret = Get-EnvValue $EnvFile "TELEGRAM_WEBHOOK_SECRET"
+            if ([string]::IsNullOrWhiteSpace($webhookSecret) -or $webhookSecret -eq "super-secret-telegram-webhook-token") {
+                Set-EnvValue $EnvFile "TELEGRAM_WEBHOOK_SECRET" (New-RandomSecret 32)
+            }
             $existingInternalSecret = Get-EnvValue $EnvFile "INTERNAL_API_SECRET"
             if ([string]::IsNullOrWhiteSpace($existingInternalSecret) -or $existingInternalSecret -in @("castleweb-internal-demo-secret", "castleweb_internal_secret_123")) {
                 $existingInternalSecret = New-RandomSecret 24
@@ -257,6 +261,7 @@ function Setup-AdminEnv {
         "TURNSTILE_SECRET_KEY=$TurnstileSecret",
         "CLOUDFLARE_TURNSTILE_ENABLED=$TurnstileEnabled",
         "TELEGRAM_BOT_TOKEN=$TelegramBotToken",
+        "TELEGRAM_WEBHOOK_SECRET=$(New-RandomSecret 32)",
         "TELEGRAM_CHAT_ID=$TelegramChatId",
         "TELEGRAM_API_BASE_URL=$telegramApiBase",
         "TELEGRAM_PROXY_URL=$TelegramProxyUrl",

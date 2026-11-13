@@ -184,7 +184,8 @@ async def test_leads_and_anti_spam():
 
 @pytest.mark.asyncio
 async def test_telegram_crm_webhook():
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    from app.core.config import get_settings
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", headers={"x-telegram-bot-api-secret-token": get_settings().TELEGRAM_WEBHOOK_SECRET}) as client:
         lead_payload = {
             "name": "Ольга Заказчица",
             "contact": "@olga_ceo",
@@ -389,7 +390,7 @@ async def test_deduplication_and_webhook_secret():
 
             # Rejected without header
             res_no_token = await client.post("/api/v1/telegram/webhook", json={"message": {"text": "/stats"}})
-            assert res_no_token.json().get("ok") is False
+            assert res_no_token.status_code == 403
 
             # Rejected with wrong token
             res_bad_token = await client.post(
@@ -397,7 +398,7 @@ async def test_deduplication_and_webhook_secret():
                 json={"message": {"text": "/stats"}},
                 headers={"x-telegram-bot-api-secret-token": "wrong_token"}
             )
-            assert res_bad_token.json().get("ok") is False
+            assert res_bad_token.status_code == 403
 
             # Accepted with correct token
             res_good_token = await client.post(

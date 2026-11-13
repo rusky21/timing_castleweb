@@ -220,6 +220,18 @@ grep -Fq 'location ^~ /api/internal/' "$NGINX_CONFIG" || fail "Unable to harden 
 [ -f "$BACKEND_ENV" ] || fail "Missing server secret file: $BACKEND_ENV"
 [ -f "$PARSER_ENV" ] || fail "Missing server secret file: $PARSER_ENV"
 
+webhook_secret=$(grep -E '^TELEGRAM_WEBHOOK_SECRET=' "$BACKEND_ENV" | head -n 1 | cut -d'=' -f2- | tr -d '\"' | tr -d "'" | xargs || true)
+if [ -z "$webhook_secret" ] || [ "$webhook_secret" = "super-secret-telegram-webhook-token" ]; then
+    webhook_secret=$(openssl rand -hex 32) || fail "Unable to generate webhook secret"
+    if grep -q '^TELEGRAM_WEBHOOK_SECRET=' "$BACKEND_ENV"; then
+        sed -i "s|^TELEGRAM_WEBHOOK_SECRET=.*|TELEGRAM_WEBHOOK_SECRET=${webhook_secret}|" "$BACKEND_ENV"
+    else
+        printf '\nTELEGRAM_WEBHOOK_SECRET=%s\n' "$webhook_secret" >> "$BACKEND_ENV"
+    fi
+    chmod 600 "$BACKEND_ENV"
+    log "Generated unique webhook authentication; backend startup will register it with Telegram"
+fi
+
 parser_initial_password=$(grep -E '^[[:space:]]*INITIAL_ADMIN_PASSWORD[[:space:]]*=' "$PARSER_ENV" 2>/dev/null | head -n 1 | cut -d'=' -f2- | tr -d '"' | tr -d "'" | xargs || true)
 if [ "$parser_initial_password" = "AdminPass123!_ChangeMe" ]; then
     new_initial_password=$(openssl rand -hex 16) || fail "Unable to rotate legacy INITIAL_ADMIN_PASSWORD"

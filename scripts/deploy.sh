@@ -267,6 +267,19 @@ sync_parser_token_from_env() {
     log_info "Синхронизация токенов и параметров для LeadHunter ($PARSER_ENV_FILE)..."
     mkdir -p "${ROOT_DIR}/apps/parser"
 
+    local webhook_secret
+    webhook_secret=$(grep -E '^TELEGRAM_WEBHOOK_SECRET=' "$ENV_FILE" | head -n 1 | cut -d'=' -f2- | tr -d '\"' | tr -d "'" | xargs || true)
+    if [ -z "$webhook_secret" ] || [ "$webhook_secret" = "super-secret-telegram-webhook-token" ]; then
+        webhook_secret=$(openssl rand -hex 32) || exit 1
+        if grep -q '^TELEGRAM_WEBHOOK_SECRET=' "$ENV_FILE"; then
+            sed -i "s|^TELEGRAM_WEBHOOK_SECRET=.*|TELEGRAM_WEBHOOK_SECRET=${webhook_secret}|" "$ENV_FILE"
+        else
+            printf '\nTELEGRAM_WEBHOOK_SECRET=%s\n' "$webhook_secret" >> "$ENV_FILE"
+        fi
+        chmod 600 "$ENV_FILE"
+    fi
+    TELEGRAM_WEBHOOK_SECRET="$webhook_secret"
+
     local main_token=""
     local main_chat_id=""
     local main_proxy=""
@@ -333,6 +346,7 @@ sync_parser_token_from_env() {
         main_internal_secret="$new_internal_secret"
         log_warn "Устаревший или рассинхронизированный INTERNAL_API_SECRET безопасно заменен."
     fi
+    INTERNAL_API_SECRET="$main_internal_secret"
 
     if [ ! -f "$PARSER_ENV_FILE" ]; then
         log_info "Создаем $PARSER_ENV_FILE на основе основного .env..."
@@ -789,8 +803,8 @@ main() {
             docker compose -f "$DOCKER_COMPOSE_FILE" restart nginx
             docker compose -f "$DOCKER_COMPOSE_FILE" exec -T backend alembic upgrade head || true
             docker compose -f "$DOCKER_COMPOSE_FILE" exec -u 0 -T backend chmod -R 777 /app/uploads /tmp/uploads 2>/dev/null || true
-            curl -sf -X POST http://127.0.0.1:8000/api/v1/telegram/setup-webhook >/dev/null 2>&1 || true
-            curl -sf -X POST http://127.0.0.1:8000/api/v1/telegram/test >/dev/null 2>&1 || true
+            curl -sf -X POST -H "X-Internal-Secret: ${INTERNAL_API_SECRET}" http://127.0.0.1:8000/api/v1/telegram/setup-webhook >/dev/null 2>&1 || true
+            curl -sf -X POST -H "X-Internal-Secret: ${INTERNAL_API_SECRET}" http://127.0.0.1:8000/api/v1/telegram/test >/dev/null 2>&1 || true
             docker image prune -f >/dev/null 2>&1 || true
             log_success "Бэкенд обновлен, Nginx синхронизирован и Telegram Webhook активирован!"
             ;;

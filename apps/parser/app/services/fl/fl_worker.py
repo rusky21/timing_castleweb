@@ -299,6 +299,12 @@ class FLWorker:
         откуда @castleweb_bot мгновенно публикует его в командный чат и админам.
         """
         backend_url = os.environ.get("BACKEND_INTERNAL_URL", "http://backend:8000").rstrip("/")
+        from app.core.security import get_configured_internal_secret
+        secret = get_configured_internal_secret()
+        if not secret:
+            logger.warning("FL notification skipped: internal authentication is not configured")
+            return
+        headers = {"X-Internal-Secret": secret}
         endpoint = f"{backend_url}/api/v1/telegram/fl-order"
         payload = {
             "id": order.id,
@@ -316,7 +322,7 @@ class FLWorker:
         }
         try:
             async with httpx.AsyncClient(timeout=2.0) as client:
-                resp = await client.post(endpoint, json=payload)
+                resp = await client.post(endpoint, json=payload, headers=headers)
                 if resp.status_code == 200:
                     logger.info(f"FLWorker: Заказ #{order.id} успешно передан в @castleweb_bot (200 OK)")
                 else:
@@ -326,7 +332,7 @@ class FLWorker:
                 local_endpoint = endpoint.replace("backend:8000", "127.0.0.1:8000")
                 try:
                     async with httpx.AsyncClient(timeout=2.0) as client:
-                        resp = await client.post(local_endpoint, json=payload)
+                        resp = await client.post(local_endpoint, json=payload, headers=headers)
                         if resp.status_code == 200:
                             logger.info(f"FLWorker: Заказ #{order.id} передан в локальный @castleweb_bot (200 OK)")
                             return

@@ -37,8 +37,8 @@ async def lifespan(app: FastAPI):
                         "url": webhook_url,
                         "allowed_updates": ["message", "callback_query"]
                     }
-                    if settings.TELEGRAM_WEBHOOK_SECRET:
-                        payload["secret_token"] = settings.TELEGRAM_WEBHOOK_SECRET
+                    from app.core.security import get_required_webhook_secret
+                    payload["secret_token"] = get_required_webhook_secret()
                     resp = await client.post(url, json=payload)
                     data = resp.json()
                     if data.get("ok"):
