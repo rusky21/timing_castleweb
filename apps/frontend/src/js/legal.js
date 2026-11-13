@@ -1,4 +1,5 @@
 // Юридические страницы: граница у шапки при скролле и подсветка текущего раздела в содержании.
+import './analytics.js';
 
 const header = document.querySelector('.lheader');
 const onScroll = () => header.classList.toggle('is-scrolled', window.scrollY > 8);

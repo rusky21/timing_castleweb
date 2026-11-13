@@ -1,8 +1,16 @@
 // Форма заявки → POST /api/v1/leads (FastAPI). Бэкенд сохраняет заявку в БД
 // и отправляет её в Telegram-канал. Лимиты полей совпадают со схемой LeadCreate.
+//
+// Настройки через data-атрибуты формы:
+//   data-tag="Площадка"      — подпись выбранного варианта в тексте заявки (по умолчанию «Направление»)
+//   data-source="Чат-боты"   — с какой страницы пришла заявка (для лендингов)
+//   data-thanks="/spasibo"   — куда перейти после отправки; без него показываем сообщение на месте
+//   data-extra="Связь"       — на полях и вариантах выбора: их значение добавляется в текст заявки
+import { reachGoal } from './analytics.js';
 
 const ENDPOINT = '/api/v1/leads';
 const FALLBACK = 'Напишите нам напрямую в Telegram: @kupidon996 или @Ya_emildjan.';
+const TASK_MAX = 5000;
 
 const LIMITS = {
   name: { min: 2, msg: 'Имя — минимум 2 символа.' },
@@ -17,14 +25,49 @@ const errorText = (res, data) => {
   return `Сервер ответил ошибкой (${res.status}).`;
 };
 
-async function send(fields) {
+// Метки рекламной кампании из адреса страницы: по ним видно, какое объявление привело заявку
+// Посетитель может уйти с лендинга на другие страницы и оставить заявку там, поэтому метки
+// запоминаются до закрытия вкладки.
+const AD_KEY = 'cw-ad';
+function adMarks() {
+  const marks = [];
+  new URLSearchParams(location.search).forEach((value, key) => {
+    if (/^utm_/.test(key) || key === 'yclid') marks.push(`${key}=${value}`);
+  });
+  const fresh = marks.join(', ').slice(0, 400);
+  try {
+    if (fresh) sessionStorage.setItem(AD_KEY, fresh);
+    return fresh || sessionStorage.getItem(AD_KEY) || '';
+  } catch {
+    return fresh;
+  }
+}
+adMarks();
+
+function describe(form, fields) {
+  const lines = [];
+  if (form.dataset.source) lines.push(`[Страница: ${form.dataset.source}]`);
+  if (fields.direction) lines.push(`[${form.dataset.tag || 'Направление'}: ${fields.direction}]`);
+  // Дополнительные ответы формы: data-extra="Подпись" на поле или на вариантах выбора
+  form.querySelectorAll('[data-extra]').forEach((el) => {
+    const choice = el.type === 'radio' || el.type === 'checkbox';
+    if ((choice && !el.checked) || !el.value.trim()) return;
+    lines.push(`[${el.dataset.extra}: ${el.value.trim()}]`);
+  });
+  lines.push(fields.task);
+  const marks = adMarks();
+  if (marks) lines.push(`[Реклама: ${marks}]`);
+  return lines.join('\n').slice(0, TASK_MAX);
+}
+
+async function send(form, fields) {
   const res = await fetch(ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       name: fields.name,
       contact: fields.contact,
-      task_description: `[Направление: ${fields.direction}]\n${fields.task}`,
+      task_description: describe(form, fields),
       budget: fields.budget || null,
       hp_website: fields.hp || null,
     }),
@@ -91,7 +134,14 @@ export function initForm(form) {
     form.setAttribute('aria-busy', 'true');
     say('Отправляем заявку…');
     try {
-      await send(fields);
+      await send(form, fields);
+      if (form.dataset.thanks) {
+        // Цель «заявка» отправит страница «спасибо»: так она не теряется при переходе
+        try { sessionStorage.setItem('cw-lead', form.dataset.source || 'Сайт'); } catch { /* без хранилища цель не отправится */ }
+        location.assign(form.dataset.thanks);
+        return;
+      }
+      reachGoal('lead', { page: 'Главная' });
       form.reset();
       if (budget) budget.value = '';
       say('Заявка у нас. Ответим лично в течение одного-двух часов.', 'ok');

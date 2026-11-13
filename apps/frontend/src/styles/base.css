@@ -178,3 +178,34 @@ legend { padding: 0; }
   transition-delay: var(--rd, 0s);
 }
 .js:not(.rm) [data-line].is-in::before { transform: scaleX(1); }
+
+/* =========================================================
+   Плашка согласия на cookie (analytics.js). Не модальная: сайт остаётся доступен,
+   пока посетитель не выбрал. Метрика подключается только после «Принять».
+   ========================================================= */
+.cookie {
+  position: fixed;
+  left: var(--gutter);
+  bottom: var(--gutter);
+  z-index: 70;
+  display: grid;
+  gap: 18px;
+  width: min(460px, calc(100% - var(--gutter) * 2));
+  padding: clamp(18px, 2.2vw, 26px);
+  border-radius: var(--radius);
+  background: #1C1C1C;
+  /* Кольцо отделяет плашку от тёмных секций под ней */
+  box-shadow: inset 0 0 0 1px #3A3A38;
+  color: var(--paper);
+  animation: cookie-in 0.6s var(--ease-out) both;
+}
+@keyframes cookie-in { from { opacity: 0; transform: translateY(16px); } }
+.cookie__text { font-size: var(--fs-s); line-height: 1.5; color: #D9D9D5; }
+.cookie__text a { color: var(--paper); text-decoration: underline; text-underline-offset: 3px; }
+.cookie__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.cookie .btn { min-height: 44px; padding: 8px 20px; }
+.cookie__decline { background: transparent; color: var(--paper); box-shadow: inset 0 0 0 1px #4A4A47; }
+.cookie :focus-visible { outline-color: #8FA6FF; }
+@media (max-width: 559.98px) {
+  .cookie { left: 10px; bottom: 10px; width: calc(100% - 20px); gap: 14px; padding: 16px; }
+}

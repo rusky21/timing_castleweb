@@ -1,4 +1,5 @@
 // Страницы кейсов: граница у шапки при скролле и фильтры на странице всех кейсов.
+import './analytics.js';
 
 const header = document.querySelector('.lheader');
 const onScroll = () => header.classList.toggle('is-scrolled', window.scrollY > 8);

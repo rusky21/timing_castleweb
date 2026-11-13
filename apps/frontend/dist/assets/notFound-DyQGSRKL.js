@@ -1,0 +1,1 @@
+import"./analytics-C_x0rBcG.js";import{i as e}from"./mosaic-CjCmGmOY.js";const o=window.matchMedia("(prefers-reduced-motion: reduce)").matches;e(document.querySelector("[data-mosaic]"),{reduced:o});const t=document.querySelector("[data-path]");t&&location.pathname!=="/404.html"&&(t.textContent=decodeURIComponent(location.pathname));

@@ -1,3 +1,4 @@
+import './analytics.js';
 import Lenis from 'lenis';
 import 'lenis/dist/lenis.css';
 import { initMosaic } from './mosaic.js';

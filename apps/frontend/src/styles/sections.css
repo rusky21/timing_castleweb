@@ -696,7 +696,9 @@
   border-radius: 16px;
   background: var(--soft);
 }
-@media (min-width: 560px) { .seg__track { display: inline-flex; border-radius: 999px; } }
+/* Пять типов: на телефоне последний занимает всю строку, в одну строку они встают с 680px */
+.seg__track label:last-child:nth-child(odd) { grid-column: 1 / -1; }
+@media (min-width: 680px) { .seg__track { display: inline-flex; border-radius: 999px; } }
 .seg label { position: relative; }
 .seg input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
 .seg span {
@@ -800,6 +802,8 @@
 @keyframes include-in { from { opacity: 0; transform: translateX(-8px); } }
 .calc__out .btn { margin-top: 10px; }
 .calc__note { max-width: 36ch; font-size: var(--fs-s); color: var(--night-muted); }
+.calc__promo { color: var(--paper); }
+.calc__promo a { text-decoration: underline; text-underline-offset: 3px; }
 .calc__out :focus-visible { outline-color: #8FA6FF; }
 
 /* =========================================================
@@ -1069,6 +1073,8 @@
   transition: background-size 0.5s var(--ease-out), color 0.3s;
 }
 .contact__mail:hover { color: #8FA6FF; background-size: 0 2px; background-position: 100% 100%; }
+/* Длинный адрес почты не помещался в 320px и растягивал страницу по горизонтали */
+@media (max-width: 379.98px) { .contact__mail { font-size: 1.375rem; } }
 .contact__people { margin-top: 36px; border-top: 1px solid var(--night-line); }
 .contact__people div {
   display: flex;

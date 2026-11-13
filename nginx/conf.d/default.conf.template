@@ -46,7 +46,9 @@ server {
 
     # Security Headers
     add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
-    add_header X-Frame-Options "DENY" always;
+    # Встраивание сайта во фрейм разрешено только интерфейсу Яндекс Метрики (Вебвизор, карты кликов);
+    # остальным запрещено, как раньше делал X-Frame-Options DENY
+    add_header Content-Security-Policy "frame-ancestors https://metrika.yandex.ru https://metrica.yandex.ru https://metrika.yandex.com https://metrica.yandex.com https://metrika.yandex.by https://metrika.yandex.kz" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 

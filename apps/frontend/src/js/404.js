@@ -1,3 +1,4 @@
+import './analytics.js';
 import { initMosaic } from './mosaic.js';
 
 const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;

@@ -4,6 +4,7 @@
 const DIRECTION = {
   devops: 'Серверы и бэкенд',
   bot: 'Telegram-бот',
+  landing: 'Сайт или лендинг',
   site: 'Сайт или лендинг',
   service: 'Веб-сервис или SaaS',
 };
