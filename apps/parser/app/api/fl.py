@@ -1,5 +1,3 @@
-import os
-import secrets
 import logging
 from typing import Optional, List
 from pydantic import BaseModel
@@ -13,7 +11,7 @@ from app.db.models import FLOrder, FLOrderInteraction, FLCategorySync, utc_now
 from app.services.fl.constants import FL_CATEGORIES, CATEGORY_BY_ID
 from app.services.fl.fl_worker import fl_worker
 from app.services.connection_manager import ws_manager
-from app.core.security import decode_session_token
+from app.core.security import decode_session_token, is_valid_internal_secret
 
 logger = logging.getLogger("fl_api")
 
@@ -24,8 +22,7 @@ def require_fl_access(request: Request):
     2) Авторизованным пользователям с ролью 'admin'
     """
     internal_secret = (request.headers.get("X-Internal-Secret") or "").strip()
-    expected_secret = (os.environ.get("INTERNAL_API_SECRET") or "").strip()
-    if internal_secret and expected_secret and secrets.compare_digest(internal_secret, expected_secret):
+    if is_valid_internal_secret(internal_secret):
         return {"role": "admin", "sub": "internal_service"}
 
     user_data = getattr(request.state, "user", None)

@@ -92,7 +92,7 @@ class Settings(BaseSettings):
 
     # LeadHunter Pro Parser Integration
     PARSER_INTERNAL_URL: str = "http://leadhunter:8000"
-    INTERNAL_API_SECRET: str = "castleweb-internal-demo-secret"
+    INTERNAL_API_SECRET: str = ""
     PARSER_PUBLIC_URL: str = ""
 
     model_config = SettingsConfigDict(

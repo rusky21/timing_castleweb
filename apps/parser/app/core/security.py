@@ -1,4 +1,5 @@
 import os
+import secrets
 import bcrypt
 import jwt
 from datetime import datetime, timedelta, timezone
@@ -7,6 +8,29 @@ from typing import Optional, Dict, Any
 SECRET_KEY = os.environ.get("SECRET_KEY", "leadhunter-super-secret-production-key-change-me-in-env")
 ALGORITHM = "HS256"
 SESSION_LIFETIME_DAYS = int(os.environ.get("SESSION_LIFETIME_DAYS", "7"))
+
+# Эти значения ранее использовались как общедоступные резервные секреты.
+# Они остаются только в deny-list, чтобы старые конфигурации не продолжали
+# предоставлять привилегированный межсервисный доступ после обновления.
+COMPROMISED_INTERNAL_SECRETS = frozenset({
+    "castleweb-internal-demo-secret",
+    "castleweb_internal_secret_123",
+})
+
+
+def get_configured_internal_secret() -> str:
+    """Возвращает только безопасный, явно настроенный межсервисный секрет."""
+    configured = (os.environ.get("INTERNAL_API_SECRET") or "").strip()
+    if not configured or configured in COMPROMISED_INTERNAL_SECRETS:
+        return ""
+    return configured
+
+
+def is_valid_internal_secret(provided: Optional[str]) -> bool:
+    """Проверяет единственный настроенный секрет в постоянное время."""
+    configured = get_configured_internal_secret()
+    candidate = (provided or "").strip()
+    return bool(configured and candidate and secrets.compare_digest(candidate, configured))
 
 def hash_password(password: str) -> str:
     """Хеширование пароля через bcrypt с автоматической солью"""

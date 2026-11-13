@@ -1,8 +1,11 @@
 import asyncio
+import os
 import sys
 from pathlib import Path
 
 import pytest
+
+os.environ.setdefault("INTERNAL_API_SECRET", "test-internal-secret-value")
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))

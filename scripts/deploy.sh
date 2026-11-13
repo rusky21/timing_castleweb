@@ -123,6 +123,8 @@ setup_admin_env() {
     # Auto-generate Telegram Webhook secret and Parser internal secret
     TELEGRAM_WEBHOOK_SECRET=$(openssl rand -hex 32)
     INTERNAL_API_SECRET=$(openssl rand -hex 24)
+    INITIAL_ADMIN_EMAIL="${ADMIN_EMAIL}"
+    INITIAL_ADMIN_PASSWORD=$(openssl rand -hex 16)
 
     echo -e "\n${CYAN}--- Хранилище файлов портфолио и ТЗ клиентов ---${NC}"
     read -r -p "Использовать облачное хранилище Cloudflare R2? (требует карту) [y/N]: " USE_R2
@@ -253,8 +255,8 @@ INTERNAL_API_SECRET=${INTERNAL_API_SECRET}
 PARSER_PUBLIC_URL=https://leads.${DOMAIN_NAME}
 COOKIE_SECURE=false
 
-INITIAL_ADMIN_EMAIL=admin@lead.pro
-INITIAL_ADMIN_PASSWORD=AdminPass123!_ChangeMe
+INITIAL_ADMIN_EMAIL=${INITIAL_ADMIN_EMAIL}
+INITIAL_ADMIN_PASSWORD=${INITIAL_ADMIN_PASSWORD}
 EOF
     )
     chmod 600 "$PARSER_ENV_FILE"
@@ -268,11 +270,68 @@ sync_parser_token_from_env() {
     local main_token=""
     local main_chat_id=""
     local main_proxy=""
+    local main_internal_secret=""
+    local parser_internal_secret=""
+    local parser_initial_password=""
 
     if [ -f "$ENV_FILE" ]; then
         main_token=$(grep -E '^TELEGRAM_BOT_TOKEN=' "$ENV_FILE" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || true)
         main_chat_id=$(grep -E '^TELEGRAM_CHAT_ID=' "$ENV_FILE" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || true)
         main_proxy=$(grep -E '^TELEGRAM_PROXY_URL=' "$ENV_FILE" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || true)
+        main_internal_secret=$(grep -E '^INTERNAL_API_SECRET=' "$ENV_FILE" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || true)
+    fi
+
+    if [ -f "$PARSER_ENV_FILE" ]; then
+        parser_internal_secret=$(grep -E '^INTERNAL_API_SECRET=' "$PARSER_ENV_FILE" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || true)
+        parser_initial_password=$(grep -E '^INITIAL_ADMIN_PASSWORD=' "$PARSER_ENV_FILE" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || true)
+        if [ "$parser_initial_password" = "AdminPass123!_ChangeMe" ]; then
+            local new_initial_password
+            new_initial_password=$(openssl rand -hex 16) || {
+                log_error "Не удалось заменить устаревший INITIAL_ADMIN_PASSWORD."
+                exit 1
+            }
+            sed -i "s|^INITIAL_ADMIN_PASSWORD=.*|INITIAL_ADMIN_PASSWORD=${new_initial_password}|" "$PARSER_ENV_FILE"
+            chmod 600 "$PARSER_ENV_FILE"
+            log_warn "Опубликованный начальный пароль администратора заменен случайным значением в защищенном $PARSER_ENV_FILE."
+        fi
+    fi
+
+    local rotate_internal_secret=0
+    case "$main_internal_secret" in
+        ""|castleweb-internal-demo-secret|castleweb_internal_secret_123)
+            rotate_internal_secret=1
+            ;;
+    esac
+    if [ -f "$PARSER_ENV_FILE" ]; then
+        case "$parser_internal_secret" in
+            ""|castleweb-internal-demo-secret|castleweb_internal_secret_123)
+                rotate_internal_secret=1
+                ;;
+        esac
+        if [ "$main_internal_secret" != "$parser_internal_secret" ]; then
+            rotate_internal_secret=1
+        fi
+    fi
+
+    if [ "$rotate_internal_secret" -eq 1 ]; then
+        local new_internal_secret
+        new_internal_secret=$(openssl rand -hex 24) || {
+            log_error "Не удалось сгенерировать безопасный INTERNAL_API_SECRET."
+            exit 1
+        }
+        for secret_file in "$ENV_FILE" "$PARSER_ENV_FILE"; do
+            if [ "$secret_file" = "$PARSER_ENV_FILE" ] && [ ! -f "$secret_file" ]; then
+                continue
+            fi
+            if grep -q '^INTERNAL_API_SECRET=' "$secret_file"; then
+                sed -i "s|^INTERNAL_API_SECRET=.*|INTERNAL_API_SECRET=${new_internal_secret}|" "$secret_file"
+            else
+                printf '\nINTERNAL_API_SECRET=%s\n' "$new_internal_secret" >> "$secret_file"
+            fi
+            chmod 600 "$secret_file"
+        done
+        main_internal_secret="$new_internal_secret"
+        log_warn "Устаревший или рассинхронизированный INTERNAL_API_SECRET безопасно заменен."
     fi
 
     if [ ! -f "$PARSER_ENV_FILE" ]; then
@@ -290,15 +349,16 @@ MANAGER_TELEGRAM_CHAT_ID=${main_chat_id}
 HOST=0.0.0.0
 PORT=8000
 SECRET_KEY=$(openssl rand -hex 32 2>/dev/null || echo "castleweb_secret_key_1234567890")
-INTERNAL_API_SECRET=$(openssl rand -hex 24 2>/dev/null || echo "castleweb_internal_secret_123")
+INTERNAL_API_SECRET=${main_internal_secret:-$(openssl rand -hex 24)}
 PARSER_PUBLIC_URL=https://leads.castleweb.ru
 COOKIE_SECURE=false
-INITIAL_ADMIN_EMAIL=admin@lead.pro
-INITIAL_ADMIN_PASSWORD=AdminPass123!_ChangeMe
+INITIAL_ADMIN_EMAIL=admin@leadhunter.local
+INITIAL_ADMIN_PASSWORD=$(openssl rand -hex 16)
 EOF
         )
         chmod 600 "$PARSER_ENV_FILE"
         log_success "Файл $PARSER_ENV_FILE успешно создан!"
+        log_warn "Уникальный пароль первого администратора сохранен только в защищенном $PARSER_ENV_FILE; смените его после первого входа."
     else
         # Файл уже существует. Проверим, заполнен ли токен
         local current_parser_token

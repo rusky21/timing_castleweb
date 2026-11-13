@@ -117,6 +117,11 @@ server {
         return 301 https://leads.$host/;
     }
 
+    # Internal parser endpoints are reachable only over the private Docker network.
+    location ^~ /parser/api/internal/ {
+        return 404;
+    }
+
     location /parser/ {
         proxy_pass http://leadhunter_upstream/;
         proxy_http_version 1.1;
@@ -165,6 +170,11 @@ server {
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
     client_max_body_size 50M;
+
+    # Never expose service-to-service endpoints on the public parser host.
+    location ^~ /api/internal/ {
+        return 404;
+    }
 
     location / {
         proxy_pass http://leadhunter_upstream;

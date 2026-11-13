@@ -10,7 +10,14 @@ from sqlalchemy import select
 
 from app.db.database import get_db
 from app.db.models import User
-from app.core.security import verify_password, create_session_token, decode_session_token, get_safe_redirect_url
+from app.core.security import (
+    verify_password,
+    create_session_token,
+    decode_session_token,
+    get_safe_redirect_url,
+    get_configured_internal_secret,
+    is_valid_internal_secret,
+)
 from app.core.rate_limiter import login_limiter
 
 router = APIRouter(tags=["Authentication"])
@@ -590,7 +597,7 @@ async def login_page(request: Request, returnUrl: str = "/", error: Optional[str
                             name="email" 
                             required 
                             autocomplete="username" 
-                            placeholder="admin@lead.pro" 
+                            placeholder="admin@your-domain.example"
                             autofocus
                         >
                     </div>
@@ -904,10 +911,38 @@ async def delete_user_api(user_id: int, request: Request, db: AsyncSession = Dep
 import secrets
 import string
 
+
+def verify_internal_secret(request: Request):
+    """Строгая межсервисная аутентификация только через заголовок."""
+    if not get_configured_internal_secret():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Internal API authentication is not configured securely",
+        )
+
+    provided = (request.headers.get("X-Internal-Secret") or "").strip()
+    if not is_valid_internal_secret(provided):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: Invalid internal secret",
+        )
+
+
+PRIVILEGED_ROLES = frozenset({"admin", "superuser", "root"})
+
+
+def reject_privileged_internal_mutation(user: User, operation: str) -> None:
+    """Не позволяет Telegram-провижинингу менять привилегированные аккаунты."""
+    if (user.role or "").strip().lower() in PRIVILEGED_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Privileged accounts cannot be managed through {operation}",
+        )
+
+
 class CreateDemoUserPayload(BaseModel):
     tg_user_id: str
     tg_username: Optional[str] = None
-    secret_key: Optional[str] = None
 
 @router.post("/api/internal/create-demo-user")
 async def create_demo_user(
@@ -919,81 +954,22 @@ async def create_demo_user(
     Внутренний эндпоинт для Telegram-бота студии:
     Создает или возвращает временный демо-аккаунт на 5 запросов с кулдауном 15 минут.
     """
-    secret = (request.headers.get("X-Internal-Secret") or payload.secret_key or "").strip()
-    expected_secret = (os.environ.get("INTERNAL_API_SECRET") or "castleweb-internal-demo-secret").strip()
-    valid_secrets = {expected_secret, "castleweb-internal-demo-secret"}
-    if secret not in valid_secrets:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden: Invalid internal secret")
+    verify_internal_secret(request)
 
     clean_tg_id = str(payload.tg_user_id).strip()
     if not clean_tg_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="tg_user_id is required")
-
-    from app.config import ADMIN_TELEGRAM_IDS
-    is_admin = False
-    clean_username = (payload.tg_username or "").strip().lower().lstrip("@")
-    clean_id_str = str(clean_tg_id).strip()
-    try:
-        clean_id_int = int(clean_id_str)
-        is_admin = (
-            (clean_id_int in ADMIN_TELEGRAM_IDS)
-            or (clean_id_int == 1878543896)
-            or (clean_username in ("kupidon996", "ya_emildjan", "castleweb_admin", "admin"))
-        )
-    except Exception:
-        is_admin = (clean_username in ("kupidon996", "ya_emildjan", "castleweb_admin", "admin"))
 
     # Проверяем, существует ли уже аккаунт для данного Telegram ID
     query = select(User).where(User.tg_user_id == clean_tg_id)
     res = await db.execute(query)
     existing_user = res.scalar_one_or_none()
 
-    if is_admin:
-        new_password = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(10))
-        if existing_user:
-            existing_user.role = "admin"
-            existing_user.demo_searches_left = 999999
-            existing_user.max_companies_per_search = 1000
-            existing_user.is_active = True
-            existing_user.password_hash = hash_password(new_password)
-            await db.commit()
-            return {
-                "status": "admin",
-                "email": existing_user.email,
-                "password": new_password,
-                "role": "admin",
-                "demo_searches_left": 999999,
-                "max_companies_per_search": 1000,
-                "cooldown_minutes": 0,
-                "message": "Безграничный доступ Администратора активирован"
-            }
-        else:
-            suffix = clean_tg_id[-4:] if len(clean_tg_id) >= 4 else clean_tg_id
-            email = f"admin_{suffix}@castleweb.ru"
-            new_user = User(
-                email=email,
-                password_hash=hash_password(new_password),
-                role="admin",
-                is_active=True,
-                tg_user_id=clean_tg_id,
-                demo_searches_left=999999,
-                max_companies_per_search=1000,
-                created_at=datetime.now(timezone.utc)
-            )
-            db.add(new_user)
-            await db.commit()
-            return {
-                "status": "admin",
-                "email": email,
-                "password": new_password,
-                "role": "admin",
-                "demo_searches_left": 999999,
-                "max_companies_per_search": 1000,
-                "cooldown_minutes": 0,
-                "message": "Безграничный доступ Администратора активирован"
-            }
-
     if existing_user:
+        # Демо-эндпоинт никогда не управляет привилегированными аккаунтами.
+        # Это также закрывает сброс пароля администратора через общий путь ниже.
+        reject_privileged_internal_mutation(existing_user, "demo provisioning")
+
         # Если у пользователя уже активирован платный доступ — отдаем карточку платного тарифа
         if existing_user.role == "paid":
             new_password = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(8))
@@ -1086,7 +1062,6 @@ class GrantPaidAccessPayload(BaseModel):
     tg_user_id: str
     plan: str  # "1m", "3m", "1y", "lifetime"
     tg_username: Optional[str] = None
-    secret_key: Optional[str] = None
 
 
 PAID_PLAN_DAYS = {
@@ -1104,14 +1079,6 @@ PAID_PLAN_TITLES = {
 }
 
 
-def verify_internal_secret(request: Request, payload_secret: str | None = None):
-    secret = (request.headers.get("X-Internal-Secret") or payload_secret or "").strip()
-    expected_secret = (os.environ.get("INTERNAL_API_SECRET") or "castleweb-internal-demo-secret").strip()
-    valid_secrets = {expected_secret, "castleweb-internal-demo-secret"}
-    if secret not in valid_secrets:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden: Invalid internal secret")
-
-
 @router.post("/api/internal/grant-paid-access")
 async def grant_paid_access(
     payload: GrantPaidAccessPayload,
@@ -1127,7 +1094,7 @@ async def grant_paid_access(
     - Бессрочно: 50 000 ₽ (без ограничения)
     Лимит: 100 спарсенных организаций в день.
     """
-    verify_internal_secret(request, payload.secret_key)
+    verify_internal_secret(request)
 
     clean_plan = str(payload.plan).strip().lower()
     if clean_plan not in PAID_PLAN_DAYS:
@@ -1148,6 +1115,8 @@ async def grant_paid_access(
     query = select(User).where(User.tg_user_id == clean_tg_id)
     res = await db.execute(query)
     user = res.scalar_one_or_none()
+    if user:
+        reject_privileged_internal_mutation(user, "paid-access provisioning")
 
     new_password = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(10))
 
@@ -1309,6 +1278,7 @@ async def reset_password_internal(
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Пользователь не найден")
+    reject_privileged_internal_mutation(user, "password reset")
 
     new_password = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(10))
     user.password_hash = hash_password(new_password)

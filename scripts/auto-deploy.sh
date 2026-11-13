@@ -131,9 +131,9 @@ on_exit() {
         restore_previous_runtime
     fi
 
-    # The production Nginx file is server-specific. Restore its backup even when
-    # Git fetch/merge fails before the runtime rollback phase starts.
-    if [ -f "$BUILD_ROOT/previous-nginx.conf" ]; then
+    # On failure, restore the server-specific Nginx backup even if runtime
+    # replacement had not started yet. Successful deploys keep the hardened file.
+    if [ "$status" -ne 0 ] && [ -f "$BUILD_ROOT/previous-nginx.conf" ]; then
         cp "$BUILD_ROOT/previous-nginx.conf" "$NGINX_CONFIG"
     fi
 
@@ -193,9 +193,70 @@ if [ -f "$BUILD_ROOT/previous-nginx.conf" ]; then
     cp "$BUILD_ROOT/previous-nginx.conf" "$NGINX_CONFIG"
 fi
 
+# The live Nginx file is intentionally server-specific and survives Git updates.
+# Add the critical internal-route deny rules in place when upgrading older hosts.
+if ! grep -Fq 'location ^~ /parser/api/internal/' "$NGINX_CONFIG"; then
+    sed -i '/^[[:space:]]*location[[:space:]][[:space:]]*\/parser\/ {/i\
+    # Internal parser endpoints are private Docker-network routes only.\
+    location ^~ /parser/api/internal/ {\
+        return 404;\
+    }\
+' "$NGINX_CONFIG"
+fi
+if ! grep -Fq 'location ^~ /api/internal/' "$NGINX_CONFIG"; then
+    sed -i '/^[[:space:]]*server_name[[:space:]][[:space:]]*leads\./,/^[[:space:]]*location[[:space:]][[:space:]]*\/ {/ {
+        /^[[:space:]]*location[[:space:]][[:space:]]*\/ {/i\
+    # Never expose service-to-service endpoints on the public parser host.\
+    location ^~ /api/internal/ {\
+        return 404;\
+    }\
+
+    }' "$NGINX_CONFIG"
+fi
+grep -Fq 'location ^~ /parser/api/internal/' "$NGINX_CONFIG" || fail "Unable to harden /parser/api/internal/ in Nginx"
+grep -Fq 'location ^~ /api/internal/' "$NGINX_CONFIG" || fail "Unable to harden /api/internal/ in Nginx"
+
 [ -f "$COMPOSE_FILE" ] || fail "Missing $COMPOSE_FILE"
 [ -f "$BACKEND_ENV" ] || fail "Missing server secret file: $BACKEND_ENV"
 [ -f "$PARSER_ENV" ] || fail "Missing server secret file: $PARSER_ENV"
+
+parser_initial_password=$(grep -E '^[[:space:]]*INITIAL_ADMIN_PASSWORD[[:space:]]*=' "$PARSER_ENV" 2>/dev/null | head -n 1 | cut -d'=' -f2- | tr -d '"' | tr -d "'" | xargs || true)
+if [ "$parser_initial_password" = "AdminPass123!_ChangeMe" ]; then
+    new_initial_password=$(openssl rand -hex 16) || fail "Unable to rotate legacy INITIAL_ADMIN_PASSWORD"
+    sed -i -E "s|^[[:space:]]*INITIAL_ADMIN_PASSWORD[[:space:]]*=.*|INITIAL_ADMIN_PASSWORD=${new_initial_password}|" "$PARSER_ENV"
+    chmod 600 "$PARSER_ENV"
+    log "Rotated the compromised legacy initial-admin password in the protected parser environment"
+fi
+
+backend_internal_secret=$(grep -E '^[[:space:]]*INTERNAL_API_SECRET[[:space:]]*=' "$BACKEND_ENV" 2>/dev/null | head -n 1 | cut -d'=' -f2- | tr -d '"' | tr -d "'" | xargs || true)
+parser_internal_secret=$(grep -E '^[[:space:]]*INTERNAL_API_SECRET[[:space:]]*=' "$PARSER_ENV" 2>/dev/null | head -n 1 | cut -d'=' -f2- | tr -d '"' | tr -d "'" | xargs || true)
+rotate_internal_secret=0
+case "$backend_internal_secret" in
+    ""|castleweb-internal-demo-secret|castleweb_internal_secret_123)
+        rotate_internal_secret=1
+        ;;
+esac
+case "$parser_internal_secret" in
+    ""|castleweb-internal-demo-secret|castleweb_internal_secret_123)
+        rotate_internal_secret=1
+        ;;
+esac
+if [ "$backend_internal_secret" != "$parser_internal_secret" ]; then
+    rotate_internal_secret=1
+fi
+
+if [ "$rotate_internal_secret" -eq 1 ]; then
+    new_internal_secret=$(openssl rand -hex 24) || fail "Unable to generate INTERNAL_API_SECRET"
+    for secret_file in "$BACKEND_ENV" "$PARSER_ENV"; do
+        if grep -qE '^[[:space:]]*INTERNAL_API_SECRET[[:space:]]*=' "$secret_file"; then
+            sed -i -E "s|^[[:space:]]*INTERNAL_API_SECRET[[:space:]]*=.*|INTERNAL_API_SECRET=${new_internal_secret}|" "$secret_file"
+        else
+            printf '\nINTERNAL_API_SECRET=%s\n' "$new_internal_secret" >> "$secret_file"
+        fi
+        chmod 600 "$secret_file"
+    done
+    log "Rotated compromised, missing, or mismatched INTERNAL_API_SECRET in both services"
+fi
 
 for required_key in DOMAIN_NAME POSTGRES_PASSWORD REDIS_PASSWORD SECRET_KEY INTERNAL_API_SECRET; do
     grep -Eq "^[[:space:]]*${required_key}[[:space:]]*=[[:space:]]*.+" "$BACKEND_ENV" || \

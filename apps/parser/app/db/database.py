@@ -1,5 +1,6 @@
 import logging
-from sqlalchemy import event
+import os
+from sqlalchemy import event, select, func
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
@@ -31,6 +32,10 @@ async_session_factory = async_sessionmaker(
 class Base(DeclarativeBase):
     pass
 
+
+LEGACY_INITIAL_ADMIN_PASSWORD = "AdminPass123!_ChangeMe"
+MIN_INITIAL_ADMIN_PASSWORD_LENGTH = 14
+
 async def get_db():
     """Dependency для получения асинхронной сессии БД в FastAPI эндпоинтах"""
     async with async_session_factory() as session:
@@ -38,6 +43,70 @@ async def get_db():
             yield session
         finally:
             await session.close()
+
+
+async def ensure_secure_initial_admin(session: AsyncSession) -> bool:
+    """
+    Безопасно обрабатывает первый административный аккаунт.
+
+    Автоматическое создание выполняется только при явно заданных уникальных
+    реквизитах. Скомпрометированный исторический пароль блокируется и у уже
+    существующих привилегированных аккаунтов.
+    """
+    from app.db.models import User
+    from app.core.security import hash_password, verify_password
+
+    privileged = (
+        await session.execute(select(User).where(User.role.in_(("admin", "superuser", "root"))))
+    ).scalars().all()
+    legacy_accounts = [
+        user for user in privileged
+        if verify_password(LEGACY_INITIAL_ADMIN_PASSWORD, user.password_hash)
+    ]
+    if legacy_accounts:
+        for user in legacy_accounts:
+            user.is_active = False
+        await session.commit()
+        logger.critical(
+            "Обнаружены и деактивированы привилегированные аккаунты с "
+            "устаревшим публичным паролем. Задайте новый пароль через manage_users.py."
+        )
+
+    users_count = (await session.execute(select(func.count(User.id)))).scalar_one()
+    if users_count != 0:
+        return False
+
+    admin_email = (os.environ.get("INITIAL_ADMIN_EMAIL") or "").strip().lower()
+    admin_password = os.environ.get("INITIAL_ADMIN_PASSWORD") or ""
+
+    if not admin_email and not admin_password:
+        logger.warning(
+            "База пользователей пуста. Автоматический администратор не создан: "
+            "задайте уникальные INITIAL_ADMIN_EMAIL/INITIAL_ADMIN_PASSWORD или "
+            "создайте его локально через manage_users.py."
+        )
+        return False
+
+    if not admin_email or "@" not in admin_email:
+        raise RuntimeError("INITIAL_ADMIN_EMAIL должен содержать корректный email")
+    if (
+        len(admin_password) < MIN_INITIAL_ADMIN_PASSWORD_LENGTH
+        or admin_password == LEGACY_INITIAL_ADMIN_PASSWORD
+    ):
+        raise RuntimeError(
+            "INITIAL_ADMIN_PASSWORD должен быть уникальным и содержать не менее "
+            f"{MIN_INITIAL_ADMIN_PASSWORD_LENGTH} символов"
+        )
+
+    session.add(User(
+        email=admin_email,
+        password_hash=hash_password(admin_password),
+        role="admin",
+        is_active=True,
+    ))
+    await session.commit()
+    logger.info("Первый администратор безопасно создан из явной конфигурации: %s", admin_email)
+    return True
 
 from sqlalchemy import text
 
@@ -120,30 +189,7 @@ async def init_db():
         except Exception:
             pass
 
-    # Автоматическое создание начального администратора при первом запуске
-    try:
-        import os
-        import logging
-        from sqlalchemy import select, func
-        from app.db.models import User
-        from app.core.security import hash_password
-
-        db_logger = logging.getLogger("leadhunter.db")
-        async with async_session_factory() as session:
-            result = await session.execute(select(func.count(User.id)))
-            users_count = result.scalar_one()
-            if users_count == 0:
-                admin_email = os.environ.get("INITIAL_ADMIN_EMAIL", "admin@lead.pro").strip().lower()
-                admin_password = os.environ.get("INITIAL_ADMIN_PASSWORD", "AdminPass123!_ChangeMe")
-                admin = User(
-                    email=admin_email,
-                    password_hash=hash_password(admin_password),
-                    role="admin",
-                    is_active=True
-                )
-                session.add(admin)
-                await session.commit()
-                db_logger.info(f"🔑 Успешно создан начальный администратор в базе данных: {admin_email}")
-    except Exception as e:
-        import logging
-        logging.getLogger("leadhunter.db").warning(f"Проверка/создание пользователя: {e}")
+    # Безопасная инициализация первого администратора без публичных defaults.
+    # Ошибочная конфигурация не проглатывается и останавливает запуск.
+    async with async_session_factory() as session:
+        await ensure_secure_initial_admin(session)

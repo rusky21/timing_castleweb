@@ -1,11 +1,33 @@
 import httpx
 import logging
+import secrets
 from app.core.config import get_settings
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
 
 TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+COMPROMISED_INTERNAL_SECRETS = frozenset({
+    "castleweb-internal-demo-secret",
+    "castleweb_internal_secret_123",
+})
+
+
+def get_required_internal_secret() -> str:
+    """Возвращает безопасный межсервисный секрет или останавливает операцию."""
+    configured = (settings.INTERNAL_API_SECRET or "").strip()
+    if not configured or configured in COMPROMISED_INTERNAL_SECRETS:
+        raise RuntimeError("INTERNAL_API_SECRET is missing or uses a compromised legacy value")
+    return configured
+
+
+def is_valid_internal_secret(provided: str | None) -> bool:
+    try:
+        configured = get_required_internal_secret()
+    except RuntimeError:
+        return False
+    candidate = (provided or "").strip()
+    return bool(candidate and secrets.compare_digest(candidate, configured))
 
 
 async def verify_turnstile_token(token: str, remote_ip: str | None = None) -> bool:

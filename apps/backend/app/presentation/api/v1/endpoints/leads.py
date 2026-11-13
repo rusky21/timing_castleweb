@@ -139,11 +139,10 @@ async def delete_lead(
     Требует авторизации через X-Internal-Secret или X-Admin-Secret.
     """
     from app.core.config import get_settings as _get_settings
-    import secrets
+    from app.core.security import is_valid_internal_secret
     _settings = _get_settings()
     auth_secret = (request.headers.get("x-internal-secret") or request.headers.get("x-admin-secret") or "").strip()
-    expected_secret = (_settings.INTERNAL_API_SECRET or "").strip()
-    if not expected_secret or not auth_secret or not secrets.compare_digest(auth_secret, expected_secret):
+    if not is_valid_internal_secret(auth_secret):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Недостаточно прав для удаления заявки"

@@ -11,6 +11,7 @@
 import sys
 import os
 import asyncio
+import getpass
 from datetime import datetime, timezone
 
 if sys.platform == "win32":
@@ -93,6 +94,7 @@ async def change_password(email: str, new_password: str):
             return
 
         user.password_hash = hash_password(new_password)
+        user.is_active = True
         await session.commit()
         print(f"{GREEN}{BOLD}[✓] Пароль для {email} успешно обновлен!{RESET}")
 
@@ -126,12 +128,12 @@ async def interactive_menu():
             await list_users()
         elif choice == "2":
             email = input(f"{BOLD}Введите Email нового пользователя: {RESET}").strip()
-            password = input(f"{BOLD}Введите Пароль: {RESET}").strip()
+            password = getpass.getpass(f"{BOLD}Введите Пароль: {RESET}").strip()
             role = input(f"{BOLD}Роль [admin/user, по умолчанию: admin]: {RESET}").strip() or "admin"
             await add_user(email, password, role)
         elif choice == "3":
             email = input(f"{BOLD}Введите Email пользователя: {RESET}").strip()
-            new_password = input(f"{BOLD}Введите Новый пароль: {RESET}").strip()
+            new_password = getpass.getpass(f"{BOLD}Введите Новый пароль: {RESET}").strip()
             await change_password(email, new_password)
         elif choice == "4":
             email = input(f"{BOLD}Введите Email для удаления: {RESET}").strip()

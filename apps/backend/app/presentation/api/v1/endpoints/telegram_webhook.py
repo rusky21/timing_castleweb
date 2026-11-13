@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, text as sql_text
 from app.core.database import get_db
 from app.core.config import get_settings
+from app.core.security import get_required_internal_secret
 from app.core.redis import get_redis_client
 from app.infrastructure.db.models import Lead, Blacklist, Case, DemoGrant
 from app.domain.entities import LeadStatus
@@ -331,15 +332,13 @@ async def request_parser_demo_access(tg_user_id: str | int, username: str | None
         if u and u.rstrip("/") not in internal_urls:
             internal_urls.append(u.rstrip("/"))
 
-    configured_secret = (getattr(settings, "INTERNAL_API_SECRET", "") or os.environ.get("INTERNAL_API_SECRET", "")).strip()
-    secrets_to_try = [s for s in dict.fromkeys([configured_secret, "castleweb-internal-demo-secret"]) if s]
+    secrets_to_try = [get_required_internal_secret()]
 
     last_error = None
     for secret in secrets_to_try:
         payload = {
             "tg_user_id": str(tg_user_id),
-            "tg_username": username or "",
-            "secret_key": secret
+            "tg_username": username or ""
         }
         for base_url in internal_urls:
             url = f"{base_url}/api/internal/create-demo-user"
@@ -376,16 +375,14 @@ async def request_parser_paid_access(tg_user_id: str | int, plan: str, username:
         if u and u.rstrip("/") not in internal_urls:
             internal_urls.append(u.rstrip("/"))
 
-    configured_secret = (getattr(settings, "INTERNAL_API_SECRET", "") or os.environ.get("INTERNAL_API_SECRET", "")).strip()
-    secrets_to_try = [s for s in dict.fromkeys([configured_secret, "castleweb-internal-demo-secret"]) if s]
+    secrets_to_try = [get_required_internal_secret()]
 
     last_error = None
     for secret in secrets_to_try:
         payload = {
             "tg_user_id": str(tg_user_id),
             "plan": plan,
-            "tg_username": username or "",
-            "secret_key": secret
+            "tg_username": username or ""
         }
         for base_url in internal_urls:
             url = f"{base_url}/api/internal/grant-paid-access"
@@ -421,8 +418,7 @@ async def request_parser_user_cabinet(tg_user_id: str | int) -> dict:
         if u and u.rstrip("/") not in internal_urls:
             internal_urls.append(u.rstrip("/"))
 
-    configured_secret = (getattr(settings, "INTERNAL_API_SECRET", "") or os.environ.get("INTERNAL_API_SECRET", "")).strip()
-    secrets_to_try = [s for s in dict.fromkeys([configured_secret, "castleweb-internal-demo-secret"]) if s]
+    secrets_to_try = [get_required_internal_secret()]
 
     last_error = None
     for secret in secrets_to_try:
@@ -457,8 +453,7 @@ async def request_parser_reset_password(tg_user_id: str | int) -> dict:
         if u and u.rstrip("/") not in internal_urls:
             internal_urls.append(u.rstrip("/"))
 
-    configured_secret = (getattr(settings, "INTERNAL_API_SECRET", "") or os.environ.get("INTERNAL_API_SECRET", "")).strip()
-    secrets_to_try = [s for s in dict.fromkeys([configured_secret, "castleweb-internal-demo-secret"]) if s]
+    secrets_to_try = [get_required_internal_secret()]
 
     last_error = None
     for secret in secrets_to_try:
@@ -493,8 +488,7 @@ async def request_parser_clear_history(tg_user_id: str | int, clear_all: bool = 
         if u and u.rstrip("/") not in internal_urls:
             internal_urls.append(u.rstrip("/"))
 
-    configured_secret = (getattr(settings, "INTERNAL_API_SECRET", "") or os.environ.get("INTERNAL_API_SECRET", "")).strip()
-    secrets_to_try = [s for s in dict.fromkeys([configured_secret, "castleweb-internal-demo-secret"]) if s]
+    secrets_to_try = [get_required_internal_secret()]
 
     last_error = None
     for secret in secrets_to_try:
@@ -530,8 +524,7 @@ async def request_parser_cleanup_db() -> dict:
         if u and u.rstrip("/") not in internal_urls:
             internal_urls.append(u.rstrip("/"))
 
-    configured_secret = (getattr(settings, "INTERNAL_API_SECRET", "") or os.environ.get("INTERNAL_API_SECRET", "")).strip()
-    secrets_to_try = [s for s in dict.fromkeys([configured_secret, "castleweb-internal-demo-secret"]) if s]
+    secrets_to_try = [get_required_internal_secret()]
 
     last_error = None
     for secret in secrets_to_try:
@@ -1473,7 +1466,7 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 "http://leadhunter:8000",
                 getattr(settings, "PARSER_INTERNAL_URL", "") or os.environ.get("PARSER_INTERNAL_URL", "").strip(),
             ]
-            secret = getattr(settings, "INTERNAL_API_SECRET", "") or os.environ.get("INTERNAL_API_SECRET", "castleweb-internal-demo-secret")
+            secret = get_required_internal_secret()
             headers = {"X-Internal-Secret": secret}
 
             last_error = None
@@ -1498,15 +1491,6 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
 
                         # 1. Запрос заказов с заголовком X-Internal-Secret
                         resp = await client.get(f"{b_url}/api/fl/orders?{qs}", headers=headers)
-
-                        # 2. Если парсер вернул 401 (старый контейнер без X-Internal-Secret) — мгновенная авторизация через /login
-                        if resp.status_code == 401:
-                            login_resp = await client.post(
-                                f"{b_url}/login",
-                                data={"email": "admin@lead.pro", "password": "AdminPass123!_ChangeMe"}
-                            )
-                            if login_resp.status_code in (200, 303):
-                                resp = await client.get(f"{b_url}/api/fl/orders?{qs}")
 
                         if resp.status_code == 200:
                             found_resp = resp.json()

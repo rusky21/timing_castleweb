@@ -54,7 +54,6 @@ services:
       - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://${POSTGRES_USER:-castleweb_user}:${POSTGRES_PASSWORD:-castleweb_secret_pass}@postgres:5432/${POSTGRES_DB:-castleweb_db}}
       - REDIS_URL=${REDIS_URL:-redis://:${REDIS_PASSWORD:-castleweb_redis_pass}@redis:6379/0}
       - PARSER_INTERNAL_URL=http://leadhunter:8000
-      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:-castleweb-internal-demo-secret}
       - PARSER_PUBLIC_URL=https://leads.${DOMAIN_NAME:-castleweb.ru}
     volumes:
       - ./apps/backend/data:/app/data
@@ -80,7 +79,6 @@ services:
       - HOST=0.0.0.0
       - HEADLESS=1
       - BACKEND_INTERNAL_URL=http://backend:8000
-      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:-castleweb-internal-demo-secret}
     volumes:
       - leadhunter_data:/app/data
       - leadhunter_exports:/app/exports

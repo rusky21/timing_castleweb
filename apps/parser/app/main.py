@@ -2,7 +2,6 @@ import sys
 import os
 import json
 import asyncio
-import secrets
 import urllib.parse
 
 if sys.platform == "win32" and sys.version_info < (3, 14):
@@ -20,7 +19,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.db.database import init_db
 from app.api.auth import router as auth_router
-from app.core.security import decode_session_token, get_safe_redirect_url
+from app.core.security import decode_session_token, get_safe_redirect_url, is_valid_internal_secret
 from app.api.search import router as search_router
 from app.api.leads import router as leads_router
 from app.api.reports import router as reports_router
@@ -145,8 +144,7 @@ async def auth_guard_middleware(request: Request, call_next):
 
     # Межсервисная авторизация (Backend студии <-> LeadHunter)
     internal_secret = (request.headers.get("X-Internal-Secret") or "").strip()
-    expected_secret = (os.environ.get("INTERNAL_API_SECRET") or "").strip()
-    if internal_secret and expected_secret and secrets.compare_digest(internal_secret, expected_secret):
+    if is_valid_internal_secret(internal_secret):
         return await call_next(request)
 
     # Проверка сессии из Cookie
