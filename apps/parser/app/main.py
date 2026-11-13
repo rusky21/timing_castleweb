@@ -17,7 +17,9 @@ from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-from app.db.database import init_db
+from app.db.database import init_db, async_session_factory
+from app.db.models import SearchCampaign
+from app.core.access import get_active_session_user, is_privileged_user
 from app.api.auth import router as auth_router
 from app.core.security import decode_session_token, get_safe_redirect_url, is_valid_internal_secret
 from app.api.search import router as search_router
@@ -194,11 +196,16 @@ async def websocket_global_endpoint(websocket: WebSocket):
 # WebSocket для стриминга прогресса конкретной кампании
 @app.websocket("/ws/{campaign_id}")
 async def websocket_endpoint(websocket: WebSocket, campaign_id: int):
-    # Проверка сессии по Cookie при handshake
-    token = websocket.cookies.get("access_token")
-    if not token or not decode_session_token(token):
-        await websocket.close(code=4401)
-        return
+    # Проверяем актуальные права до accept; соединение с БД не держим весь стрим.
+    async with async_session_factory() as db:
+        user = await get_active_session_user(websocket.cookies.get("access_token"), db)
+        if user is None:
+            await websocket.close(code=4401)
+            return
+        campaign = await db.get(SearchCampaign, campaign_id) if 0 < campaign_id <= 9223372036854775807 else None
+        if campaign is None or (not is_privileged_user(user) and campaign.user_id != user.id):
+            await websocket.close(code=4403)
+            return
 
     await ws_manager.connect(campaign_id, websocket)
     try:
@@ -207,9 +214,10 @@ async def websocket_endpoint(websocket: WebSocket, campaign_id: int):
             if data == "ping":
                 await websocket.send_text("pong")
     except WebSocketDisconnect:
-        ws_manager.disconnect(campaign_id, websocket)
+        pass
     except Exception as e:
         logger.warning(f"WebSocket connection error: {e}")
+    finally:
         ws_manager.disconnect(campaign_id, websocket)
 
 @app.get("/health", tags=["Health"])

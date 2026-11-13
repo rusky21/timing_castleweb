@@ -6,6 +6,7 @@ from sqlalchemy import select, func, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
+from app.core.access import require_privileged_user
 from app.db.models import (
     OutreachAccount, OutreachDialog, OutreachMessage,
     OutreachBlacklist, OutreachCampaign, OutreachPrompt,
@@ -18,7 +19,10 @@ from app.services.outreach import (
 from app.services.deepseek.client import deepseek_client
 
 logger = logging.getLogger("api_outreach")
-router = APIRouter(prefix="/api/outreach", tags=["AI Outreach & SDR"])
+router = APIRouter(
+    prefix="/api/outreach", tags=["AI Outreach & SDR"],
+    dependencies=[Depends(require_privileged_user)],
+)
 
 
 # ====================================================================
