@@ -220,6 +220,21 @@ grep -Fq 'location ^~ /api/internal/' "$NGINX_CONFIG" || fail "Unable to harden 
 [ -f "$BACKEND_ENV" ] || fail "Missing server secret file: $BACKEND_ENV"
 [ -f "$PARSER_ENV" ] || fail "Missing server secret file: $PARSER_ENV"
 
+parser_signing_key=$(grep -E '^SECRET_KEY=' "$PARSER_ENV" | head -n 1 | cut -d'=' -f2- | tr -d '"' | tr -d "'" | xargs || true)
+case "$parser_signing_key" in
+    leadhunter-super-secret-production-key-change-me-in-env|change-this-to-a-super-secret-hex-key-in-production|castleweb_secret_key_1234567890|super-secret-castleweb-key-change-in-production) parser_signing_key="" ;;
+esac
+if [ "${#parser_signing_key}" -lt 32 ]; then
+    parser_signing_key=$(openssl rand -hex 32) || fail "Unable to generate parser signing key"
+    if grep -q '^SECRET_KEY=' "$PARSER_ENV"; then
+        sed -i "s|^SECRET_KEY=.*|SECRET_KEY=${parser_signing_key}|" "$PARSER_ENV"
+    else
+        printf '\nSECRET_KEY=%s\n' "$parser_signing_key" >> "$PARSER_ENV"
+    fi
+    chmod 600 "$PARSER_ENV"
+    log "Replaced unsafe parser signing key; existing sessions must sign in again"
+fi
+
 webhook_secret=$(grep -E '^TELEGRAM_WEBHOOK_SECRET=' "$BACKEND_ENV" | head -n 1 | cut -d'=' -f2- | tr -d '\"' | tr -d "'" | xargs || true)
 if [ -z "$webhook_secret" ] || [ "$webhook_secret" = "super-secret-telegram-webhook-token" ]; then
     webhook_secret=$(openssl rand -hex 32) || fail "Unable to generate webhook secret"

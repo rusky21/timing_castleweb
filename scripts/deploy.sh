@@ -348,6 +348,24 @@ sync_parser_token_from_env() {
     fi
     INTERNAL_API_SECRET="$main_internal_secret"
 
+    local parser_signing_key
+    parser_signing_key=$(grep -E '^SECRET_KEY=' "$PARSER_ENV_FILE" 2>/dev/null | head -n 1 | cut -d'=' -f2- | tr -d '"' | tr -d "'" | xargs || true)
+    case "$parser_signing_key" in
+        leadhunter-super-secret-production-key-change-me-in-env|change-this-to-a-super-secret-hex-key-in-production|castleweb_secret_key_1234567890|super-secret-castleweb-key-change-in-production) parser_signing_key="" ;;
+    esac
+    if [ "${#parser_signing_key}" -lt 32 ]; then
+        parser_signing_key=$(openssl rand -hex 32) || exit 1
+        if [ -f "$PARSER_ENV_FILE" ]; then
+            if grep -q '^SECRET_KEY=' "$PARSER_ENV_FILE"; then
+                sed -i "s|^SECRET_KEY=.*|SECRET_KEY=${parser_signing_key}|" "$PARSER_ENV_FILE"
+            else
+                printf '\nSECRET_KEY=%s\n' "$parser_signing_key" >> "$PARSER_ENV_FILE"
+            fi
+            chmod 600 "$PARSER_ENV_FILE"
+            log_warn "Заменён небезопасный ключ JWT; потребуется повторный вход."
+        fi
+    fi
+
     if [ ! -f "$PARSER_ENV_FILE" ]; then
         log_info "Создаем $PARSER_ENV_FILE на основе основного .env..."
         (
@@ -362,7 +380,7 @@ ADMIN_TELEGRAM_IDS="1878543896,${main_chat_id}"
 MANAGER_TELEGRAM_CHAT_ID=${main_chat_id}
 HOST=0.0.0.0
 PORT=8000
-SECRET_KEY=$(openssl rand -hex 32 2>/dev/null || echo "castleweb_secret_key_1234567890")
+SECRET_KEY=${parser_signing_key}
 INTERNAL_API_SECRET=${main_internal_secret:-$(openssl rand -hex 24)}
 PARSER_PUBLIC_URL=https://leads.castleweb.ru
 COOKIE_SECURE=false

@@ -46,6 +46,8 @@ logger = logging.getLogger("leadhunter")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from app.core.security import get_required_signing_key
+    get_required_signing_key()
     # Старт: автоматическая инициализация базы данных SQLite
     logger.info("Initializing SQLite database...")
     await init_db()

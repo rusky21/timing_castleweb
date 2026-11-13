@@ -148,6 +148,11 @@ function Sync-ParserSecurityEnv(
     $initialAdminPassword = New-RandomSecret 16
 
     if (Test-Path $ParserEnvFile) {
+        $signingKey = Get-EnvValue $ParserEnvFile "SECRET_KEY"
+        if ($signingKey.Length -lt 32 -or $signingKey -in @("leadhunter-super-secret-production-key-change-me-in-env", "change-this-to-a-super-secret-hex-key-in-production", "castleweb_secret_key_1234567890", "super-secret-castleweb-key-change-in-production")) {
+            Set-EnvValue $ParserEnvFile "SECRET_KEY" (New-RandomSecret 32)
+            Log-Warn "Заменён небезопасный ключ JWT; потребуется повторный вход."
+        }
         Set-EnvValue $ParserEnvFile "INTERNAL_API_SECRET" $InternalApiSecret
         if ((Get-EnvValue $ParserEnvFile "INITIAL_ADMIN_PASSWORD") -eq "AdminPass123!_ChangeMe") {
             Set-EnvValue $ParserEnvFile "INITIAL_ADMIN_PASSWORD" $initialAdminPassword

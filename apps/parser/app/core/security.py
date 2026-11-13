@@ -5,7 +5,21 @@ import jwt
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 
-SECRET_KEY = os.environ.get("SECRET_KEY", "leadhunter-super-secret-production-key-change-me-in-env")
+COMPROMISED_SIGNING_KEYS = frozenset({
+    "leadhunter-super-secret-production-key-change-me-in-env",
+    "change-this-to-a-super-secret-hex-key-in-production",
+    "castleweb_secret_key_1234567890",
+    "super-secret-castleweb-key-change-in-production",
+})
+
+
+def get_required_signing_key() -> str:
+    key = os.environ.get("SECRET_KEY", "")
+    if len(key.strip()) < 32 or key.strip() in COMPROMISED_SIGNING_KEYS:
+        raise RuntimeError("SECRET_KEY must be a unique configured key of at least 32 characters")
+    return key
+
+
 ALGORITHM = "HS256"
 SESSION_LIFETIME_DAYS = int(os.environ.get("SESSION_LIFETIME_DAYS", "7"))
 
@@ -54,12 +68,12 @@ def create_session_token(user_id: int, email: str, role: str = "admin") -> str:
         "iat": now,
         "exp": now + timedelta(days=SESSION_LIFETIME_DAYS)
     }
-    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode(payload, get_required_signing_key(), algorithm=ALGORITHM)
 
 def decode_session_token(token: str) -> Optional[Dict[str, Any]]:
     """Декодирование и проверка подписи/срока действия JWT токена"""
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, get_required_signing_key(), algorithms=[ALGORITHM])
         return payload
     except (jwt.PyJWTError, Exception):
         return None
