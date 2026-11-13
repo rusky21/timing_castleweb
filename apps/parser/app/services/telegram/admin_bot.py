@@ -82,9 +82,6 @@ class AdminStates(StatesGroup):
 # ====================================================================
 
 def is_admin(user_id: int) -> bool:
-    if not ADMIN_TELEGRAM_IDS:
-        # Если список админов пуст — разрешаем первому обратившемуся для удобства настройки
-        return True
     return user_id in ADMIN_TELEGRAM_IDS
 
 

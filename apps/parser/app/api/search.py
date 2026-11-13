@@ -14,6 +14,7 @@ from app.schemas.search import (
     CaptchaResolvedRequest
 )
 from app.core.security import decode_session_token
+from app.core.access import require_campaign_access
 from app.services.task_manager import task_manager
 
 logger = logging.getLogger("search_api")
@@ -186,10 +187,11 @@ async def start_search(
     )
 
 @router.post("/stop", response_model=SearchStopResponse, summary="Принудительно остановить сбор")
-async def stop_search(req: SearchStopRequest):
+async def stop_search(req: SearchStopRequest, request: Request, db: AsyncSession = Depends(get_db)):
     """
     Останавливает запущенный процесс парсинга и закрывает браузер.
     """
+    await require_campaign_access(req.campaign_id, request, db)
     stopped = task_manager.stop_campaign(req.campaign_id)
     if not stopped:
         return SearchStopResponse(
@@ -202,10 +204,11 @@ async def stop_search(req: SearchStopRequest):
     )
 
 @router.post("/captcha/resolved", response_model=SearchStopResponse, summary="Подтвердить ручное прохождение капчи")
-async def captcha_resolved(req: CaptchaResolvedRequest):
+async def captcha_resolved(req: CaptchaResolvedRequest, request: Request, db: AsyncSession = Depends(get_db)):
     """
     Вызывается фронтендом, когда пользователь решил капчу в открывшемся окне браузера.
     """
+    await require_campaign_access(req.campaign_id, request, db)
     task_manager.signal_captcha_resolved(req.campaign_id)
     return SearchStopResponse(
         success=True,

@@ -8,6 +8,7 @@ from app.db.database import get_db
 from app.db.models import Organization, AuditResult, SearchCampaign
 from app.schemas.lead import LeadListResponse, LeadItem, PitchDetail
 from app.core.security import decode_session_token
+from app.core.access import require_campaign_access
 
 router = APIRouter(prefix="/api/leads", tags=["Лиды и аудит"])
 
@@ -152,10 +153,14 @@ async def get_leads(
     )
 
 @router.get("/{lead_id}/pitch", response_model=PitchDetail, summary="Получить подробный скрипт звонка для лида")
-async def get_lead_pitch(lead_id: int, db: AsyncSession = Depends(get_db)):
+async def get_lead_pitch(lead_id: int, request: Request, db: AsyncSession = Depends(get_db)):
     """
     Возвращает персонализированный питч для холодного звонка: боль, решение, стартовая фраза.
     """
+    org = await db.get(Organization, lead_id) if 0 < lead_id <= 9223372036854775807 else None
+    if org is None:
+        raise HTTPException(status_code=404, detail="Лид или результаты аудита не найдены")
+    await require_campaign_access(org.campaign_id, request, db)
     stmt = select(AuditResult).where(AuditResult.org_id == lead_id)
     res = await db.execute(stmt)
     audit = res.scalar_one_or_none()

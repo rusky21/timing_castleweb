@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import decode_session_token
 from app.db.database import get_db
-from app.db.models import User
+from app.db.models import User, SearchCampaign
 
 PRIVILEGED_ROLES = frozenset({"admin", "superuser", "root"})
 
@@ -25,6 +25,16 @@ async def get_active_session_user(token: str | None, db: AsyncSession) -> User |
 
 def is_privileged_user(user: User) -> bool:
     return (user.role or "").lower() in PRIVILEGED_ROLES
+
+
+async def require_campaign_access(campaign_id: int, request: Request, db: AsyncSession) -> SearchCampaign:
+    user = await get_active_session_user(request.cookies.get("access_token"), db)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    campaign = await db.get(SearchCampaign, campaign_id) if 0 < campaign_id <= 9223372036854775807 else None
+    if campaign is None or (campaign.user_id != user.id and not is_privileged_user(user)):
+        raise HTTPException(status_code=404, detail="Кампания не найдена")
+    return campaign
 
 
 async def require_privileged_user(request: Request, db: AsyncSession = Depends(get_db)) -> User:

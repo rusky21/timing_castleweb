@@ -8,6 +8,7 @@ import asyncio
 import os
 import sys
 import unittest
+from types import SimpleNamespace
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -23,10 +24,10 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from starlette.websockets import WebSocketDisconnect
 
 from app import main
-from app.api import outreach
+from app.api import outreach, search
 from app.core.security import create_session_token
 from app.db.database import Base, get_db
-from app.db.models import User, SearchCampaign, OutreachDialog
+from app.db.models import User, SearchCampaign, OutreachDialog, Organization, AuditResult
 
 
 class AccessBoundaryTests(unittest.TestCase):
@@ -47,12 +48,18 @@ class AccessBoundaryTests(unittest.TestCase):
                     db.add(User(id=uid, email=f"user{uid}@example.test",
                                 password_hash="unused", role=role, is_active=active))
                 db.add_all([
-                    SearchCampaign(id=101, user_id=1, niche="one", city="test"),
+                    SearchCampaign(id=101, user_id=1, niche="one", city="test", status="RUNNING"),
                     SearchCampaign(id=102, user_id=2, niche="two", city="test"),
                     SearchCampaign(id=103, user_id=None, niche="legacy", city="test"),
                     SearchCampaign(id=104, user_id=8, niche="disabled", city="test"),
                     OutreachDialog(id=1, account_id=1, client_tg_username="test_recipient", pitch_text="test"),
                 ])
+                await db.flush()
+                for cid in (101, 102, 103):
+                    db.add(Organization(id=cid, campaign_id=cid, source="test", external_id=str(cid), name="Test"))
+                await db.flush()
+                for cid in (101, 102, 103):
+                    db.add(AuditResult(org_id=cid, pitch_full_text=f"private pitch {cid}"))
                 await db.commit()
         asyncio.run(seed())
 
@@ -254,6 +261,88 @@ class AccessBoundaryTests(unittest.TestCase):
             check.assert_awaited_once()
             ws.close.assert_awaited_once_with(code=4403)
             ws.send_text.assert_not_awaited()
+        asyncio.run(run())
+
+    def test_campaign_actions_reject_other_users_without_side_effects(self):
+        self.login(1, "demo")
+        for route, method in (("/stop", "stop_campaign"), ("/captcha/resolved", "signal_captcha_resolved")):
+            for cid in (102, 103, 999):
+                with self.subTest(route=route, cid=cid), patch.object(search.task_manager, method) as action:
+                    response = self.client.post("/api/search" + route, json={"campaign_id": cid})
+                    self.assertEqual(response.status_code, 404)
+                    action.assert_not_called()
+
+    def test_campaign_actions_preserve_owner_and_admin_access(self):
+        for uid, role, cid in ((1, "demo", 101), (2, "paid", 102), (3, "admin", 102), (4, "superuser", 103), (5, "root", 101)):
+            self.login(uid, role)
+            for route, method in (("/stop", "stop_campaign"), ("/captcha/resolved", "signal_captcha_resolved")):
+                with self.subTest(uid=uid, route=route), patch.object(search.task_manager, method, return_value=True) as action:
+                    response = self.client.post("/api/search" + route, json={"campaign_id": cid})
+                    self.assertEqual(response.status_code, 200)
+                    action.assert_called_once_with(cid)
+
+    def test_campaign_routes_reject_service_key_and_stale_privileges(self):
+        for uid, role, expected in ((None, None, 401), (6, "admin", 401), (1, "admin", 404)):
+            self.client.cookies.clear()
+            if uid is not None:
+                self.login(uid, role)
+            headers = {"X-Internal-Secret": os.environ["INTERNAL_API_SECRET"]}
+            with patch.object(search.task_manager, "stop_campaign") as stop, patch.object(search.task_manager, "signal_captcha_resolved") as captcha:
+                for path in ("/api/search/stop", "/api/search/captcha/resolved"):
+                    response = self.client.post(path, json={"campaign_id": 102}, headers=headers)
+                    self.assertEqual(response.status_code, expected)
+                self.assertEqual(self.client.get("/api/leads/102/pitch", headers=headers).status_code, expected)
+                stop.assert_not_called()
+                captcha.assert_not_called()
+
+    def test_pitch_is_private_to_owner_and_current_admin(self):
+        self.login(1, "demo")
+        for cid in (102, 103, 999):
+            response = self.client.get(f"/api/leads/{cid}/pitch")
+            self.assertEqual(response.status_code, 404)
+            self.assertNotIn("private pitch", response.text)
+        for uid, role, cid in ((1, "demo", 101), (2, "paid", 102), (3, "admin", 103)):
+            self.login(uid, role)
+            response = self.client.get(f"/api/leads/{cid}/pitch")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["full_text"], f"private pitch {cid}")
+
+    def test_telegram_campaign_controls_require_explicit_operator(self):
+        from app import config
+        from app.services.telegram import handlers
+
+        async def run():
+            for allowed, uid, permitted in ((set(), 10, False), ({20}, 10, False), ({20}, 20, True)):
+                for handler, method, data in (
+                    (handlers.cb_maps_stop, "stop_campaign", "maps_stop"),
+                    (handlers.cb_resolve_captcha, "signal_captcha_resolved", "resolve_captcha_101"),
+                ):
+                    call = SimpleNamespace(from_user=SimpleNamespace(id=uid), data=data,
+                                           answer=AsyncMock(), message=AsyncMock())
+                    with patch.object(config, "ADMIN_TELEGRAM_IDS", allowed), patch.object(handlers, "async_session_factory", self.sessions), patch.object(search.task_manager, method, return_value=True) as action:
+                        await handler(call)
+                        if permitted:
+                            action.assert_called_once_with(101)
+                        else:
+                            action.assert_not_called()
+                            call.message.answer.assert_not_awaited()
+                            call.message.edit_text.assert_not_awaited()
+        asyncio.run(run())
+
+    def test_telegram_admin_middleware_denies_empty_allowlist(self):
+        from app.services.telegram import admin_bot
+
+        async def run():
+            for allowed, uid, permitted in ((set(), 10, False), ({20}, 10, False), ({20}, 20, True)):
+                for middleware in (admin_bot.admin_auth_middleware, admin_bot.admin_auth_cb_middleware):
+                    event = SimpleNamespace(from_user=SimpleNamespace(id=uid), answer=AsyncMock())
+                    handler = AsyncMock(return_value="handled")
+                    with patch.object(admin_bot, "ADMIN_TELEGRAM_IDS", allowed):
+                        await middleware(handler, event, {})
+                    if permitted:
+                        handler.assert_awaited_once_with(event, {})
+                    else:
+                        handler.assert_not_awaited()
         asyncio.run(run())
 
 

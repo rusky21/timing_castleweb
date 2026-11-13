@@ -1051,6 +1051,8 @@ async def state_limit(message: Message, state: FSMContext):
 
 @router.callback_query(F.data == "maps_stop")
 async def cb_maps_stop(call: CallbackQuery):
+    if not await require_campaign_operator(call):
+        return
     from app.api.search import task_manager
     async with async_session_factory() as db:
         stmt = select(SearchCampaign).where(SearchCampaign.status.in_(["RUNNING", "PAUSED_CAPTCHA"])).order_by(SearchCampaign.id.desc()).limit(1)
@@ -1066,8 +1068,24 @@ async def cb_maps_stop(call: CallbackQuery):
 
 @router.callback_query(F.data.startswith("resolve_captcha_"))
 async def cb_resolve_captcha(call: CallbackQuery):
-    campaign_id = int(call.data.replace("resolve_captcha_", ""))
+    if not await require_campaign_operator(call):
+        return
+    raw_id = call.data.removeprefix("resolve_captcha_")
+    if not raw_id.isascii() or not raw_id.isdecimal() or len(raw_id) > 19:
+        await call.answer("Некорректный номер кампании.", show_alert=True)
+        return
+    campaign_id = int(raw_id)
     from app.api.search import task_manager
     task_manager.signal_captcha_resolved(campaign_id)
     await call.answer("Сигнал о прохождении капчи передан в браузер!", show_alert=True)
     await call.message.edit_text("✅ Сигнал о решении капчи отправлен. Сбор возобновляется...")
+
+
+async def require_campaign_operator(call: CallbackQuery) -> bool:
+    # Telegram-created campaigns are not linked to web users. Global controls
+    # therefore require an explicitly configured Telegram operator identity.
+    from app.config import ADMIN_TELEGRAM_IDS
+    if call.from_user is None or call.from_user.id not in ADMIN_TELEGRAM_IDS:
+        await call.answer("⛔ Управление сбором доступно только администратору.", show_alert=True)
+        return False
+    return True
