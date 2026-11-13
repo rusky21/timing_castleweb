@@ -211,6 +211,51 @@ class AccessBoundaryTests(unittest.TestCase):
                 self.assertEqual(ws.receive_json(), event)
         self.assertEqual(main.ws_manager.global_connections, [])
 
+    def test_existing_session_loses_access_after_deactivation(self):
+        async def set_active(value):
+            async with self.sessions() as db:
+                user = await db.get(User, 1)
+                user.is_active = value
+                await db.commit()
+        self.login(1, "demo")
+        try:
+            with self.client.websocket_connect("/ws/101") as ws:
+                ws.portal.call(set_active, False)
+                self.assertEqual(self.client.get("/api/reports").status_code, 401)
+                ws.portal.call(main.ws_manager.broadcast, 101, {"type": "NEW_LEAD"})
+                with self.assertRaises(WebSocketDisconnect):
+                    ws.receive_json()
+        finally:
+            asyncio.run(set_active(True))
+
+    def test_open_admin_stream_and_http_lose_demoted_role(self):
+        async def set_role(value):
+            async with self.sessions() as db:
+                user = await db.get(User, 3)
+                user.role = value
+                await db.commit()
+        self.login(3, "admin")
+        try:
+            with self.client.websocket_connect("/ws/events") as ws:
+                ws.portal.call(set_role, "paid")
+                self.assertEqual(self.client.get("/api/users").status_code, 403)
+                ws.portal.call(main.ws_manager.broadcast_all, {"type": "NEW_FL_ORDER"})
+                with self.assertRaises(WebSocketDisconnect):
+                    ws.receive_json()
+        finally:
+            asyncio.run(set_role("admin"))
+
+    def test_idle_stream_checks_revocation_on_timeout(self):
+        async def run():
+            ws = AsyncMock()
+            ws.receive_text.side_effect = asyncio.TimeoutError
+            check = AsyncMock(return_value=False)
+            await main.receive_stream(ws, check)
+            check.assert_awaited_once()
+            ws.close.assert_awaited_once_with(code=4403)
+            ws.send_text.assert_not_awaited()
+        asyncio.run(run())
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

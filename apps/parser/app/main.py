@@ -151,26 +151,62 @@ async def auth_guard_middleware(request: Request, call_next):
 
     # Проверка сессии из Cookie
     token = request.cookies.get("access_token")
-    user_payload = decode_session_token(token) if token else None
+    async with async_session_factory() as db:
+        current_user = await get_active_session_user(token, db)
+        user_payload = ({"sub": str(current_user.id), "email": current_user.email,
+                         "role": current_user.role} if current_user else None)
 
     if not user_payload:
         # Для REST API возвращаем 401
         if path.startswith("/api/"):
-            return Response(
+            response = Response(
                 status_code=401,
                 content='{"detail":"Unauthorized"}',
                 media_type="application/json"
             )
+            response.delete_cookie("access_token", path="/")
+            return response
 
         # Для веб-страниц — редирект на /login с сохранением returnUrl
         return_url = request.url.path
         if request.url.query:
             return_url += f"?{request.url.query}"
         safe_return = get_safe_redirect_url(return_url, default="/")
-        return RedirectResponse(f"/login?returnUrl={urllib.parse.quote(safe_return, safe='/?&=#')}", status_code=303)
+        response = RedirectResponse(f"/login?returnUrl={urllib.parse.quote(safe_return, safe='/?&=#')}", status_code=303)
+        response.delete_cookie("access_token", path="/")
+        return response
 
     request.state.user = user_payload
     return await call_next(request)
+
+def stream_guard(token: str | None, campaign_id: int | None = None):
+    """Recheck current rights and JWT expiry before every delivery/heartbeat."""
+    async def check(global_event: bool = False) -> bool:
+        async with async_session_factory() as db:
+            user = await get_active_session_user(token, db)
+            if user is None:
+                return False
+            if campaign_id is None:
+                return is_privileged_user(user)
+            campaign = await db.get(SearchCampaign, campaign_id)
+            if campaign is None or (not is_privileged_user(user) and campaign.user_id != user.id):
+                return False
+            return not global_event or is_privileged_user(user)
+    return check
+
+
+async def receive_stream(websocket: WebSocket, check):
+    while True:
+        try:
+            data = await asyncio.wait_for(websocket.receive_text(), timeout=30)
+        except asyncio.TimeoutError:
+            data = None
+        if not await check():
+            await websocket.close(code=4403)
+            return
+        if data == "ping":
+            await websocket.send_text("pong")
+
 
 # Глобальный WebSocket для всех событий (FL заказы, смена статусов)
 @app.websocket("/ws/events")
@@ -184,12 +220,10 @@ async def websocket_global_endpoint(websocket: WebSocket):
             await websocket.close(code=4403)
             return
 
-    await ws_manager.connect_global(websocket)
+    check = stream_guard(websocket.cookies.get("access_token"))
+    await ws_manager.connect_global(websocket, check=check)
     try:
-        while True:
-            data = await websocket.receive_text()
-            if data == "ping":
-                await websocket.send_text("pong")
+        await receive_stream(websocket, check)
     except WebSocketDisconnect:
         pass
     except Exception as e:
@@ -211,12 +245,10 @@ async def websocket_endpoint(websocket: WebSocket, campaign_id: int):
             await websocket.close(code=4403)
             return
 
-    await ws_manager.connect(campaign_id, websocket, receive_global=is_privileged_user(user))
+    check = stream_guard(websocket.cookies.get("access_token"), campaign_id)
+    await ws_manager.connect(campaign_id, websocket, receive_global=is_privileged_user(user), check=check)
     try:
-        while True:
-            data = await websocket.receive_text()
-            if data == "ping":
-                await websocket.send_text("pong")
+        await receive_stream(websocket, check)
     except WebSocketDisconnect:
         pass
     except Exception as e:
