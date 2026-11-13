@@ -11,6 +11,7 @@ class ConnectionManager:
         # campaign_id -> список активных WebSocket соединений
         self.active_connections: Dict[int, List[WebSocket]] = {}
         self.global_connections: List[WebSocket] = []
+        self.privileged_campaign_connections: set[WebSocket] = set()
 
     async def connect_global(self, websocket: WebSocket):
         await websocket.accept()
@@ -22,14 +23,17 @@ class ConnectionManager:
             self.global_connections.remove(websocket)
         logger.info("Global WebSocket client disconnected")
 
-    async def connect(self, campaign_id: int, websocket: WebSocket):
+    async def connect(self, campaign_id: int, websocket: WebSocket, *, receive_global: bool = False):
         await websocket.accept()
         if campaign_id not in self.active_connections:
             self.active_connections[campaign_id] = []
         self.active_connections[campaign_id].append(websocket)
+        if receive_global:
+            self.privileged_campaign_connections.add(websocket)
         logger.info(f"WebSocket client connected to campaign {campaign_id}")
 
     def disconnect(self, campaign_id: int, websocket: WebSocket):
+        self.privileged_campaign_connections.discard(websocket)
         if campaign_id in self.active_connections:
             if websocket in self.active_connections[campaign_id]:
                 self.active_connections[campaign_id].remove(websocket)
@@ -54,10 +58,8 @@ class ConnectionManager:
             self.disconnect(campaign_id, dead)
 
     async def broadcast_all(self, event: Dict[str, Any]):
-        """Рассылка события по всем подключенным сокетам (кампании + глобальные)"""
-        all_sockets = list(self.global_connections)
-        for sockets in self.active_connections.values():
-            all_sockets.extend(sockets)
+        """Глобальные FL-события доступны только административным соединениям."""
+        all_sockets = set(self.global_connections) | self.privileged_campaign_connections
 
         for connection in set(all_sockets):
             try:

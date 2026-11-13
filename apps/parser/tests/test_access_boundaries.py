@@ -187,6 +187,30 @@ class AccessBoundaryTests(unittest.TestCase):
                     ws.send_text("ping")
                     self.assertEqual(ws.receive_text(), "pong")
 
+    def test_global_stream_requires_current_admin(self):
+        self.assert_ws_denied("/ws/events", 4401)
+        for uid, role, code in ((1, "demo", 4403), (2, "paid", 4403),
+                                (7, "admin", 4403), (6, "admin", 4401)):
+            self.login(uid, role)
+            self.assert_ws_denied("/ws/events", code)
+
+    def test_global_events_do_not_leak_into_regular_campaign_stream(self):
+        self.login(1, "demo")
+        with self.client.websocket_connect("/ws/101") as ws:
+            ws.portal.call(main.ws_manager.broadcast_all, {"type": "NEW_FL_ORDER", "data": {"id": 42}})
+            ws.send_text("ping")
+            self.assertEqual(ws.receive_text(), "pong")
+
+    def test_admin_keeps_global_events_on_both_stream_types(self):
+        for uid, role, path in ((3, "admin", "/ws/101"), (3, "paid", "/ws/events"),
+                                (4, "superuser", "/ws/events"), (5, "root", "/ws/events")):
+            self.login(uid, role)
+            with self.client.websocket_connect(path) as ws:
+                event = {"type": "NEW_FL_ORDER", "data": {"id": 42}}
+                ws.portal.call(main.ws_manager.broadcast_all, event)
+                self.assertEqual(ws.receive_json(), event)
+        self.assertEqual(main.ws_manager.global_connections, [])
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -175,11 +175,14 @@ async def auth_guard_middleware(request: Request, call_next):
 # Глобальный WebSocket для всех событий (FL заказы, смена статусов)
 @app.websocket("/ws/events")
 async def websocket_global_endpoint(websocket: WebSocket):
-    # Проверка сессии по Cookie при handshake
-    token = websocket.cookies.get("access_token")
-    if not token or not decode_session_token(token):
-        await websocket.close(code=4401)
-        return
+    async with async_session_factory() as db:
+        user = await get_active_session_user(websocket.cookies.get("access_token"), db)
+        if user is None:
+            await websocket.close(code=4401)
+            return
+        if not is_privileged_user(user):
+            await websocket.close(code=4403)
+            return
 
     await ws_manager.connect_global(websocket)
     try:
@@ -188,9 +191,10 @@ async def websocket_global_endpoint(websocket: WebSocket):
             if data == "ping":
                 await websocket.send_text("pong")
     except WebSocketDisconnect:
-        ws_manager.disconnect_global(websocket)
+        pass
     except Exception as e:
         logger.warning(f"Global WebSocket error: {e}")
+    finally:
         ws_manager.disconnect_global(websocket)
 
 # WebSocket для стриминга прогресса конкретной кампании
@@ -207,7 +211,7 @@ async def websocket_endpoint(websocket: WebSocket, campaign_id: int):
             await websocket.close(code=4403)
             return
 
-    await ws_manager.connect(campaign_id, websocket)
+    await ws_manager.connect(campaign_id, websocket, receive_global=is_privileged_user(user))
     try:
         while True:
             data = await websocket.receive_text()
