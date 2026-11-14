@@ -1,5 +1,6 @@
-// Рекламные лендинги (/chat-boty и другие) и страница «спасибо».
+// Рекламные лендинги (/chat-boty и другие).
 // Блоки взяты с главной: появление при прокрутке, живая сцена с чатом, вопросы-переписка, форма заявки.
+// Цель «заявка» отправляет страница «спасибо» (thanks.js), куда форма уводит после отправки.
 import { reachGoal } from './analytics.js';
 import { initReveal } from './reveal.js';
 import { initServices } from './services.js';
@@ -52,6 +53,10 @@ if (nav && menuBtn) {
     }
   });
   window.matchMedia('(min-width: 900px)').addEventListener('change', () => setMenu(false));
+  // Возврат кнопкой «Назад» с другой страницы: браузер восстанавливает лендинг с открытым меню
+  window.addEventListener('pageshow', (e) => {
+    if (e.persisted && nav.classList.contains('is-open')) setMenu(false);
+  });
 }
 
 /* Переход к форме: после прокрутки ставим курсор в первое поле */
@@ -66,16 +71,6 @@ document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-goal]');
   if (el) reachGoal(el.dataset.goal);
 });
-
-/* Страница «спасибо»: цель «заявка» один раз, только после реальной отправки формы */
-if (document.querySelector('[data-thanks-page]')) {
-  let source = null;
-  try {
-    source = sessionStorage.getItem('cw-lead');
-    sessionStorage.removeItem('cw-lead');
-  } catch { /* хранилище недоступно */ }
-  if (source) reachGoal('lead', { page: source });
-}
 
 initReveal({ reduced });
 initServices(document.querySelector('[data-scenes]'), { reduced });

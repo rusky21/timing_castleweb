@@ -34,14 +34,15 @@ if (!reduced) {
 
 /* Шапка: прячется при скролле вниз, возвращается при скролле вверх, темнеет над тёмными блоками */
 const header = document.querySelector('[data-header]');
-const nav = document.querySelector('[data-nav]');
+const menu = document.querySelector('[data-menu]');
 const menuBtn = document.querySelector('[data-menu-btn]');
+const menuOpen = () => menu.classList.contains('is-open');
 let lastY = window.scrollY;
 
 const onScroll = () => {
   const y = window.scrollY;
   header.classList.toggle('is-scrolled', y > 8);
-  if (!nav.classList.contains('is-open')) {
+  if (!menuOpen()) {
     const down = y > lastY + 4;
     const up = y < lastY - 4;
     if (down && y > 480) header.classList.add('is-hidden');
@@ -60,24 +61,39 @@ const darkIo = new IntersectionObserver((entries) => {
 }, { rootMargin: '0px 0px -94% 0px' });
 document.querySelectorAll('[data-dark]').forEach((el) => darkIo.observe(el));
 
-/* Мобильное меню */
+/* Меню: бургер на любой ширине открывает экран со страницами услуг и разделами главной */
+const behindMenu = document.querySelectorAll('main, footer');
 const setMenu = (open) => {
-  nav.classList.toggle('is-open', open);
+  if (open) {
+    // Круг раскрывается из центра бургера
+    const btn = menuBtn.getBoundingClientRect();
+    menu.style.setProperty('--mx', `${btn.left + btn.width / 2}px`);
+    menu.style.setProperty('--my', `${btn.top + btn.height / 2}px`);
+  }
+  // Полоса прокрутки исчезает вместе с прокруткой: отдаём её ширину отступом, чтобы шапка и страница не дёргались
+  const bar = open ? window.innerWidth - html.clientWidth : 0;
+  menu.classList.toggle('is-open', open);
   header.classList.toggle('is-menu', open);
   menuBtn.setAttribute('aria-expanded', String(open));
   menuBtn.setAttribute('aria-label', open ? 'Закрыть меню' : 'Открыть меню');
   html.style.overflow = open ? 'hidden' : '';
+  document.body.style.paddingRight = bar ? `${bar}px` : '';
+  header.style.paddingRight = bar ? `${bar}px` : '';
+  behindMenu.forEach((el) => { el.inert = open; });
   if (open) header.classList.remove('is-hidden');
   if (lenis) open ? lenis.stop() : lenis.start();
 };
-menuBtn.addEventListener('click', () => setMenu(!nav.classList.contains('is-open')));
+menuBtn.addEventListener('click', () => setMenu(!menuOpen()));
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && nav.classList.contains('is-open')) {
+  if (e.key === 'Escape' && menuOpen()) {
     setMenu(false);
     menuBtn.focus();
   }
 });
-window.matchMedia('(min-width: 900px)').addEventListener('change', () => setMenu(false));
+// Возврат кнопкой «Назад» со страницы услуги: браузер восстанавливает главную с открытым меню
+window.addEventListener('pageshow', (e) => {
+  if (e.persisted && menuOpen()) setMenu(false);
+});
 
 /* Якорные ссылки */
 document.addEventListener('click', (e) => {
@@ -87,7 +103,7 @@ document.addEventListener('click', (e) => {
   const target = id === '#top' ? null : document.querySelector(id);
   if (id !== '#top' && !target) return;
   e.preventDefault();
-  if (nav.classList.contains('is-open')) setMenu(false);
+  if (menuOpen()) setMenu(false);
   if (lenis) lenis.scrollTo(target || 0, { offset: -24, duration: 1.4 });
   else window.scrollTo({ top: target ? target.getBoundingClientRect().top + window.scrollY - 24 : 0 });
   history.replaceState(null, '', id === '#top' ? location.pathname : id);
@@ -96,8 +112,8 @@ document.addEventListener('click', (e) => {
   }
 });
 
-/* Текущий раздел в навигации */
-const navLinks = [...nav.querySelectorAll('a[href^="#"]:not(.btn)')];
+/* Текущий раздел в навигации: и в строке шапки, и в меню */
+const navLinks = [...header.querySelectorAll('[data-nav] a[href^="#"]:not(.btn), .menu__here a')];
 const spy = new IntersectionObserver((entries) => {
   entries.forEach((entry) => {
     if (!entry.isIntersecting) return;

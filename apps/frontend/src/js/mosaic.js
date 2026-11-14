@@ -61,7 +61,8 @@ const ridged = (noise, x, octaves = 6) => {
 };
 
 // Возвращает маску воды (белым), чтобы мозаика знала, где мерцать
-function paintScene(ctx, W, H) {
+// lit: в замке горят все окна (страница «спасибо»)
+function paintScene(ctx, W, H, lit) {
   const rand = mulberry32(11);
   const narrow = W / H < 1.35;
   const hY = Math.round(H * 0.66);
@@ -256,7 +257,7 @@ function paintScene(ctx, W, H) {
     c.restore();
   };
   paintCliff(a, 0, hY);
-  paintCastle(a, castleX, plateau + 2 * u, u * (narrow ? 1 : 1.7));
+  paintCastle(a, castleX, plateau + 2 * u, u * (narrow ? 1 : 1.7), lit);
 
   // Основной холст: верх сцены, вода с отражением, низ скалы, деревья
   ctx.drawImage(above, 0, 0);
@@ -346,7 +347,7 @@ function paintScene(ctx, W, H) {
   return mask;
 }
 
-function paintCastle(ctx, cx, baseY, u) {
+function paintCastle(ctx, cx, baseY, u, allLit) {
   const LIGHT = '#5A6480';
   const SHADE = '#3A4157';
   const DARK = '#262C3B';
@@ -403,7 +404,7 @@ function paintCastle(ctx, cx, baseY, u) {
       const cols = Math.max(1, Math.floor(w / 7));
       for (let c = 0; c < cols; c++) {
         const wx = left + (w * u) * ((c + 0.5) / cols) - u * 1.1;
-        const lit = rand() < 0.55;
+        const lit = rand() < 0.55 || allLit;
         windows.push([wx, wy, lit]);
       }
     }
@@ -472,7 +473,7 @@ function paintCastle(ctx, cx, baseY, u) {
 
 /* ---------- Мозаика ---------- */
 
-export function initMosaic(root, { reduced = false, watch = root } = {}) {
+export function initMosaic(root, { reduced = false, watch = root, lit = false } = {}) {
   const canvas = root.querySelector('canvas');
   const ctx = canvas.getContext('2d');
   const countEl = document.querySelector('[data-glyph-count]');
@@ -499,7 +500,7 @@ export function initMosaic(root, { reduced = false, watch = root } = {}) {
     scene = document.createElement('canvas');
     scene.width = W;
     scene.height = H;
-    const waterMask = paintScene(scene.getContext('2d'), W, H);
+    const waterMask = paintScene(scene.getContext('2d'), W, H, lit);
     const msmall = document.createElement('canvas');
     msmall.width = cols;
     msmall.height = rows;

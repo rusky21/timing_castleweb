@@ -155,19 +155,39 @@
         <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M2 18V7h3v3h2V4h2v2h2V4h2v6h2V7h3v11h-6v-4a2 2 0 0 0-4 0v4z" fill="currentColor"/></svg>
         Castleweb
       </a>
-      <nav class="nav" id="nav" aria-label="Основная навигация" data-nav>
+      <nav class="nav nav--inline" aria-label="Разделы страницы" data-nav>
         <a href="#studio">Студия</a>
         <a href="#cases">Кейсы</a>
         <a href="#services">Услуги</a>
         <a href="#process">Процесс</a>
         <a href="#pricing">Цены</a>
         <a class="btn nav__cta" href="#contact">Обсудить проект</a>
-        <div class="nav__extra">
-          <a href="mailto:castleweb032@gmail.com">castleweb032@gmail.com</a>
-          <a href="https://t.me/kupidon996" target="_blank" rel="noopener">Telegram</a>
-        </div>
       </nav>
-      <button class="menu-btn" type="button" aria-expanded="false" aria-controls="nav" aria-label="Открыть меню" data-menu-btn><span></span><span></span></button>
+      <button class="menu-btn menu-btn--all" type="button" aria-expanded="false" aria-controls="menu" aria-label="Открыть меню" data-menu-btn><span></span><span></span></button>
+      <!-- Меню: страницы услуг и кейсов, ниже разделы главной. Открывается бургером на любой ширине -->
+      <div class="menu" id="menu" data-menu data-lenis-prevent>
+        <nav class="menu__pages" aria-label="Услуги и кейсы">
+          <a href="/sayt-pod-klyuch"><b>Сайты</b><span>Лендинги и сайты под ключ</span></a>
+          <a href="/chat-boty"><b>Чат-боты</b><span>Telegram и MAX, с ИИ</span></a>
+          <a href="/lichnyj-kabinet"><b>Кабинеты</b><span>Личные кабинеты и веб-сервисы</span></a>
+          <a href="/cases.html"><b>Кейсы</b><span>Все работы студии</span></a>
+        </nav>
+        <div class="menu__side">
+          <nav class="menu__here" aria-labelledby="menu-here">
+            <p class="menu__label" id="menu-here">На этой странице</p>
+            <a href="#studio">Студия</a>
+            <a href="#cases">Кейсы</a>
+            <a href="#services">Услуги</a>
+            <a href="#process">Процесс</a>
+            <a href="#pricing">Цены</a>
+          </nav>
+          <a class="btn menu__cta" href="#contact">Обсудить проект</a>
+          <div class="menu__contacts">
+            <a href="mailto:castleweb032@gmail.com">castleweb032@gmail.com</a>
+            <a href="https://t.me/kupidon996" target="_blank" rel="noopener">Telegram</a>
+          </div>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -657,7 +677,7 @@
             <div><dt>Эмиль Герасимов, дизайн и фронтенд</dt><dd><a href="https://t.me/kupidon996" target="_blank" rel="noopener">@kupidon996</a></dd></div>
           </dl>
         </div>
-        <form class="form" data-form novalidate data-reveal style="--rd: 0.15s">
+        <form class="form" data-form data-source="Главная" data-thanks="/spasibo" novalidate data-reveal style="--rd: 0.15s">
           <fieldset class="form__chips">
             <legend>Что нужно сделать</legend>
             <label><input type="radio" name="direction" value="Сайт или лендинг" checked /><span>Сайт</span></label>

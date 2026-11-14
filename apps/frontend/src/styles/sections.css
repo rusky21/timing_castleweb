@@ -183,6 +183,133 @@
 }
 
 /* =========================================================
+   Меню главной: бургер виден на любой ширине и открывает синий экран
+   со ссылками на страницы услуг и кейсов; разделы самой главной идут вторым блоком.
+   Круг раскрывается из центра бургера: main.js кладёт его координаты в --mx и --my.
+   ========================================================= */
+.header.is-menu { color: var(--white); background: transparent; border-bottom-color: transparent; backdrop-filter: none; }
+.header.is-menu .nav--inline { visibility: hidden; }
+.header.is-menu :focus-visible { outline-color: var(--white); }
+
+.menu {
+  --origin: var(--mx, calc(100% - var(--gutter) - 12px)) var(--my, calc(var(--header) / 2));
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: -1;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 32px;
+  height: 100vh;
+  height: 100dvh;
+  padding: calc(var(--header) + 16px) max(var(--gutter), (100% - var(--max)) / 2 + var(--gutter)) 28px;
+  background: var(--sea);
+  color: var(--white);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  clip-path: circle(0 at var(--origin));
+  visibility: hidden;
+  transition: clip-path 0.55s cubic-bezier(0.7, 0, 0.3, 1) 0.15s, visibility 0s linear 0.7s;
+}
+.menu.is-open {
+  clip-path: circle(150% at var(--origin));
+  visibility: visible;
+  transition: clip-path 0.75s cubic-bezier(0.7, 0, 0.3, 1), visibility 0s;
+}
+
+/* Пункты выезжают снизу лесенкой, как в меню лендингов */
+.menu__pages a, .menu__side > * {
+  opacity: 0;
+  translate: 0 60px;
+  rotate: 4deg;
+  transform-origin: left bottom;
+  transition: opacity 0.2s, translate 0.25s var(--ease), rotate 0.25s var(--ease);
+}
+.menu.is-open .menu__pages a, .menu.is-open .menu__side > * {
+  opacity: 1;
+  translate: 0 0;
+  rotate: 0deg;
+  transition: opacity 0.4s var(--ease) var(--d), translate 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) var(--d), rotate 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) var(--d);
+}
+.menu__pages a:nth-child(1) { --d: 0.25s; }
+.menu__pages a:nth-child(2) { --d: 0.31s; }
+.menu__pages a:nth-child(3) { --d: 0.37s; }
+.menu__pages a:nth-child(4) { --d: 0.43s; }
+.menu__side > :nth-child(1) { --d: 0.5s; }
+.menu__side > :nth-child(2) { --d: 0.57s; }
+.menu__side > :nth-child(3) { --d: 0.64s; }
+
+.menu__pages { display: grid; align-content: start; counter-reset: menu; }
+.menu__pages a {
+  display: grid;
+  grid-template-columns: 2ch auto minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 14px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.22);
+  counter-increment: menu;
+}
+.menu__pages a::before {
+  content: "0" counter(menu);
+  font-size: var(--fs-s);
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.75);
+  font-variant-numeric: tabular-nums;
+}
+.menu__pages b {
+  font-size: clamp(2.25rem, 1.4rem + 4.5vw, 5.5rem);
+  font-weight: 500;
+  line-height: 1.1;
+  letter-spacing: -0.05em;
+  transition: translate 0.45s var(--ease-out);
+}
+.menu__pages a:hover b, .menu__pages a:active b { translate: 12px 0; }
+/* Пояснение справа от названия: на телефоне для него нет места */
+.menu__pages span { display: none; font-size: 0.9375rem; text-align: right; color: rgba(255, 255, 255, 0.78); }
+@media (min-width: 600px) { .menu__pages span { display: block; } }
+
+.menu__side { display: grid; grid-template-rows: auto auto 1fr; justify-items: start; gap: 24px; }
+.menu__here { display: flex; flex-wrap: wrap; gap: 4px 22px; }
+.menu__label { flex-basis: 100%; margin-bottom: 4px; font-size: var(--fs-s); color: rgba(255, 255, 255, 0.78); }
+.menu__here a { padding: 4px 0; font-size: 1.125rem; font-weight: 500; text-underline-offset: 6px; }
+.menu__here a:hover, .menu__here a[aria-current="true"] { text-decoration: underline; text-decoration-thickness: 1px; }
+.menu__cta { min-height: 56px; padding: 14px 32px; background: var(--white); color: var(--sea); font-size: 1.0625rem; }
+.menu__cta::before { background: var(--ink); }
+.menu__cta:hover { color: var(--white); }
+.menu__contacts { display: flex; flex-wrap: wrap; gap: 8px 24px; align-self: end; color: rgba(255, 255, 255, 0.85); }
+.menu__contacts a:hover { color: var(--white); text-decoration: underline; text-underline-offset: 4px; }
+
+@media (max-width: 899.98px) {
+  .nav--inline { display: none; }
+}
+/* Низкий экран телефона: сжимаем меню, чтобы кнопка и контакты поместились без прокрутки */
+@media (max-width: 899.98px) and (max-height: 640px) {
+  .menu { gap: 20px; padding-top: calc(var(--header) + 4px); padding-bottom: 20px; }
+  .menu__pages a { padding: 6px 0; }
+  .menu__pages b { font-size: 2rem; }
+  .menu__side { gap: 16px; }
+  .menu__cta { min-height: 48px; padding: 10px 24px; }
+}
+@media (min-width: 900px) {
+  .nav--inline { margin-left: auto; }
+  .menu-btn--all { display: inline-grid; margin-left: 14px; }
+  .menu {
+    grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+    grid-template-rows: 1fr;
+    column-gap: clamp(48px, 8vw, 160px);
+    padding-top: calc(var(--header) + clamp(16px, 5vh, 56px));
+    padding-bottom: 40px;
+  }
+  .menu__pages a { padding: 14px 0; }
+  .menu__side { height: 100%; padding-top: 22px; gap: 32px; }
+  .menu__here { flex-flow: column nowrap; gap: 6px; }
+  .menu__here a { font-size: 1.375rem; }
+  .menu__label { flex-basis: auto; margin-bottom: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .menu, .menu__pages a, .menu__side > * { transition-delay: 0s !important; }
+}
+
+/* =========================================================
    Общие заголовки секций
    ========================================================= */
 .section-head {

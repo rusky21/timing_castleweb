@@ -1,5 +1,5 @@
 /* =========================================================
-   Рекламные лендинги (/chat-boty и другие) и страница «спасибо».
+   Рекламные лендинги (/chat-boty и другие).
    Шапка, заголовки секций, вопросы, форма и подвал — блоки главной из sections.css.
    Здесь только то, чего на главной нет: первый экран с ценой, демо-бот, состав цены,
    акция, шаги и примеры.
@@ -260,14 +260,6 @@
 /* ---------- Подвал лендинга: без большого слова, только ссылки и документы ---------- */
 .lp-footer .footer__row + .footer__legal { margin-top: 28px; }
 .lp-footer .footer__legal:first-child { border-top: 0; }
-
-/* ---------- Страница «спасибо» ---------- */
-.lp-thanks { min-height: calc(100vh - 160px); min-height: calc(100svh - 160px); padding-top: var(--header); padding-bottom: var(--section); }
-.lp-thanks__grid { display: grid; gap: 40px; margin-top: clamp(28px, 4vw, 56px); }
-.lp-thanks .lp-points { grid-template-columns: minmax(0, 1fr); }
-@media (min-width: 900px) {
-  .lp-thanks__grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: clamp(40px, 6vw, 112px); align-items: start; }
-}
 
 /* =========================================================
    Лендинг «Сайт под ключ»: квиз с вилкой цены, работы, два состава цены
